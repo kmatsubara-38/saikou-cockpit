@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="コックピット">
+<title>個人コックピット</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="offlineBanner" class="offline-banner hidden">オフライン — 最終取得データを表示中</div>
+
+<header class="app-header">
+  <div class="wordmark">最幸<span class="amp">＆</span>最強の創造</div>
+  <div class="header-sub" id="updatedAt"></div>
+</header>
+
+<div id="errBox" class="err-box hidden"></div>
+
+<main id="main">
+
+  <!-- ホーム -->
+  <section id="view-home" class="view">
+    <div class="cards">
+      <div class="card" id="cardPjt">
+        <div class="card-label">PJT紹介</div>
+        <div class="card-num"><span id="pjtN">–</span><span class="card-goal">/ <span id="pjtGoal">20</span></span></div>
+        <div class="bar"><div class="bar-fill" id="pjtBar"></div></div>
+        <div class="card-detail" id="pjtDetail"></div>
+      </div>
+      <div class="card" id="cardMtg">
+        <div class="card-label">定期MTG</div>
+        <div class="card-num"><span id="mtgN">–</span><span class="card-goal">/ <span id="mtgGoal">–</span></span></div>
+        <div class="bar"><div class="bar-fill" id="mtgBar"></div></div>
+        <div class="card-detail" id="mtgDetail"></div>
+      </div>
+      <div class="card card-wide" id="cardUri">
+        <div class="card-label">売上報酬</div>
+        <div class="uri-grid">
+          <div><div class="uri-k">初診</div><div class="uri-v" id="uriShoshin">–</div></div>
+          <div><div class="uri-k">再診</div><div class="uri-v" id="uriSaishin">–</div></div>
+          <div><div class="uri-k">合計</div><div class="uri-v uri-total" id="uriGokei">–</div></div>
+        </div>
+        <div class="card-detail" id="uriDetail"></div>
+      </div>
+    </div>
+
+    <h2 class="sec-title">今日のスケジュール</h2>
+    <div class="card card-flat"><ul class="sched" id="schedList"><li class="muted">読み込み中…</li></ul></div>
+
+    <a class="browser-link" id="browserLink" href="#" target="_blank" rel="noopener">フル機能はブラウザ版へ →</a>
+  </section>
+
+  <!-- 通知 -->
+  <section id="view-notif" class="view hidden">
+    <div class="row-between">
+      <h2 class="sec-title">🔔 通知</h2>
+      <button class="btn btn-small" id="btnReadAll">すべて既読</button>
+    </div>
+    <div id="notifList"><div class="muted pad">読み込み中…</div></div>
+  </section>
+
+  <!-- 勤怠 -->
+  <section id="view-kintai" class="view hidden">
+    <h2 class="sec-title">⏱ 勤怠打刻</h2>
+    <div class="card">
+      <div class="kintai-btns">
+        <button class="btn btn-punch" id="btnIn">出勤</button>
+        <button class="btn btn-punch btn-out" id="btnOut">退勤</button>
+      </div>
+      <label class="field-label" for="ktText">残業記述（退勤時）</label>
+      <textarea id="ktText" rows="3" placeholder="例）資料作成のため19:30まで"></textarea>
+      <label class="check"><input type="checkbox" id="ktNone">残業なし</label>
+      <div class="result" id="ktResult"></div>
+    </div>
+  </section>
+
+  <!-- レシート -->
+  <section id="view-receipt" class="view hidden">
+    <h2 class="sec-title">🧾 レシート送信</h2>
+    <div class="card">
+      <div class="seg" id="rcTarget">
+        <button class="seg-btn active" data-v="keihi">経費</button>
+        <button class="seg-btn" data-v="card">カード</button>
+      </div>
+      <label class="file-drop" for="rcFile">
+        <input type="file" id="rcFile" accept="image/*" capture="environment" hidden>
+        <span id="rcFileLabel">📷 撮影 / 画像を選択</span>
+      </label>
+      <img id="rcPreview" class="rc-preview hidden" alt="">
+      <button class="btn btn-primary" id="btnSendReceipt" disabled>送信</button>
+      <div class="result" id="rcResult"></div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button class="tab active" data-view="home"><span class="tab-ic">⌂</span>ホーム</button>
+  <button class="tab" data-view="notif"><span class="tab-ic">🔔</span>通知<span class="badge hidden" id="notifBadge"></span></button>
+  <button class="tab" data-view="kintai"><span class="tab-ic">⏱</span>勤怠</button>
+  <button class="tab" data-view="receipt"><span class="tab-ic">🧾</span>レシート</button>
+</nav>
+
+<!-- 初回セットアップ（合鍵入力） -->
+<div id="setup" class="setup hidden">
+  <div class="setup-card">
+    <div class="wordmark">最幸<span class="amp">＆</span>最強の創造</div>
+    <p class="setup-desc">初回セットアップ：合鍵を入力してください（この端末にのみ保存されます）</p>
+    <label class="field-label" for="setupKey">合鍵</label>
+    <input type="password" id="setupKey" autocomplete="off" placeholder="合鍵を入力">
+    <details class="setup-adv">
+      <summary>接続先URLを変更する</summary>
+      <input type="url" id="setupUrl" placeholder="GAS WebApp URL">
+    </details>
+    <button class="btn btn-primary" id="setupSave">保存して開始</button>
+    <div class="result" id="setupErr"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
