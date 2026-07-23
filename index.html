@@ -76,6 +76,14 @@
       <textarea id="ktText" rows="5" placeholder="例）7月18日 出勤9時 退勤19時半 残業は提案資料作成&#10;例）昨日 9時半から18時 残業なし"></textarea>
       <button class="btn btn-primary" id="btnKintaiSend">送信</button>
       <div class="result" id="ktResult"></div>
+      <!-- 🆕2026-07-23 残業報告テンプレ（残業ありの時のみ表示→✅承認でSlackへ@channel送信。本文はサーバ側で再構築） -->
+      <div id="ktZho" class="hidden" style="margin-top:12px;border:1px solid #0071e3;border-radius:14px;padding:12px">
+        <div class="field-label">残業報告テンプレ（確認して承認）</div>
+        <pre id="ktZhoTxt" style="margin:0 0 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:inherit;background:transparent"></pre>
+        <button class="btn btn-primary" id="btnZhoSend">✅ Slackへ残業報告（@channel）</button>
+        <div class="result" id="ktZhoRes"></div>
+      </div>
+      <div id="ktZhoNone" class="muted hidden" style="margin-top:8px;font-size:12px">残業なし＝Slackへの残業報告は不要です</div>
     </div>
   </section>
 
