@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v5';   /* 2026-07-23 5タブ再設計＋PCパリティ（紹介/カレンダー/アーカイブ/学び/動画生成/給与明細）に伴いバンプ */
+const CACHE = 'cp-shell-v6';   /* 2026-07-23 自動リロード更新+版数表示（s6）。v5=5タブPCパリティ */
 const ASSETS = [
   './',
   './index.html',
