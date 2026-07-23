@@ -1,4 +1,4 @@
-/* ===== 個人コックピット PWA app.js（依存ゼロ） ===== */
+/* ===== 個人コックピット PWA app.js（依存ゼロ・PCブラウザ版パリティ 2026-07-23） ===== */
 'use strict';
 
 /* ---- CONFIG（既定値。URLはセットアップ画面から上書き可能） ---- */
@@ -38,6 +38,9 @@ async function api(payload) {
   catch (e) { throw new Error('応答がJSONではありません（URL/デプロイ設定を確認）'); }
   if (!j.ok) {
     if (j.error === 'auth') { showSetup('合鍵が一致しません。再入力してください。'); }
+    if (j.error === 'unknown_api') {
+      throw new Error('この機能はサーバー側が未開通です（GAS貼り替え＝doPost拡張の反映待ち）');
+    }
     throw new Error('APIエラー: ' + (j.error || j.msg || '不明'));   // コックピットapi*は失敗時 msg で理由を返す＝黙殺しない
   }
   return j;
@@ -46,13 +49,15 @@ async function api(payload) {
 /* ---- エラー/オフライン表示 ---- */
 function showErr(msg) {
   const b = $('errBox');
+  if (!b) return;
   b.textContent = msg;
   b.classList.remove('hidden');
   clearTimeout(showErr._t);
   showErr._t = setTimeout(() => b.classList.add('hidden'), 8000);
 }
 function setOffline(off) {
-  $('offlineBanner').classList.toggle('hidden', !off);
+  const b = $('offlineBanner');
+  if (b) b.classList.toggle('hidden', !off);
 }
 window.addEventListener('online',  () => { setOffline(false); loadHome(); });
 window.addEventListener('offline', () => setOffline(true));
@@ -65,21 +70,48 @@ function readCache(key) {
   try { const v = JSON.parse(localStorage.getItem(key)); return v && v.data; } catch (e) { return null; }
 }
 
-/* ---- タブ切替 ---- */
+/* ---- タブ切替（5タブ：ホーム/通知/報告/生成/その他） ---- */
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-    $('view-' + btn.dataset.view).classList.remove('hidden');
+    const v = $('view-' + btn.dataset.view);
+    if (v) v.classList.remove('hidden');
     if (btn.dataset.view === 'notif') loadNotifs();
-    if (btn.dataset.view === 'home') loadHome();
+    if (btn.dataset.view === 'home') loadHomeMonth();
+    if (btn.dataset.view === 'gen' && !loadReelList._did) { loadReelList._did = true; loadReelList(); }
+    if (btn.dataset.view === 'more' && !loadArchive._did) { loadArchive._did = true; loadArchive(); }
   });
 });
 
+/* ==== 月ユーティリティ（ホーム/アーカイブの月セレクタ共通） ==== */
+function ymNow() {
+  const d = new Date();
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+}
+function ymShift(ym, n) {
+  const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return ymNow();
+  const d = new Date(+m[1], +m[2] - 1 + n, 1);
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+}
+function ymLabel(ym) {
+  const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+  return m ? m[1] + '年' + (+m[2]) + '月' : '–';
+}
+
 /* ==== ホーム計器 ==== */
 const yen = n => (n == null ? '–' : '¥' + Number(n).toLocaleString('ja-JP'));
+let hmYm = ymNow();   // ホームの表示月
 
-function renderHome(d) {
+function setSkeleton(on) {
+  ['pjtN', 'mtgN', 'uriShoshin', 'uriSaishin', 'uriGokei'].forEach(id => {
+    const e = $(id);
+    if (e) e.classList.toggle('skel', !!on);
+  });
+}
+
+function renderGauges(d) {
   // PJT紹介
   const r = d.refer || {};
   $('pjtN').textContent = r.pjt != null ? r.pjt : '–';
@@ -91,9 +123,11 @@ function renderHome(d) {
   // 定期MTG
   const m = d.mtg || {};
   $('mtgN').textContent = m.n != null ? m.n : '–';
-  $('mtgGoal').textContent = m.goal != null ? m.goal : '–';
-  $('mtgBar').style.width = Math.min(100, (m.n || 0) / (m.goal || 1) * 100) + '%';
-  $('mtgDetail').textContent = m.err ? '読取エラー: ' + m.err : `実施済 ${m.done ?? '–'}`;
+  $('mtgGoal').textContent = m.goal != null ? m.goal : 20;   // homeMonth応答（cpMtg_生値）はgoal無し＝当月契約と同じ20で補完
+  $('mtgBar').style.width = Math.min(100, (m.n || 0) / (m.goal || 20) * 100) + '%';
+  $('mtgDetail').textContent = m.err ? '読取エラー: ' + m.err
+    : m.pre ? '計測ルールは2026年7月開始＝この月は対象外'
+    : `実施済 ${m.done ?? '–'}`;
   // 売上報酬
   const u = d.uri || {};
   $('uriShoshin').textContent = yen(u.shoshin);
@@ -103,7 +137,11 @@ function renderHome(d) {
     ? '読取エラー: ' + u.err
     : (u.salarySet
       ? `給与差①${yen(u.diff1)}(${u.pct1 ?? '–'}%)｜差②${yen(u.diff2)}(${u.pct2 ?? '–'}%)`
-      : '給与明細 未登録（登録はブラウザ版コックピットから）');
+      : '給与明細 未登録（「その他」タブから登録できます）');
+}
+
+function renderHome(d) {
+  renderGauges(d);
   // スケジュール
   const ul = $('schedList');
   ul.innerHTML = '';
@@ -132,8 +170,44 @@ async function loadHome() {
   } catch (e) {
     if (!cached) $('schedList').innerHTML = '<li class="muted">取得失敗</li>';
     showErr(e.message);
+  } finally {
+    setSkeleton(false);
   }
 }
+
+/* 🆕月セレクタ：当月=既存{api:'home'}経路そのまま／過去月={api:'homeMonth', ym}（計器のみ差替・リロードなし） */
+async function loadHomeMonth() {
+  const seq = (loadHomeMonth._seq = (loadHomeMonth._seq || 0) + 1);   // 連打ガード＝最後の要求だけ描画（古い応答の後着上書きを防止）
+  const lb = $('hmLabel');
+  if (lb) lb.textContent = ymLabel(hmYm) + (hmYm === ymNow() ? '（当月）' : '');
+  const nx = $('hmNext');
+  if (nx) nx.disabled = hmYm >= ymNow();
+  if (hmYm === ymNow()) { setSkeleton(true); await loadHome(); return; }
+  setSkeleton(true);
+  try {
+    const d = await api({ api: 'homeMonth', ym: hmYm });
+    if (seq !== loadHomeMonth._seq) return;
+    renderGauges(d);
+    $('schedList').innerHTML = '<li class="muted">スケジュールは当月表示のみ（' + esc(ymLabel(hmYm)) + 'の計器を表示中）</li>';
+    $('updatedAt').textContent = ymLabel(hmYm) + 'の実績';
+  } catch (e) {
+    if (seq !== loadHomeMonth._seq) return;
+    showErr(e.message);
+    hmYm = ymNow();   // エラー復元＝当月へ復帰（ブラウザ版hmFailと同等・古い月の計器を出しっぱなしにしない）
+    if (lb) lb.textContent = ymLabel(hmYm) + '（当月）';
+    if (nx) nx.disabled = true;
+    const cached = readCache(LS.HOME);
+    if (cached) renderGauges(cached);
+  } finally {
+    if (seq === loadHomeMonth._seq) setSkeleton(false);
+  }
+}
+if ($('hmPrev')) $('hmPrev').addEventListener('click', () => { hmYm = ymShift(hmYm, -1); loadHomeMonth(); });
+if ($('hmNext')) $('hmNext').addEventListener('click', () => {
+  if (hmYm >= ymNow()) return;
+  hmYm = ymShift(hmYm, 1);
+  loadHomeMonth();
+});
 
 /* ==== 通知 ==== */
 function setBadge(n) {
@@ -343,6 +417,472 @@ $('btnSendReceipt').addEventListener('click', async () => {
   }
 });
 
+/* ==== 🆕紹介登録（ブラウザ版apiShokai(f)と同フィールド：name/apply/type/sex/flag/plaud/sonota/sfp） ==== */
+let skFlag = '';
+if ($('skKubun')) $('skKubun').addEventListener('click', ev => {
+  const c = ev.target.closest('.chip');
+  if (!c) return;
+  const v = c.dataset.v;
+  document.querySelectorAll('#skKubun .chip').forEach(x => x.classList.remove('on'));
+  if (skFlag === v) { skFlag = ''; return; }   // 再タップで解除（ブラウザ版と同挙動）
+  skFlag = v;
+  c.classList.add('on');
+});
+if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
+  const out = $('skResult');
+  const f = {
+    name: ($('skName') ? $('skName').value.trim() : ''),
+    apply: ($('skApply') ? $('skApply').value : ''),
+    type: ($('skType') ? $('skType').value : 'AGA'),
+    sex: ($('skSex') ? $('skSex').value : ''),
+    flag: skFlag,
+    plaud: ($('skPlaud') ? $('skPlaud').value.trim() : ''),
+    sonota: ($('skSonota') ? $('skSonota').value.trim() : ''),
+    sfp: ($('skSfp') ? $('skSfp').value.trim() : '')
+  };
+  if (!f.name) { out.className = 'result ng'; out.textContent = '①患者様名を入れてください'; return; }
+  if (!f.flag) { out.className = 'result ng'; out.textContent = '④⑤⑥の区分を1つ選んでください'; return; }
+  out.className = 'result';
+  out.textContent = '送信中…';
+  $('btnShokai').disabled = true;
+  try {
+    const d = await api(Object.assign({ api: 'shokai' }, f));   // 🔴doPost契約=トップレベル{name,apply,type,sex,flag,plaud,sonota,sfp}（f入れ子は読まれない）
+    out.className = 'result ok';
+    out.textContent = '✅ ' + (d.msg || '登録しました');
+    ['skName', 'skPlaud', 'skSonota', 'skSfp'].forEach(id => { if ($(id)) $(id).value = ''; });
+    document.querySelectorAll('#skKubun .chip').forEach(x => x.classList.remove('on'));
+    skFlag = '';
+  } catch (e) {
+    out.className = 'result ng';
+    out.textContent = e.message;
+  } finally {
+    $('btnShokai').disabled = false;
+  }
+});
+
+/* ==== 🆕カレンダー登録（calParse→下書きカード→承認→calCreate。Meet URL表示＋コピー） ==== */
+let calDraftData = null;
+
+async function copyText(text, btn) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+    else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    if (btn) { const t = btn.textContent; btn.textContent = '✅ コピーしました'; setTimeout(() => { btn.textContent = t; }, 1500); }
+  } catch (e) { showErr('コピーに失敗: ' + e.message); }
+}
+
+if ($('btnCalParse')) $('btnCalParse').addEventListener('click', async () => {
+  const out = $('calResult');
+  const text = $('calTx') ? $('calTx').value.trim() : '';
+  if (!text) { out.className = 'result ng'; out.textContent = '予定を書いてから解析を押してください'; return; }
+  out.className = 'result';
+  out.textContent = '解析中…（登録はまだされません）';
+  $('btnCalParse').disabled = true;
+  $('calDraft').classList.add('hidden');
+  $('calDone').classList.add('hidden');
+  try {
+    const d = await api({ api: 'calParse', text });
+    calDraftData = d.draft || null;
+    if (!calDraftData) throw new Error('下書きが返りませんでした');
+    out.textContent = '';
+    $('calDraftBody').innerHTML =
+      '<b>' + esc(calDraftData.title || '') + '</b><br>' +
+      esc(String(calDraftData.start || '').replace('T', ' ')) + ' 〜 ' + esc(String(calDraftData.end || '').replace(/^.*T/, '')) +
+      (calDraftData.online ? '<br><span class="pill">オンライン（Meet発行）</span>' : '') +
+      (calDraftData.memo ? '<br><span class="muted">' + esc(calDraftData.memo) + '</span>' : '');
+    $('calDraft').classList.remove('hidden');
+  } catch (e) {
+    out.className = 'result ng';
+    out.textContent = e.message;
+  } finally {
+    $('btnCalParse').disabled = false;
+  }
+});
+
+if ($('btnCalOk')) $('btnCalOk').addEventListener('click', async () => {
+  if (!calDraftData) return;
+  const out = $('calResult');
+  out.className = 'result';
+  out.textContent = '登録中…';
+  $('btnCalOk').disabled = true;
+  try {
+    const dft = Object.assign({}, calDraftData, { buffer: !!($('calBuffer') && $('calBuffer').checked) });
+    const d = await api({ api: 'calCreate', draft: dft });   // 🔴doPost契約のキー名は draft（dftでは no_draft になる）
+    out.textContent = '';
+    $('calDraft').classList.add('hidden');
+    $('calTx').value = '';
+    $('calDoneMsg').textContent = '✅ ' + (d.msg || '登録しました') + (d.when ? '｜' + d.when : '') +
+      (d.needAdv ? '（Meetリンクは保留＝ブラウザ版のCalendar APIサービス追加が必要）' : '');
+    const hasMeet = !!(d.meet);
+    $('calMeetRow').classList.toggle('hidden', !hasMeet);
+    if (hasMeet) {
+      $('calMeetUrl').textContent = d.meet;
+      $('btnMeetCopy').onclick = () => copyText(d.meet, $('btnMeetCopy'));
+    }
+    const hasDraft = !!(d.draft);
+    $('calMsgDraft').classList.toggle('hidden', !hasDraft);
+    $('btnCalMsgCopy').classList.toggle('hidden', !hasDraft);
+    if (hasDraft) {
+      $('calMsgDraft').textContent = d.draft;
+      $('btnCalMsgCopy').onclick = () => copyText(d.draft, $('btnCalMsgCopy'));
+    }
+    $('calDone').classList.remove('hidden');
+    calDraftData = null;
+  } catch (e) {
+    out.className = 'result ng';
+    out.textContent = e.message;
+  } finally {
+    $('btnCalOk').disabled = false;
+  }
+});
+
+/* ==== 🆕アーカイブ（月セレクタ＋紹介/売上カード＝既存{api:'archive', ym}） ==== */
+let arYm = ymNow();
+
+async function loadArchive() {
+  const lb = $('arLabel'), body = $('arBody');
+  if (!lb || !body) return;
+  lb.textContent = ymLabel(arYm) + (arYm === ymNow() ? '（当月）' : '');
+  if ($('arNext')) $('arNext').disabled = arYm >= ymNow();
+  body.innerHTML = '<div class="muted pad">読み込み中…</div>';
+  try {
+    const d = await api({ api: 'archive', ym: arYm });
+    const r = d.refer || {}, u = d.uri || {};
+    body.innerHTML =
+      '<div class="cards">' +
+      '<div class="card"><div class="card-label">紹介実績</div>' +
+      '<div class="card-num">' + esc(r.pjt != null ? r.pjt : '–') + '<span class="card-goal">PJT</span></div>' +
+      '<div class="card-detail">' + (r.err ? '読取エラー: ' + esc(r.err)
+        : '総数' + esc(r.total ?? '–') + '｜自然' + esc(r.shizen ?? '–') + '・スタッフ' + esc(r.staff ?? '–') + '・巻き込み' + esc(r.maki ?? '–') + '%') + '</div></div>' +
+      '<div class="card"><div class="card-label">売上報酬</div>' +
+      '<div class="card-num" style="font-size:22px">' + esc(yen(u.gokei)) + '</div>' +
+      '<div class="card-detail">' + (u.err ? '読取エラー: ' + esc(u.err)
+        : '初診' + esc(yen(u.shoshin)) + '｜再診' + esc(yen(u.saishin)) +
+          (u.salarySet ? '<br>給与差①' + esc(yen(u.diff1)) + '(' + esc(u.pct1 ?? '–') + '%)｜差②' + esc(yen(u.diff2)) + '(' + esc(u.pct2 ?? '–') + '%)' : '')) + '</div></div>' +
+      '</div>';
+  } catch (e) {
+    body.innerHTML = '<div class="muted pad">取得失敗</div>';
+    showErr(e.message);
+  }
+}
+if ($('arPrev')) $('arPrev').addEventListener('click', () => { arYm = ymShift(arYm, -1); loadArchive(); });
+if ($('arNext')) $('arNext').addEventListener('click', () => {
+  if (arYm >= ymNow()) return;
+  arYm = ymShift(arYm, 1);
+  loadArchive();
+});
+
+/* ==== 🆕学びのアーカイブ（{api:'intel'}一覧＋未読/閲覧済/導入済チップ＋{api:'intelStatus'}） ==== */
+let intelItems = [], intelFilterV = 'all';
+
+function renderIntel() {
+  const box = $('intelList');
+  if (!box) return;
+  const list = intelItems.filter(it => intelFilterV === 'all' || (it.st || '未読') === intelFilterV);
+  if (!list.length) { box.innerHTML = '<div class="muted pad">該当する学びはありません</div>'; return; }
+  box.innerHTML = '';
+  list.forEach(it => {
+    const div = document.createElement('div');
+    div.className = 'notif';
+    const st = it.st || '未読';
+    div.innerHTML =
+      '<div class="notif-head"><span>' + esc(it.kind || '') + '｜' + esc(it.date || '') + '</span>' +
+      '<span class="pill st-' + (st === '導入済' ? 'done' : st === '閲覧済' ? 'seen' : 'new') + '">' + esc(st) + '</span></div>' +
+      '<div class="notif-title">' + esc(it.head || '') + '</div>' +
+      '<div class="notif-body hidden">' + esc(it.full || '') + '</div>' +
+      '<div class="notif-actions">' +
+      '<button class="btn btn-small" data-int="open">本文</button>' +
+      (st !== '閲覧済' ? '<button class="btn btn-small" data-int="閲覧済" data-ts="' + escAttr(it.ts || '') + '">閲覧済に</button>' : '') +
+      (st !== '導入済' ? '<button class="btn btn-small btn-approve" data-int="導入済" data-ts="' + escAttr(it.ts || '') + '">導入済に</button>' : '') +
+      '</div>';
+    box.appendChild(div);
+  });
+}
+
+if ($('intelList')) $('intelList').addEventListener('click', async ev => {
+  const btn = ev.target.closest('button[data-int]');
+  if (!btn) return;
+  if (btn.dataset.int === 'open') {
+    const body = btn.closest('.notif');
+    const full = body ? body.querySelector('.notif-body') : null;
+    if (full) full.classList.toggle('hidden');
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await api({ api: 'intelStatus', ts: btn.dataset.ts, status: btn.dataset.int });
+    const hit = intelItems.find(x => String(x.ts) === String(btn.dataset.ts));
+    if (hit) hit.st = btn.dataset.int;
+    renderIntel();
+  } catch (e) { btn.disabled = false; showErr(e.message); }
+});
+
+if ($('intelFilter')) $('intelFilter').addEventListener('click', ev => {
+  const c = ev.target.closest('.chip');
+  if (!c) return;
+  intelFilterV = c.dataset.v || 'all';
+  document.querySelectorAll('#intelFilter .chip').forEach(x => x.classList.toggle('on', x === c));
+  renderIntel();
+});
+
+async function loadIntel() {
+  const box = $('intelList');
+  if (!box) return;
+  box.innerHTML = '<div class="muted pad">読み込み中…</div>';
+  try {
+    const d = await api({ api: 'intel' });
+    // 🔴doPost契約は {ts,date,kind,head,body,status}（ブラウザ版内部形は full/st）＝両形を st/full へ正規化して描画・フィルタを成立させる
+    intelItems = (d.items || (d.learn && d.learn.items) || []).map(x => ({
+      ts: x.ts, date: x.date, kind: x.kind, head: x.head,
+      full: x.body != null ? x.body : (x.full || ''),
+      st: x.status != null ? x.status : (x.st || '未読')
+    }));
+    const cnt = d.cnt || (d.learn && d.learn.cnt) || {};
+    const map = { '未読': cnt['未読'] || 0, '閲覧済': cnt['閲覧済'] || 0, '導入済': cnt['導入済'] || 0 };
+    document.querySelectorAll('#intelFilter .chip').forEach(c => {
+      const v = c.dataset.v;
+      if (v && v !== 'all') c.textContent = v + ' ' + map[v];
+    });
+    renderIntel();
+  } catch (e) {
+    box.innerHTML = '<div class="muted pad">取得失敗</div>';
+    showErr(e.message);
+  }
+}
+if ($('btnIntelReload')) $('btnIntelReload').addEventListener('click', loadIntel);
+
+/* ==== 🆕給与明細PDF（選択→base64→{api:'salaryPdf'}。額は画面に出さない） ==== */
+let salB64 = null, salName = null;
+
+if ($('salFile')) $('salFile').addEventListener('change', ev => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  if (f.size > 8 * 1024 * 1024) {
+    $('salFileLabel').textContent = '📄 給与明細PDFを選択';
+    showErr('PDFが大きすぎます（8MB以下に）');
+    return;
+  }
+  const rd = new FileReader();
+  rd.onload = () => {
+    salB64 = String(rd.result || '');
+    salName = f.name;
+    $('salFileLabel').textContent = f.name + '（' + Math.max(1, Math.round(f.size / 1024)) + 'KB）';
+    $('btnSalSend').disabled = false;
+  };
+  rd.onerror = () => showErr('PDFを読み込めませんでした');
+  rd.readAsDataURL(f);
+});
+
+if ($('btnSalSend')) $('btnSalSend').addEventListener('click', async () => {
+  if (!salB64) return;
+  const out = $('salResult');
+  out.className = 'result';
+  out.textContent = '読み取り中…（AIが対象月と金額を抽出します）';
+  $('btnSalSend').disabled = true;
+  try {
+    const d = await api({ api: 'salaryPdf', b64: salB64, name: salName });
+    out.className = 'result ok';
+    out.textContent = '✅ ' + (d.msg || '登録しました') +
+      (d.months && d.months.length ? '｜登録済み月：' + d.months.join(', ') : '');
+    salB64 = null;
+    $('salFile').value = '';
+    $('salFileLabel').textContent = '📄 給与明細PDFを選択';
+  } catch (e) {
+    out.className = 'result ng';
+    out.textContent = e.message;
+    $('btnSalSend').disabled = false;
+  }
+});
+
+/* ==== 🆕動画生成（reel*）：URL受付→解析→候補→パッケージ→🎬発注/🏭工場解析＋履歴 ==== */
+let reelTs = null;
+const REEL_ST = {
+  uploaded: '素材受付', analyzed: '解析済', done: 'パッケージ済',
+  rendering: '🎬工場処理中', f_analyzing: '🏭工場解析中'
+};
+const reelBusyMsg = '進行中…（1〜4分かかることがあります。応答が無ければ数分後に「履歴」の更新から確認してください）';
+
+function reelRes(msg, ng) {
+  const out = $('reelWorkRes');
+  if (!out) return;
+  out.className = 'result' + (ng ? ' ng' : msg && msg.indexOf('✅') === 0 ? ' ok' : '');
+  out.textContent = msg || '';
+}
+
+function renderReelWork(d) {
+  if ($('reelWork')) $('reelWork').classList.remove('hidden');
+  if ($('reelWorkName')) $('reelWorkName').textContent =
+    (d.name ? d.name + '｜' : '') + (REEL_ST[d.status] || d.status || '');
+  // 完成動画リンク（工場書戻しoutUrl）
+  const hasOut = !!(d.outUrl);
+  if ($('reelOut')) $('reelOut').classList.toggle('hidden', !hasOut);
+  if (hasOut && $('reelOutLink')) $('reelOutLink').href = d.outUrl;
+  renderReelAnalysis(d.analysis || null);
+  renderReelPkgs(d.pkgs || null, d.secs || null);
+}
+
+function renderReelAnalysis(an) {
+  const box = $('reelAnBox'), cands = $('reelCands');
+  if (!box || !cands) return;
+  cands.innerHTML = '';
+  if (!an) { box.classList.add('hidden'); return; }
+  $('reelAnSummary').innerHTML =
+    esc(an.summary || '') +
+    (an.layout ? '<br><span class="muted">レイアウト: ' + esc(an.layout) + '</span>' : '') +
+    (an.notes ? '<br><span class="muted">' + esc(an.notes) + '</span>' : '');
+  box.classList.remove('hidden');
+  const cs = an.candidates || [];
+  cs.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'cand';
+    div.innerHTML =
+      '<div class="notif-title">候補' + (i + 1) + '｜' + esc(c.start || '?') + '〜' + esc(c.end || '?') + '｜' + esc(c.theme || '') + '</div>' +
+      '<div class="notif-body">' + esc(c.why || '') + (c.hookSeed ? '<br>黄パンチ種: ' + esc(c.hookSeed) : '') + '</div>' +
+      '<div class="notif-actions">' +
+      '<button class="btn btn-small" data-reel="pkg" data-ci="' + i + '">② パッケージ</button>' +
+      '<button class="btn btn-small btn-approve" data-reel="render" data-ci="' + i + '">🎬 発注</button>' +
+      '</div>';
+    cands.appendChild(div);
+  });
+  if (!cs.length) cands.innerHTML = '<div class="muted pad">切り抜き候補なし（3分以下の素材は「② 全体パッケージ」へ）</div>';
+}
+
+function renderReelPkgs(pkgs, secs) {
+  const box = $('reelPkgBox'), body = $('reelPkgSecs');
+  if (!box || !body) return;
+  const show = (secs && secs.length) || (pkgs && pkgs.length);
+  box.classList.toggle('hidden', !show);
+  if (!show) return;
+  body.innerHTML = '';
+  if (pkgs && pkgs.length) {
+    const info = document.createElement('div');
+    info.className = 'muted';
+    info.style.fontSize = '12px';
+    info.textContent = '生成済み: ' + pkgs.map(p =>
+      (Number(p.ci) >= 0 ? '候補' + (Number(p.ci) + 1) : '全体') + '（' + (p.d || '') + '）').join('｜');
+    body.appendChild(info);
+  }
+  (secs || (pkgs && pkgs[0] && pkgs[0].secs) || []).forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'pkg-sec';
+    div.innerHTML = '<div class="notif-title">' + esc(s.title || '') + '</div>' +
+      '<pre class="draft-pre">' + esc(s.body || '') + '</pre>';
+    body.appendChild(div);
+  });
+}
+
+if ($('btnReelUrl')) $('btnReelUrl').addEventListener('click', async () => {
+  const out = $('reelUrlRes');
+  const url = $('reelUrl') ? $('reelUrl').value.trim() : '';
+  if (!url) { out.className = 'result ng'; out.textContent = 'YouTube URLを入れてください'; return; }
+  out.className = 'result';
+  out.textContent = '受付中…';
+  $('btnReelUrl').disabled = true;
+  try {
+    const d = await api({ api: 'reelFromUrl', url });
+    reelTs = d.ts || null;
+    out.className = 'result ok';
+    out.textContent = '✅ ' + (d.msg || '受け付けました') + '。次は「① 解析」';
+    $('reelUrl').value = '';
+    renderReelWork({ name: d.name || 'YT素材', status: 'uploaded' });
+    reelRes('');
+    loadReelList();
+  } catch (e) {
+    out.className = 'result ng';
+    out.textContent = e.message;
+  } finally {
+    $('btnReelUrl').disabled = false;
+  }
+});
+
+async function reelStep(payload, btn, after) {
+  if (!reelTs) { reelRes('先に🔗URL受付、または履歴から案件を選んでください', true); return; }
+  if (btn) btn.disabled = true;
+  reelRes(reelBusyMsg);
+  try {
+    const d = await api(Object.assign({ ts: reelTs }, payload));
+    after(d);
+  } catch (e) { reelRes(e.message, true); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+if ($('btnReelAnalyze')) $('btnReelAnalyze').addEventListener('click', () =>
+  reelStep({ api: 'reelAnalyze' }, $('btnReelAnalyze'), d => {
+    reelRes(d.retry ? (d.msg || '処理中。もう一度お試しを') : '✅ 解析完了。候補から②パッケージへ');
+    if (d.analysis) renderReelAnalysis(d.analysis);
+  }));
+
+async function reelPkg(ci, btn) {
+  await reelStep({ api: 'reelPackage', candIdx: ci }, btn, d => {
+    reelRes('✅ パッケージ生成完了');
+    renderReelPkgs(d.pkgs || null, d.secs || null);
+  });
+}
+if ($('btnReelPkgAll')) $('btnReelPkgAll').addEventListener('click', () => reelPkg(-1, $('btnReelPkgAll')));
+
+if ($('btnReelFactory')) $('btnReelFactory').addEventListener('click', () =>
+  reelStep({ api: 'reelFactoryAnalyze' }, $('btnReelFactory'), d => {
+    reelRes('✅ ' + (d.msg || '工場が解析中（目安10-20分）。完了は🔔へ。結果は履歴の更新から'));
+  }));
+
+if ($('reelCands')) $('reelCands').addEventListener('click', ev => {
+  const btn = ev.target.closest('button[data-reel]');
+  if (!btn) return;
+  const ci = parseInt(btn.dataset.ci, 10);
+  if (btn.dataset.reel === 'pkg') reelPkg(ci, btn);
+  else reelStep({ api: 'reelRender', candIdx: ci }, btn, d => {
+    reelRes('✅ ' + (d.msg || '🏭工場起動。完成は🔔とメールへ（目安15分）'));
+    loadReelList();
+  });
+});
+
+async function loadReelList() {
+  const box = $('reelList');
+  if (!box) return;
+  box.innerHTML = '<div class="muted pad">読み込み中…</div>';
+  try {
+    const d = await api({ api: 'reelList' });
+    const items = d.items || [];
+    if (!items.length) { box.innerHTML = '<div class="muted pad">履歴はまだありません</div>'; return; }
+    box.innerHTML = '';
+    items.forEach(it => {
+      const div = document.createElement('div');
+      div.className = 'notif reel-item';
+      div.dataset.ts = it.ts || '';
+      div.innerHTML =
+        '<div class="notif-head"><span>' + esc(it.date || '') + '</span>' +
+        '<span class="pill">' + esc(REEL_ST[it.status] || it.status || '') + '</span></div>' +
+        '<div class="notif-title">' + esc(it.name || '') + '</div>';
+      box.appendChild(div);
+    });
+  } catch (e) {
+    box.innerHTML = '<div class="muted pad">取得失敗</div>';
+    showErr(e.message);
+  }
+}
+if ($('btnReelReload')) $('btnReelReload').addEventListener('click', loadReelList);
+
+if ($('reelList')) $('reelList').addEventListener('click', async ev => {
+  const item = ev.target.closest('.reel-item');
+  if (!item || !item.dataset.ts) return;
+  reelTs = item.dataset.ts;
+  renderReelWork({ name: '', status: '' });
+  reelRes('読み込み中…');
+  try {
+    const d = await api({ api: 'reelGet', ts: reelTs });
+    renderReelWork(d);
+    reelRes(d.analysisRaw ? '解析結果の一部を表示できませんでした（形式不明）' : '');
+    if ($('reelWork') && $('reelWork').scrollIntoView) $('reelWork').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) { reelRes(e.message, true); }
+});
+
 /* ==== 初回セットアップ（合鍵） ==== */
 function showSetup(msg) {
   $('setup').classList.remove('hidden');
@@ -355,10 +895,11 @@ $('setupSave').addEventListener('click', () => {
   localStorage.setItem(LS.KEY, k);
   const u = $('setupUrl').value.trim();
   if (u) localStorage.setItem(LS.URL, u); else localStorage.removeItem(LS.URL);
-  $('browserLink').href = gasUrl();
+  setBrowserLinks();
   $('setup').classList.add('hidden');
   loadHome();
 });
+if ($('btnReSetup')) $('btnReSetup').addEventListener('click', () => showSetup());
 
 /* ==== util ==== */
 function esc(s) {
@@ -366,12 +907,18 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function escAttr(s) { return esc(s); }
+function setBrowserLinks() {
+  if ($('browserLink')) $('browserLink').href = gasUrl();
+  if ($('browserLink2')) $('browserLink2').href = gasUrl();
+}
 
 /* ==== 起動 ==== */
-$('browserLink').href = gasUrl();
+setBrowserLinks();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 setOffline(!navigator.onLine);
+if ($('hmLabel')) $('hmLabel').textContent = ymLabel(hmYm) + '（当月）';
+if ($('hmNext')) $('hmNext').disabled = true;   // 起動時=当月（未来月へは進めない）
 if (!localStorage.getItem(LS.KEY)) showSetup();
 else loadHome();
