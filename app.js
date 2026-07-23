@@ -211,11 +211,13 @@ async function sendKintai() {
   out.className = 'result';
   out.textContent = '送信中…（AIが日付・時刻を解析します）';
   $('btnKintaiSend').disabled = true;
+  renderZangyo(null);   // 新しい報告の解析中は前回のテンプレを畳む
   try {
     const d = await api({ api: 'kintaiFree', text });
     out.className = 'result ok';
     out.textContent = '✅ ' + (d.msg || '勤怠を記録しました');   // 確定内容はクリアせず画面に残す（読み返し用）
     $('ktText').value = '';
+    renderZangyo(d.fields || null);   // 🆕残業ありならテンプレプレビュー＋承認ボタン表示
   } catch (e) {
     out.className = 'result ng';
     out.textContent = e.message;
@@ -224,6 +226,54 @@ async function sendKintai() {
   }
 }
 $('btnKintaiSend').addEventListener('click', sendKintai);
+
+/* ==== 🆕2026-07-23 残業報告テンプレ→Slack承認送信 ====
+ * apiKintaiFree応答のfields（残業あり時のみ表示）→テンプレを完全再現プレビュー→✅タップで {api:'zangyoReport'}。
+ * 送信本文はサーバ側で再構築（ここでの文字列は表示専用）。二重送信防止＝サーバのCP_ZHO_SENT＋ボタンdisabled */
+let zhoFields = null;
+
+function zhoText(f) {
+  const yb = f.youbi || ['日', '月', '火', '水', '木', '金', '土'][new Date(String(f.date) + 'T00:00:00+09:00').getDay()] || '';
+  const it = (f.items || []).map(x => '・' + x).join('\n');
+  return '▼残業報告　※' + String(f.date || '').replace(/-/g, '/') + '（' + yb + '）\n' +
+    '・残業時間\n　' + (f.zangyoStart || '') + '～' + (f.taikin || '') + '\n\n▼詳細\n' + it;
+}
+
+function renderZangyo(f) {
+  const box = $('ktZho'), none = $('ktZhoNone'), btn = $('btnZhoSend'), res = $('ktZhoRes');
+  if (!box || !none || !btn) return;   // 旧キャッシュHTML対策のnullガード
+  zhoFields = null;
+  if (!f || f.zangyoNone || !f.zangyoAri || !f.zangyoStart || !f.taikin || !(f.items && f.items.length)) {
+    box.classList.add('hidden');
+    none.classList.toggle('hidden', !(f && f.zangyoNone));   // 残業なし＝プレビュー非表示＋注記のみ
+    return;
+  }
+  zhoFields = f;
+  $('ktZhoTxt').textContent = zhoText(f);
+  if (res) { res.className = 'result'; res.textContent = f.sent ? 'この日付の残業報告は送信済みです' : ''; }
+  btn.disabled = !!f.sent;
+  btn.textContent = f.sent ? '送信済み' : '✅ Slackへ残業報告（@channel）';
+  none.classList.add('hidden');
+  box.classList.remove('hidden');
+}
+
+if ($('btnZhoSend')) $('btnZhoSend').addEventListener('click', async () => {   // 旧キャッシュindex.html（v3以前）とのSW更新すれ違いでも全体を壊さない
+  if (!zhoFields) return;
+  const btn = $('btnZhoSend'), res = $('ktZhoRes');
+  btn.disabled = true;   // 二重送信防止（サーバ側CP_ZHO_SENTフラグと二段構え）
+  res.className = 'result';
+  res.textContent = '送信中…';
+  try {
+    const d = await api({ api: 'zangyoReport', payload: zhoFields });
+    res.className = 'result ok';
+    res.textContent = '✅ ' + (d.msg || 'Slackへ送信しました');
+    btn.textContent = '送信済み';
+  } catch (e) {
+    res.className = 'result ng';
+    res.textContent = e.message;
+    btn.disabled = false;   // 失敗時のみ再試行可
+  }
+});
 
 /* ==== レシート ==== */
 let rcB64 = null, rcName = null;
