@@ -68,17 +68,13 @@
     <div id="notifList"><div class="muted pad">読み込み中…</div></div>
   </section>
 
-  <!-- 勤怠 -->
+  <!-- 勤怠（自由記述・2026-07-23刷新：ボタン打刻廃止／音声入力主体／過去日の遡及報告OK） -->
   <section id="view-kintai" class="view hidden">
-    <h2 class="sec-title">⏱ 勤怠打刻</h2>
+    <h2 class="sec-title">⏱ 勤怠報告</h2>
     <div class="card">
-      <div class="kintai-btns">
-        <button class="btn btn-punch" id="btnIn">出勤</button>
-        <button class="btn btn-punch btn-out" id="btnOut">退勤</button>
-      </div>
-      <label class="field-label" for="ktText">残業記述（退勤時）</label>
-      <textarea id="ktText" rows="3" placeholder="例）資料作成のため19:30まで"></textarea>
-      <label class="check"><input type="checkbox" id="ktNone">残業なし</label>
+      <label class="field-label" for="ktText">自由記述で報告（マイクボタンで話すのがラク・過去の未報告日もOK）</label>
+      <textarea id="ktText" rows="5" placeholder="例）7月18日 出勤9時 退勤19時半 残業は提案資料作成&#10;例）昨日 9時半から18時 残業なし"></textarea>
+      <button class="btn btn-primary" id="btnKintaiSend">送信</button>
       <div class="result" id="ktResult"></div>
     </div>
   </section>
