@@ -157,7 +157,7 @@ function renderHome(d) {
   });
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = d.updated ? '更新 ' + d.updated : '';
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s6';   // s6=シェル版数（更新の見える化）
 }
 
 async function loadHome() {
@@ -915,7 +915,12 @@ function setBrowserLinks() {
 /* ==== 起動 ==== */
 setBrowserLinks();
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // 起動毎に更新チェック＋新版が制御を取ったら1回だけ自動リロード＝「開き直し2回」問題の根絶
+  navigator.serviceWorker.register('sw.js').then(reg => { try { reg.update(); } catch (e) {} }).catch(() => {});
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloaded) return; _swReloaded = true; location.reload();
+  });
 }
 setOffline(!navigator.onLine);
 if ($('hmLabel')) $('hmLabel').textContent = ymLabel(hmYm) + '（当月）';
