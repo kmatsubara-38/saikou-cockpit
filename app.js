@@ -197,28 +197,33 @@ async function loadNotifs(force) {
   }
 }
 
-/* ==== 勤怠 ==== */
-async function punch(kind) {
+/* ==== 勤怠（自由記述・2026-07-23刷新）====
+ * ボタン打刻を廃止し {api:'kintaiFree', text} を送信（GAS側は旧 {api:'kintai'} も後方互換で受ける）。
+ * 応答msgには「◯月◯日の勤怠を記録（出勤…/退勤…/残業…）」が入る＝画面に残して音声入力の言い間違いを読み返しで検知 */
+async function sendKintai() {
+  const text = $('ktText').value.trim();
   const out = $('ktResult');
+  if (!text) {
+    out.className = 'result ng';
+    out.textContent = '勤怠の内容を書いて（話して）から送信してください';
+    return;
+  }
   out.className = 'result';
-  out.textContent = '送信中…';
+  out.textContent = '送信中…（AIが日付・時刻を解析します）';
+  $('btnKintaiSend').disabled = true;
   try {
-    const d = await api({
-      api: 'kintai',
-      kind,
-      text: $('ktText').value.trim(),
-      none: $('ktNone').checked
-    });
+    const d = await api({ api: 'kintaiFree', text });
     out.className = 'result ok';
-    out.textContent = d.msg || ((kind === 'in' ? '出勤' : '退勤') + 'を記録しました');   // サーバmsgに時刻・日報結果が入る＝二重表現を避ける
-    if (kind === 'out') { $('ktText').value = ''; $('ktNone').checked = false; }
+    out.textContent = '✅ ' + (d.msg || '勤怠を記録しました');   // 確定内容はクリアせず画面に残す（読み返し用）
+    $('ktText').value = '';
   } catch (e) {
     out.className = 'result ng';
     out.textContent = e.message;
+  } finally {
+    $('btnKintaiSend').disabled = false;
   }
 }
-$('btnIn').addEventListener('click', () => punch('in'));
-$('btnOut').addEventListener('click', () => punch('out'));
+$('btnKintaiSend').addEventListener('click', sendKintai);
 
 /* ==== レシート ==== */
 let rcB64 = null, rcName = null;
