@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v1';
+const CACHE = 'cp-shell-v2';
 const ASSETS = [
   './',
   './index.html',
