@@ -60,7 +60,7 @@ main{padding:8px 16px 16px;max-width:640px;margin:0 auto}
 /* uri */
 .uri-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-top:4px}
 .uri-k{font-size:11px;color:var(--sub);font-weight:600}
-.uri-v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.uri-v{font-size:clamp(12px,4.3vw,20px);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.02em}
 .uri-total{color:var(--accent)}
 
 /* schedule */
