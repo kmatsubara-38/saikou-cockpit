@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v2';
+const CACHE = 'cp-shell-v3';   /* 2026-07-23 勤怠タブ自由記述化（index.html/app.js差替）に伴いバンプ */
 const ASSETS = [
   './',
   './index.html',
