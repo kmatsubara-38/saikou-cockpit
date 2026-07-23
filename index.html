@@ -29,6 +29,12 @@
 
   <!-- ホーム -->
   <section id="view-home" class="view">
+    <!-- 🆕月セレクタ（当月=api:home／過去月=api:homeMonth・リロードなしスケルトン差替） -->
+    <div class="month-sel">
+      <button class="ms-btn" id="hmPrev" aria-label="前の月">‹</button>
+      <div class="ms-label" id="hmLabel">–</div>
+      <button class="ms-btn" id="hmNext" aria-label="次の月">›</button>
+    </div>
     <div class="cards">
       <div class="card" id="cardPjt">
         <div class="card-label">PJT紹介</div>
@@ -68,41 +74,187 @@
     <div id="notifList"><div class="muted pad">読み込み中…</div></div>
   </section>
 
-  <!-- 勤怠（自由記述・2026-07-23刷新：ボタン打刻廃止／音声入力主体／過去日の遡及報告OK） -->
-  <section id="view-kintai" class="view hidden">
-    <h2 class="sec-title">⏱ 勤怠報告</h2>
-    <div class="card">
-      <label class="field-label" for="ktText">自由記述で報告（マイクボタンで話すのがラク・過去の未報告日もOK）</label>
-      <textarea id="ktText" rows="5" placeholder="例）7月18日 出勤9時 退勤19時半 残業は提案資料作成&#10;例）昨日 9時半から18時 残業なし"></textarea>
-      <button class="btn btn-primary" id="btnKintaiSend">送信</button>
-      <div class="result" id="ktResult"></div>
-      <!-- 🆕2026-07-23 残業報告テンプレ（残業ありの時のみ表示→✅承認でSlackへ@channel送信。本文はサーバ側で再構築） -->
-      <div id="ktZho" class="hidden" style="margin-top:12px;border:1px solid #0071e3;border-radius:14px;padding:12px">
-        <div class="field-label">残業報告テンプレ（確認して承認）</div>
-        <pre id="ktZhoTxt" style="margin:0 0 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:inherit;background:transparent"></pre>
-        <button class="btn btn-primary" id="btnZhoSend">✅ Slackへ残業報告（@channel）</button>
-        <div class="result" id="ktZhoRes"></div>
+  <!-- 📝報告（勤怠＋レシート＋紹介登録＋カレンダー登録の縦積み） -->
+  <section id="view-report" class="view hidden">
+
+    <!-- 勤怠（自由記述・2026-07-23刷新：ボタン打刻廃止／音声入力主体／過去日の遡及報告OK）＝既存無傷で再配置 -->
+    <div id="view-kintai">
+      <h2 class="sec-title">⏱ 勤怠報告</h2>
+      <div class="card">
+        <label class="field-label" for="ktText">自由記述で報告（マイクボタンで話すのがラク・過去の未報告日もOK）</label>
+        <textarea id="ktText" rows="5" placeholder="例）7月18日 出勤9時 退勤19時半 残業は提案資料作成&#10;例）昨日 9時半から18時 残業なし"></textarea>
+        <button class="btn btn-primary" id="btnKintaiSend">送信</button>
+        <div class="result" id="ktResult"></div>
+        <!-- 🆕2026-07-23 残業報告テンプレ（残業ありの時のみ表示→✅承認でSlackへ@channel送信。本文はサーバ側で再構築） -->
+        <div id="ktZho" class="hidden" style="margin-top:12px;border:1px solid #0071e3;border-radius:14px;padding:12px">
+          <div class="field-label">残業報告テンプレ（確認して承認）</div>
+          <pre id="ktZhoTxt" style="margin:0 0 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:inherit;background:transparent"></pre>
+          <button class="btn btn-primary" id="btnZhoSend">✅ Slackへ残業報告（@channel）</button>
+          <div class="result" id="ktZhoRes"></div>
+        </div>
+        <div id="ktZhoNone" class="muted hidden" style="margin-top:8px;font-size:12px">残業なし＝Slackへの残業報告は不要です</div>
       </div>
-      <div id="ktZhoNone" class="muted hidden" style="margin-top:8px;font-size:12px">残業なし＝Slackへの残業報告は不要です</div>
     </div>
+
+    <!-- レシート＝既存無傷で再配置 -->
+    <div id="view-receipt">
+      <h2 class="sec-title">🧾 レシート送信</h2>
+      <div class="card">
+        <div class="seg" id="rcTarget">
+          <button class="seg-btn active" data-v="keihi">経費</button>
+          <button class="seg-btn" data-v="card">カード</button>
+        </div>
+        <label class="file-drop" for="rcFile">
+          <input type="file" id="rcFile" accept="image/*" capture="environment" hidden>
+          <span id="rcFileLabel">📷 撮影 / 画像を選択</span>
+        </label>
+        <img id="rcPreview" class="rc-preview hidden" alt="">
+        <button class="btn btn-primary" id="btnSendReceipt" disabled>送信</button>
+        <div class="result" id="rcResult"></div>
+      </div>
+    </div>
+
+    <!-- 🆕紹介登録（ブラウザ版と同フォーム→{api:'shokai'}） -->
+    <div id="view-shokai">
+      <h2 class="sec-title">🤝 紹介実績を登録</h2>
+      <div class="card">
+        <label class="field-label" for="skName">①患者様名（必須）</label>
+        <input type="text" id="skName" placeholder="山田 太郎" autocomplete="off">
+        <label class="field-label" for="skApply">②予約申込日</label>
+        <input type="date" id="skApply">
+        <div class="two-col">
+          <div>
+            <label class="field-label" for="skType">③種別</label>
+            <select id="skType"><option>AGA</option><option>FAGA</option><option>MD</option></select>
+          </div>
+          <div>
+            <label class="field-label" for="skSex">⑦性別</label>
+            <select id="skSex"><option>男性</option><option>女性</option></select>
+          </div>
+        </div>
+        <label class="field-label">④⑤⑥ 区分（1つ選択・必須）</label>
+        <div class="chips" id="skKubun">
+          <button type="button" class="chip" data-v="shizen">④自然</button>
+          <button type="button" class="chip" data-v="staff">⑤スタッフ</button>
+          <button type="button" class="chip" data-v="pjt">⑥PJT（松原介入）</button>
+        </div>
+        <label class="field-label" for="skPlaud">Proud URL（任意）</label>
+        <input type="url" id="skPlaud" placeholder="https://web.plaud.ai/share/…">
+        <label class="field-label" for="skSonota">その他（CV要因メモ・任意）</label>
+        <textarea id="skSonota" rows="2" placeholder="決め手や介入の内容（CRM整理の核）"></textarea>
+        <label class="field-label" for="skSfp">SF患者リンク（任意）</label>
+        <input type="url" id="skSfp" placeholder="https://…lightning.force.com/…">
+        <button class="btn btn-primary" id="btnShokai">この1件を登録する</button>
+        <div class="result" id="skResult"></div>
+      </div>
+    </div>
+
+    <!-- 🆕カレンダー登録（自由記述→calParse→下書き承認→calCreate） -->
+    <div id="view-cal">
+      <h2 class="sec-title">📅 カレンダー登録</h2>
+      <div class="card">
+        <label class="field-label" for="calTx">予定を自由記述（例「明日15時 佐藤様とオンライン打合せ」）</label>
+        <textarea id="calTx" rows="3" placeholder="日時・相手・用件を書いて解析へ"></textarea>
+        <button class="btn btn-primary" id="btnCalParse">AIで解析（登録はまだされません）</button>
+        <div class="result" id="calResult"></div>
+        <div id="calDraft" class="draft-card hidden">
+          <div class="field-label">下書き（確認して承認）</div>
+          <div id="calDraftBody" class="draft-body"></div>
+          <label class="check"><input type="checkbox" id="calBuffer">前後15分の【確保】枠も入れる</label>
+          <button class="btn btn-primary" id="btnCalOk">✅ この内容でカレンダー登録</button>
+        </div>
+        <div id="calDone" class="hidden" style="margin-top:12px">
+          <div class="result ok" id="calDoneMsg"></div>
+          <div id="calMeetRow" class="hidden">
+            <div class="meet-url" id="calMeetUrl"></div>
+            <button class="btn btn-small" id="btnMeetCopy">Meet URLをコピー</button>
+          </div>
+          <pre id="calMsgDraft" class="hidden draft-pre"></pre>
+          <button class="btn btn-small hidden" id="btnCalMsgCopy">相手へのメッセージ案をコピー</button>
+        </div>
+      </div>
+    </div>
+
   </section>
 
-  <!-- レシート -->
-  <section id="view-receipt" class="view hidden">
-    <h2 class="sec-title">🧾 レシート送信</h2>
+  <!-- 🎬生成（動画生成） -->
+  <section id="view-gen" class="view hidden">
+    <h2 class="sec-title">🎬 動画生成（リール）</h2>
     <div class="card">
-      <div class="seg" id="rcTarget">
-        <button class="seg-btn active" data-v="keihi">経費</button>
-        <button class="seg-btn" data-v="card">カード</button>
-      </div>
-      <label class="file-drop" for="rcFile">
-        <input type="file" id="rcFile" accept="image/*" capture="environment" hidden>
-        <span id="rcFileLabel">📷 撮影 / 画像を選択</span>
-      </label>
-      <img id="rcPreview" class="rc-preview hidden" alt="">
-      <button class="btn btn-primary" id="btnSendReceipt" disabled>送信</button>
-      <div class="result" id="rcResult"></div>
+      <label class="field-label" for="reelUrl">YouTube URL（自分が権利を持つ動画のみ）</label>
+      <input type="url" id="reelUrl" placeholder="https://youtu.be/… / youtube.com/watch?v=…">
+      <button class="btn btn-primary" id="btnReelUrl">🔗 受付（転送ゼロ）</button>
+      <div class="result" id="reelUrlRes"></div>
     </div>
+
+    <div id="reelWork" class="hidden">
+      <h2 class="sec-title">現在の案件 <span class="muted" id="reelWorkName"></span></h2>
+      <div class="card">
+        <div class="row-wrap">
+          <button class="btn" id="btnReelAnalyze">① 解析（1〜4分）</button>
+          <button class="btn" id="btnReelPkgAll">② 全体パッケージ</button>
+          <button class="btn" id="btnReelFactory">🏭 工場解析（大容量向け）</button>
+        </div>
+        <div class="result" id="reelWorkRes"></div>
+        <div id="reelOut" class="hidden" style="margin-top:10px"><a id="reelOutLink" href="#" target="_blank" rel="noopener" class="browser-link" style="margin:0">🎞 完成動画を開く →</a></div>
+        <div id="reelAnBox" class="hidden" style="margin-top:12px">
+          <div class="field-label">解析サマリー</div>
+          <div class="draft-body" id="reelAnSummary"></div>
+        </div>
+        <div id="reelCands"></div>
+        <div id="reelPkgBox" class="hidden" style="margin-top:12px">
+          <div class="field-label">制作パッケージ</div>
+          <div id="reelPkgSecs"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row-between">
+      <h2 class="sec-title">履歴</h2>
+      <button class="btn btn-small" id="btnReelReload">更新</button>
+    </div>
+    <div id="reelList"><div class="muted pad">読み込み中…</div></div>
+  </section>
+
+  <!-- ⋯その他（アーカイブ＋学び＋給与明細＋設定） -->
+  <section id="view-more" class="view hidden">
+
+    <h2 class="sec-title">🗄 アーカイブ（月次実績）</h2>
+    <div class="month-sel">
+      <button class="ms-btn" id="arPrev" aria-label="前の月">‹</button>
+      <div class="ms-label" id="arLabel">–</div>
+      <button class="ms-btn" id="arNext" aria-label="次の月">›</button>
+    </div>
+    <div id="arBody"><div class="muted pad">読み込み中…</div></div>
+
+    <div class="row-between">
+      <h2 class="sec-title">📚 学びのアーカイブ</h2>
+      <button class="btn btn-small" id="btnIntelReload">更新</button>
+    </div>
+    <div class="chips" id="intelFilter">
+      <button type="button" class="chip on" data-v="all">すべて</button>
+      <button type="button" class="chip" data-v="未読">未読</button>
+      <button type="button" class="chip" data-v="閲覧済">閲覧済</button>
+      <button type="button" class="chip" data-v="導入済">導入済</button>
+    </div>
+    <div id="intelList"><div class="muted pad">「更新」で読み込み</div></div>
+
+    <h2 class="sec-title">💴 給与明細の登録</h2>
+    <div class="card">
+      <label class="file-drop" for="salFile">
+        <input type="file" id="salFile" accept="application/pdf" hidden>
+        <span id="salFileLabel">📄 給与明細PDFを選択</span>
+      </label>
+      <button class="btn btn-primary" id="btnSalSend" disabled>読み取って登録（額は画面に出ません）</button>
+      <div class="result" id="salResult"></div>
+    </div>
+
+    <h2 class="sec-title">⚙️ 設定</h2>
+    <div class="card">
+      <button class="btn" id="btnReSetup">合鍵・接続先URLを再設定</button>
+      <a class="browser-link" id="browserLink2" href="#" target="_blank" rel="noopener">フル機能はブラウザ版へ →</a>
+    </div>
+
   </section>
 
 </main>
@@ -110,8 +262,9 @@
 <nav class="tabbar">
   <button class="tab active" data-view="home"><span class="tab-ic">⌂</span>ホーム</button>
   <button class="tab" data-view="notif"><span class="tab-ic">🔔</span>通知<span class="badge hidden" id="notifBadge"></span></button>
-  <button class="tab" data-view="kintai"><span class="tab-ic">⏱</span>勤怠</button>
-  <button class="tab" data-view="receipt"><span class="tab-ic">🧾</span>レシート</button>
+  <button class="tab" data-view="report"><span class="tab-ic">📝</span>報告</button>
+  <button class="tab" data-view="gen"><span class="tab-ic">🎬</span>生成</button>
+  <button class="tab" data-view="more"><span class="tab-ic">⋯</span>その他</button>
 </nav>
 
 <!-- 初回セットアップ（合鍵入力） -->
