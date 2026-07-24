@@ -159,7 +159,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s7';   // s7=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s8';   // s8=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -389,6 +389,65 @@ if ($('btnZhoSend')) $('btnZhoSend').addEventListener('click', async () => {   /
   res.textContent = '送信中…';
   try {
     const d = await api({ api: 'zangyoReport', payload: zhoFields });
+    res.className = 'result ok';
+    res.textContent = '✅ ' + (d.msg || 'Slackへ送信しました');
+    btn.textContent = '送信済み';
+  } catch (e) {
+    res.className = 'result ng';
+    res.textContent = e.message;
+    btn.disabled = false;   // 失敗時のみ再試行可
+  }
+});
+
+/* ==== 🆕2026-07-24 出勤時間報告（フレックス）→Slack承認送信 ====
+ * 日付+出勤時刻→テンプレを完全再現プレビュー→✅タップで {api:'shukkinReport', date, time}。
+ * 送信本文はサーバ側で再構築（ここでの文字列は表示専用）。二重送信防止＝サーバCP_SHUKKIN_SENT＋ボタンdisabled */
+function skNorm(x) {
+  x = String(x || '').trim()
+    .replace(/[０-９：]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/時半/, ':30').replace(/時/, ':').replace(/分$/, '');
+  if (/^\d{3,4}$/.test(x)) x = x.slice(0, -2) + ':' + x.slice(-2);
+  if (/^\d{1,2}$/.test(x)) x += ':00';
+  return /^([01]?\d|2[0-3]):[0-5]\d$/.test(x) ? x : null;
+}
+
+function skTpl(dt, t) {
+  const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const tom = new Date(Date.now() + 33 * 3600e3).toISOString().slice(0, 10);
+  const d = new Date(dt + 'T00:00:00+09:00');
+  const yb = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()] || '';
+  const when = dt === today ? '本日' : (dt === tom ? '明日' : (d.getMonth() + 1) + '/' + d.getDate() + '（' + yb + '）は');
+  return '@channel\nおはようございます！\nいつも有り難うございます🍀\n\n▼共有\n' + when + t + '出勤です🙋\n\nどうぞよろしくお願いいたします！';
+}
+
+function skPrev() {
+  const box = $('skBox');
+  if (!box) return;
+  const dt = $('skDate').value, tm = skNorm($('skTime').value);
+  if (!dt || !tm) { box.classList.add('hidden'); return; }
+  $('skTxt').textContent = skTpl(dt, tm);
+  const b = $('btnSkSend');
+  if (b) { b.disabled = false; b.textContent = '✅ Slackへ出勤時間報告（@channel）'; }
+  const r = $('skRes');
+  if (r) { r.className = 'result'; r.textContent = ''; }
+  box.classList.remove('hidden');
+}
+
+if ($('skDate')) {   // 旧キャッシュindex.htmlとのSW更新すれ違いでも全体を壊さないnullガード
+  const d0 = $('skDate');
+  if (!d0.value) d0.value = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  d0.addEventListener('change', skPrev);
+}
+if ($('skTime')) $('skTime').addEventListener('input', skPrev);
+if ($('btnSkSend')) $('btnSkSend').addEventListener('click', async () => {
+  const dt = $('skDate').value, tm = skNorm($('skTime').value);
+  const btn = $('btnSkSend'), res = $('skRes');
+  if (!dt || !tm) { res.className = 'result ng'; res.textContent = '日付と出勤時刻（例 9:30 / 930 / 9時半）を入れてください'; return; }
+  btn.disabled = true;   // 二重送信防止（サーバ側CP_SHUKKIN_SENTフラグと二段構え）
+  res.className = 'result';
+  res.textContent = '送信中…';
+  try {
+    const d = await api({ api: 'shukkinReport', date: dt, time: tm });
     res.className = 'result ok';
     res.textContent = '✅ ' + (d.msg || 'Slackへ送信しました');
     btn.textContent = '送信済み';
