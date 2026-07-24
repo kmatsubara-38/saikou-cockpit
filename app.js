@@ -160,7 +160,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s9';   // s9=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s10';   // s10=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -527,6 +527,25 @@ if ($('btnBrBrief')) $('btnBrBrief').addEventListener('click', async () => {
     c.appendChild(brNode('pre', 'draft-pre', r.brief));
     box.appendChild(c);
   } catch (e) { box.textContent = e.message; }
+});
+
+if ($('btnPlPull')) $('btnPlPull').addEventListener('click', async () => {   // 📝s10 Plaud共有URL取込
+  const u = $('plUrl').value.trim(), res = $('plRes');
+  if (!u) { res.className = 'result ng'; res.textContent = 'Plaudの共有URL（web.plaud.ai/s/pub_…）を貼ってください'; return; }
+  res.className = 'result';
+  res.textContent = '⬇ 取込中…（要約＋全文文字起こしを取得→Notion議事録DBへ）';
+  $('btnPlPull').disabled = true;
+  try {
+    const r = await api({ api: 'plaudPull', url: u });
+    res.className = 'result ok';
+    res.textContent = r.msg + '\n日付: ' + (r.date || '') + ' / 文字起こし ' + (r.segs || 0) + 'セグメント\n' + (r.note || '');
+    $('plUrl').value = '';
+  } catch (e) {
+    res.className = 'result ng';
+    res.textContent = e.message;
+  } finally {
+    $('btnPlPull').disabled = false;
+  }
 });
 
 let brBoardDone = false;
