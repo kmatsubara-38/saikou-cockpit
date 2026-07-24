@@ -102,6 +102,18 @@
       </div>
     </div>
 
+    <!-- 📝 議事録取込（2026-07-24 s11 松原指示＝独立枠）：Plaud共有URL手動取込（Meetメモは毎時自動） -->
+    <div id="view-gijiroku">
+      <h2 class="sec-title">📝 議事録取込</h2>
+      <div class="card">
+        <label class="field-label" for="plUrl">Plaud共有URL（貼るだけで丸ごと保存）</label>
+        <input type="url" id="plUrl" placeholder="https://web.plaud.ai/s/pub_… を貼り付け">
+        <button class="btn btn-primary" id="btnPlPull" style="margin-top:10px">⬇ 取込</button>
+        <div class="result" id="plRes"></div>
+        <div class="muted" style="margin-top:8px;font-size:12px">要約＋話者付き全文をNotion議事録DBへ（同じ録音は上書き＝重複しない）。Google Meetのメモは毎時自動同期＝貼り付け不要。検索は「その他」タブの🧠から</div>
+      </div>
+    </div>
+
     <!-- 勤怠（自由記述・2026-07-23刷新：ボタン打刻廃止／音声入力主体／過去日の遡及報告OK）＝既存無傷で再配置 -->
     <div id="view-kintai">
       <h2 class="sec-title">⏱ 勤怠報告</h2>
@@ -282,14 +294,7 @@
         <button class="btn" id="btnBrBrief">⚡ 商談ブリーフ</button>
       </div>
       <div id="brRes" style="margin-top:12px"></div>
-      <!-- 📝 Plaud取込（s10）＝共有URLを貼るだけで丸ごと同期 -->
-      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
-        <label class="field-label" for="plUrl">📝 Plaud議事録の取込（共有URLを貼るだけ）</label>
-        <input type="url" id="plUrl" placeholder="https://web.plaud.ai/s/pub_… を貼り付け">
-        <button class="btn btn-primary" id="btnPlPull" style="margin-top:10px">⬇ 取込</button>
-        <div class="result" id="plRes"></div>
-      </div>
-      <div class="muted" style="margin-top:8px;font-size:12px">検索先＝Notionミラー5DB（2時間毎同期）＋rayly-brain（Obsidian）。Plaudは上の取込で要約＋全文文字起こしごと議事録DBへ（同じ録音は上書き＝重複しない）</div>
+      <div class="muted" style="margin-top:8px;font-size:12px">検索先＝Notionミラー5DB（2時間毎同期）＋rayly-brain（Obsidian）。議事録の取込は「報告」タブの📝議事録取込から</div>
     </div>
     <div class="card" style="margin-top:12px">
       <div class="field-label">今日の作戦盤（rayly-brain/作戦盤.md・毎朝自動生成）</div>
