@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v9';   /* 2026-07-24 🧠第二の脳（Plaud×Obsidian×Notion横断・その他タブ）追加（s9）。v8=出勤時間報告 */
+const CACHE = 'cp-shell-v10';   /* 2026-07-24 📝Plaud共有URL取込（丸ごと・Claude非依存）追加（s10）。v9=🧠第二の脳 */
 const ASSETS = [
   './',
   './index.html',
