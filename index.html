@@ -106,11 +106,20 @@
     <div id="view-gijiroku">
       <h2 class="sec-title">📝 議事録取込</h2>
       <div class="card">
+        <div class="chips" id="gjChips" style="margin-bottom:4px">
+          <span class="chip on" data-k="提携先">提携先</span>
+          <span class="chip" data-k="社内">社内</span>
+          <span class="chip" data-k="その他">その他</span>
+        </div>
+        <div id="gjKanriBox">
+          <label class="field-label" for="plKanri">管理番号</label>
+          <input type="text" id="plKanri" placeholder="例 1034" inputmode="numeric">
+        </div>
         <label class="field-label" for="plUrl">Plaud共有URL（貼るだけで丸ごと保存）</label>
         <input type="url" id="plUrl" placeholder="https://web.plaud.ai/s/pub_… を貼り付け">
         <button class="btn btn-primary" id="btnPlPull" style="margin-top:10px">⬇ 取込</button>
         <div class="result" id="plRes"></div>
-        <div class="muted" style="margin-top:8px;font-size:12px">要約＋話者付き全文をNotion議事録DBへ（同じ録音は上書き＝重複しない）。Google Meetのメモは毎時自動同期＝貼り付け不要。検索は「その他」タブの🧠から</div>
+        <div class="muted" style="margin-top:8px;font-size:12px">🤝提携先＝第二の脳＋Salesforce活動記録へ自動転記。🏠社内・📎その他＝第二の脳のみ。Meetメモは毎時自動・同じ録音は上書き＝重複しない</div>
       </div>
     </div>
 
