@@ -29,6 +29,16 @@
 
   <!-- ホーム -->
   <section id="view-home" class="view">
+    <!-- 🆕2026-07-24 任務A：今日のスケジュール＝最上部＋開閉式（ヘッダタップ・localStorage cp_sched_open・既定=開・閉時は次の予定1件をヘッダ右に常時表示） -->
+    <div class="card card-flat" id="schedCard">
+      <div class="sched-head" id="schedHead" role="button" tabindex="0" aria-controls="schedList">
+        <span class="sched-title">今日のスケジュール</span>
+        <span class="sched-next hidden" id="schedNext"></span>
+        <span class="sched-chev" id="schedChev" aria-hidden="true">⌄</span>
+      </div>
+      <ul class="sched" id="schedList"><li class="muted">読み込み中…</li></ul>
+    </div>
+
     <!-- 🆕月セレクタ（当月=api:home／過去月=api:homeMonth・リロードなしスケルトン差替） -->
     <div class="month-sel">
       <button class="ms-btn" id="hmPrev" aria-label="前の月">‹</button>
@@ -58,9 +68,6 @@
         <div class="card-detail" id="uriDetail"></div>
       </div>
     </div>
-
-    <h2 class="sec-title">今日のスケジュール</h2>
-    <div class="card card-flat"><ul class="sched" id="schedList"><li class="muted">読み込み中…</li></ul></div>
 
     <a class="browser-link" id="browserLink" href="#" target="_blank" rel="noopener">フル機能はブラウザ版へ →</a>
   </section>
@@ -172,6 +179,34 @@
           <pre id="calMsgDraft" class="hidden draft-pre"></pre>
           <button class="btn btn-small hidden" id="btnCalMsgCopy">相手へのメッセージ案をコピー</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 🆕2026-07-24 任務B：候補日時ファインダー（定期MTGの日程候補を即答＝{api:'slotFind'}・計算はサーバ1箇所） -->
+    <div id="view-slotf">
+      <h2 class="sec-title">🗓 候補日時ファインダー</h2>
+      <div class="card">
+        <label class="field-label" for="sfDur">枠の長さ</label>
+        <select id="sfDur">
+          <option value="10">10分</option>
+          <option value="20">20分</option>
+          <option value="30" selected>30分</option>
+          <option value="40">40分</option>
+          <option value="50">50分</option>
+          <option value="60">60分</option>
+          <option value="90">90分</option>
+        </select>
+        <label class="field-label" for="sfPeriod">期間（自由記述）</label>
+        <input type="text" id="sfPeriod" placeholder="例「来週」「8月第1週」「明日から金曜まで」" autocomplete="off">
+        <button class="btn btn-primary" id="btnSlotFind">候補を洗い出す</button>
+        <div class="result" id="sfResult"></div>
+        <div id="sfDays"></div>
+        <div id="sfMsgBox" class="hidden" style="margin-top:12px">
+          <div class="field-label">メッセージ案（松原文体・編集してからコピーもOK）</div>
+          <textarea id="sfMsg" rows="8"></textarea>
+          <button class="btn btn-small" id="btnSfCopy">📋 メッセージをコピー</button>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:8px">条件＝各日9:00〜21:00・10分刻み・枠の前後30分バッファも空き・土日も候補（採否は判断で）。カレンダーは読み取りのみ</div>
       </div>
     </div>
 
