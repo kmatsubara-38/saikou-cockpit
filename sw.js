@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v8';   /* 2026-07-24 出勤時間報告（フレックス→Slack C054KRTSF8T）追加（s8）。v7=スケジュール開閉+候補日時ファインダー */
+const CACHE = 'cp-shell-v9';   /* 2026-07-24 🧠第二の脳（Plaud×Obsidian×Notion横断・その他タブ）追加（s9）。v8=出勤時間報告 */
 const ASSETS = [
   './',
   './index.html',
