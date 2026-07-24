@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v6';   /* 2026-07-23 自動リロード更新+版数表示（s6）。v5=5タブPCパリティ */
+const CACHE = 'cp-shell-v7';   /* 2026-07-24 スケジュール最上部+開閉式・候補日時ファインダー（s7）。v6=自動リロード更新 */
 const ASSETS = [
   './',
   './index.html',
