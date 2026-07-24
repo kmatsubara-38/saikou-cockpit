@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v11';   /* 2026-07-24 📝議事録取込を報告タブの独立枠へ移設（s11）。v10=Plaud取込追加 */
+const CACHE = 'cp-shell-v12';   /* 2026-07-24 📝議事録取込に区分（提携先→SF活動記録転記/社内/その他）（s12）。v11=独立枠移設 */
 const ASSETS = [
   './',
   './index.html',
