@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v10';   /* 2026-07-24 📝Plaud共有URL取込（丸ごと・Claude非依存）追加（s10）。v9=🧠第二の脳 */
+const CACHE = 'cp-shell-v11';   /* 2026-07-24 📝議事録取込を報告タブの独立枠へ移設（s11）。v10=Plaud取込追加 */
 const ASSETS = [
   './',
   './index.html',
