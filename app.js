@@ -155,9 +155,59 @@ function renderHome(d) {
     li.innerHTML = `<span class="t">${esc(s.t || '')}</span><span class="title">${esc(s.title || '')}</span>${tag}`;
     ul.appendChild(li);
   });
+  lastSched = sched;
+  schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s6';   // s6=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s7';   // s7=シェル版数（更新の見える化）
+}
+
+/* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
+ * 閉じていても「次の予定1件」（現在時刻以降の最初の非ルーティン予定）をヘッダ右に常時表示。
+ * 配線は起動時1回のaddEventListenerのみ（PWAは再初期化ループなし＝二重化しない） */
+const LS_SCHED = 'cp_sched_open';
+let lastSched = [];
+
+function schedOpen() {
+  try { return localStorage.getItem(LS_SCHED) !== '0'; } catch (e) { return true; }
+}
+function schedNextTxt() {
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  let allday = '';
+  for (const s of lastSched) {
+    if (!s || s.routine) continue;
+    const t = String(s.t || '');
+    const ttl = String(s.title || '').trim();
+    if (t.indexOf('終日') >= 0) { if (!allday) allday = '終日 ' + ttl.slice(0, 18); continue; }
+    const m = t.match(/^(\d{1,2}):(\d{2})/);
+    if (!m) continue;
+    if ((+m[1]) * 60 + (+m[2]) >= cur) return m[1] + ':' + m[2] + ' ' + ttl.slice(0, 18);
+  }
+  return allday;
+}
+function schedApply(open) {
+  const b = $('schedList'), c = $('schedChev'), n = $('schedNext');
+  if (!b) return;   // 旧キャッシュHTML対策のnullガード
+  b.classList.toggle('hidden', !open);
+  if (c) c.style.transform = open ? '' : 'rotate(-90deg)';
+  if (n) {
+    if (open) { n.classList.add('hidden'); n.textContent = ''; }
+    else {
+      const t = schedNextTxt();
+      n.textContent = t ? '次 ' + t : '本日これ以降の予定なし';
+      n.classList.remove('hidden');
+    }
+  }
+}
+if ($('schedHead')) {
+  const schedTgl = () => {
+    const open = $('schedList') ? $('schedList').classList.contains('hidden') : true;   // 閉→開／開→閉
+    schedApply(open);
+    try { localStorage.setItem(LS_SCHED, open ? '1' : '0'); } catch (e) {}
+  };
+  $('schedHead').addEventListener('click', schedTgl);
+  $('schedHead').addEventListener('keydown', ev => { if (ev.key === 'Enter') schedTgl(); });
 }
 
 async function loadHome() {
@@ -543,6 +593,47 @@ if ($('btnCalOk')) $('btnCalOk').addEventListener('click', async () => {
   }
 });
 
+/* ==== 🆕2026-07-24 任務B：候補日時ファインダー（{api:'slotFind', durMin, periodText}） ====
+ * スロット計算はサーバ1箇所（apiSlotFind）＝ここは表示のみ。エラー理由は必ず表示（黙殺しない） */
+if ($('btnSlotFind')) $('btnSlotFind').addEventListener('click', async () => {
+  const out = $('sfResult'), daysBox = $('sfDays'), msgBox = $('sfMsgBox');
+  const p = $('sfPeriod') ? $('sfPeriod').value.trim() : '';
+  if (!p) { out.className = 'result ng'; out.textContent = '期間を書いてください（例「来週」「8月第1週」）'; return; }
+  const du = parseInt($('sfDur') ? $('sfDur').value : '30', 10) || 30;
+  out.className = 'result';
+  out.textContent = '洗い出し中…（カレンダー照合）';
+  if (daysBox) daysBox.innerHTML = '';
+  if (msgBox) msgBox.classList.add('hidden');
+  $('btnSlotFind').disabled = true;
+  try {
+    const d = await api({ api: 'slotFind', durMin: du, periodText: p });
+    const days = d.days || [];
+    out.className = 'result';
+    out.textContent = d.period
+      ? '対象期間 ' + (d.period.label || '') + (d.period.how ? '（' + d.period.how + '）' : '') : '';
+    if (!days.length) {
+      if (daysBox) daysBox.innerHTML = '<div class="muted pad">' + esc(d.note || 'この期間に条件を満たす空き枠がありません') + '</div>';
+      return;
+    }
+    if (daysBox) daysBox.innerHTML = days.map(dd =>
+      '<div class="field-label">' + esc(dd.d || '') + '</div><div class="chips">' +
+      (dd.ts || []).map(t => '<span class="chip" style="cursor:default">' + esc(t) + '</span>').join('') +
+      ((dd.more || 0) > 0 ? '<span class="chip" style="cursor:default;opacity:.6">ほか ' + (+dd.more || 0) + '件</span>' : '') +
+      '</div>').join('');
+    if (d.msg && $('sfMsg') && msgBox) {
+      $('sfMsg').value = d.msg;
+      msgBox.classList.remove('hidden');
+    }
+  } catch (e) {
+    out.className = 'result ng';
+    out.textContent = e.message;
+  } finally {
+    $('btnSlotFind').disabled = false;
+  }
+});
+if ($('btnSfCopy')) $('btnSfCopy').addEventListener('click', () =>
+  copyText($('sfMsg') ? $('sfMsg').value : '', $('btnSfCopy')));
+
 /* ==== 🆕アーカイブ（月セレクタ＋紹介/売上カード＝既存{api:'archive', ym}） ==== */
 let arYm = ymNow();
 
@@ -923,6 +1014,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 setOffline(!navigator.onLine);
+schedApply(schedOpen());   // 🆕起動時にスケジュール開閉状態を復元（既定=開）
 if ($('hmLabel')) $('hmLabel').textContent = ymLabel(hmYm) + '（当月）';
 if ($('hmNext')) $('hmNext').disabled = true;   // 起動時=当月（未来月へは進めない）
 if (!localStorage.getItem(LS.KEY)) showSetup();
