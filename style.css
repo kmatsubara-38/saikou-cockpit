@@ -163,3 +163,11 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 
 /* 報告タブの縦積みセクション余白 */
 #view-report > div{margin-bottom:8px}
+
+/* ===== 2026-07-24 任務A：スケジュール開閉ヘッダ（最上部カード） ===== */
+.sched-head{display:flex;align-items:center;gap:10px;padding:12px 0 8px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.sched-head .sched-title{font-size:14px;font-weight:700}
+.sched-next{margin-left:auto;font-size:12px;font-weight:600;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56%}
+.sched-chev{flex:none;color:var(--sub);font-size:15px;line-height:1;transition:transform .25s ease}
+.sched-next.hidden + .sched-chev{margin-left:auto}
+#schedCard{margin-bottom:12px}
