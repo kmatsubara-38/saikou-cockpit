@@ -282,7 +282,14 @@
         <button class="btn" id="btnBrBrief">⚡ 商談ブリーフ</button>
       </div>
       <div id="brRes" style="margin-top:12px"></div>
-      <div class="muted" style="margin-top:8px;font-size:12px">検索先＝Notionミラー5DB（2時間毎同期・議事録にPlaud要点入り）＋rayly-brain（Obsidian）</div>
+      <!-- 📝 Plaud取込（s10）＝共有URLを貼るだけで丸ごと同期 -->
+      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+        <label class="field-label" for="plUrl">📝 Plaud議事録の取込（共有URLを貼るだけ）</label>
+        <input type="url" id="plUrl" placeholder="https://web.plaud.ai/s/pub_… を貼り付け">
+        <button class="btn btn-primary" id="btnPlPull" style="margin-top:10px">⬇ 取込</button>
+        <div class="result" id="plRes"></div>
+      </div>
+      <div class="muted" style="margin-top:8px;font-size:12px">検索先＝Notionミラー5DB（2時間毎同期）＋rayly-brain（Obsidian）。Plaudは上の取込で要約＋全文文字起こしごと議事録DBへ（同じ録音は上書き＝重複しない）</div>
     </div>
     <div class="card" style="margin-top:12px">
       <div class="field-label">今日の作戦盤（rayly-brain/作戦盤.md・毎朝自動生成）</div>
