@@ -160,7 +160,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s11';   // s11=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s12';   // s12=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -529,16 +529,26 @@ if ($('btnBrBrief')) $('btnBrBrief').addEventListener('click', async () => {
   } catch (e) { box.textContent = e.message; }
 });
 
-if ($('btnPlPull')) $('btnPlPull').addEventListener('click', async () => {   // 📝s10 Plaud共有URL取込
-  const u = $('plUrl').value.trim(), res = $('plRes');
+/* 📝s12 議事録取込＝区分（提携先=管理番号必須→SF活動記録も／社内・その他=第二の脳のみ） */
+let gjKubun = '提携先';
+document.querySelectorAll('#gjChips .chip').forEach(c => c.addEventListener('click', () => {
+  gjKubun = c.dataset.k;
+  document.querySelectorAll('#gjChips .chip').forEach(x => x.classList.toggle('on', x === c));
+  if ($('gjKanriBox')) $('gjKanriBox').classList.toggle('hidden', gjKubun !== '提携先');
+}));
+
+if ($('btnPlPull')) $('btnPlPull').addEventListener('click', async () => {   // 📝Plaud共有URL取込
+  const u = $('plUrl').value.trim(), kn = ($('plKanri') ? $('plKanri').value.trim() : ''), res = $('plRes');
   if (!u) { res.className = 'result ng'; res.textContent = 'Plaudの共有URL（web.plaud.ai/s/pub_…）を貼ってください'; return; }
+  if (gjKubun === '提携先' && !kn) { res.className = 'result ng'; res.textContent = '提携先の議事録は管理番号を入れてください（例 1034）'; return; }
   res.className = 'result';
-  res.textContent = '⬇ 取込中…（要約＋全文文字起こしを取得→Notion議事録DBへ）';
+  res.textContent = '⬇ 取込中…（' + gjKubun + 'として処理：要約＋全文→Notion' + (gjKubun === '提携先' ? '＋SF活動記録' : '') + '）';
   $('btnPlPull').disabled = true;
   try {
-    const r = await api({ api: 'plaudPull', url: u });
+    const r = await api({ api: 'plaudPull', url: u, kubun: gjKubun, kanri: kn });
     res.className = 'result ok';
-    res.textContent = r.msg + '\n日付: ' + (r.date || '') + ' / 文字起こし ' + (r.segs || 0) + 'セグメント\n' + (r.note || '');
+    res.textContent = r.msg + '\n日付: ' + (r.date || '') + ' / 文字起こし ' + (r.segs || 0) + 'セグメント' +
+      (r.partner ? ' / 提携先: ' + r.partner : '') + '\n' + (r.sf ? r.sf + '\n' : '') + (r.note || '');
     $('plUrl').value = '';
   } catch (e) {
     res.className = 'result ng';
