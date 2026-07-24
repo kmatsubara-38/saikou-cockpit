@@ -26,20 +26,22 @@
 - リクエスト = `fetch(URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({k, api, ...})})`
   → **text/plain なので CORS プリフライトが発生しない**。
 - `k` が Script Property `CP_KEY` と不一致 → `{ok:false,error:'auth'}` → 合鍵再入力画面。
-- 使用API: `home` / `notifs` / `notifRead` / `notifReadAll` / `approve` / `kintai` / `receipt`（`archive` は契約済・v1画面では未使用）。
+- 使用API: `home` / `homeMonth` / `notifs` / `notifRead` / `notifReadAll` / `approve` / `kintaiFree` / `zangyoReport` / `receipt` / `shokai` / `calParse` / `calCreate` / `slotFind` / `archive` / `intel` / `intelStatus` / `salaryPdf` / `reelList` / `reelFromUrl` / `reelAnalyze` / `reelPackage` / `reelRender` / `reelFactoryAnalyze` / `reelGet`（旧 `kintai` は後方互換で契約維持）。
 
 ## 動作仕様
 
 - **オフライン**: シェルはSWキャッシュで即起動。home/notifs の最終取得データを localStorage（`cp_cache_home` / `cp_cache_notifs`）に保存し、まずキャッシュを即描画→裏で最新取得。通信不能時はオレンジのオフラインバナー表示。
 - **エラー表示**: fetch失敗/HTTPエラー/非JSON応答/APIエラーを理由付きで画面上部に表示（8秒で自動消滅）。
 - **レシート**: カメラ/画像選択 → canvasで長辺1600px・JPEG品質0.8に縮小 → base64で `{api:'receipt', b64, name, target:'keihi'|'card'}` 送信。
-- **勤怠**: 出勤/退勤ボタン＋残業記述テキスト＋「残業なし」チェック → `{api:'kintai', kind, text, none}`。
+- **勤怠**: 自由記述（2026-07-23刷新・ボタン打刻廃止） → `{api:'kintaiFree', text}`。残業あり応答の `fields` からテンプレプレビュー→✅承認で `{api:'zangyoReport', payload}`。
+- **候補日時ファインダー**（2026-07-24）: `{api:'slotFind', durMin, periodText}` → `days[{d,ts,more}]`＋`msg`（松原文体メッセージ案）。スロット計算はサーバ1箇所（apiSlotFind）。
+- **スケジュール開閉**（2026-07-24）: ホーム最上部カード・localStorage `cp_sched_open`（既定=開）・閉時はヘッダ右に次の予定1件。
 - **通知**: 一覧/個別既読/すべて既読/承認（`needAction` のみ承認ボタン表示）。未読数はタブバッジ。
 - **フル機能はブラウザ版へ**: ホーム最下部リンク（GAS WebApp本体を開く）。
 
 ## 更新時の注意
 
-- シェル資産（HTML/CSS/JS/アイコン）を変更したら `sw.js` の `CACHE = 'cp-shell-v1'` の版数を上げる（旧キャッシュはactivate時に自動削除）。
+- シェル資産（HTML/CSS/JS/アイコン）を変更したら `sw.js` の `CACHE = 'cp-shell-v◯'` の版数を上げる（現行=v7・旧キャッシュはactivate時に自動削除）。あわせて `app.js` の `s◯` 表示（updatedAt横のシェル版数）も更新。
 - アイコン再生成: System.Drawing を使うPowerShellスクリプトで生成（グラデ背景＋アクセントリング＋「創」）。日本語文字は文字コード指定（`[char]0x5275`）でBOM問題を回避。
 
 ## サイズ
