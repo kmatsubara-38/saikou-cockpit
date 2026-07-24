@@ -269,8 +269,26 @@
     <div id="reelList"><div class="muted pad">読み込み中…</div></div>
   </section>
 
-  <!-- ⋯その他（アーカイブ＋学び＋給与明細＋設定） -->
+  <!-- ⋯その他（第二の脳＋アーカイブ＋学び＋給与明細＋設定） -->
   <section id="view-more" class="view hidden">
+
+    <!-- 🧠 第二の脳（2026-07-24 s9）＝Plaud×Obsidian×Notion横断（読取専用・PCパリティ） -->
+    <h2 class="sec-title">🧠 第二の脳</h2>
+    <div class="card">
+      <label class="field-label" for="brQ">相手名・キーワード（Plaud × Obsidian × Notion 横断）</label>
+      <input type="text" id="brQ" placeholder="例「島原」「BELO」「アンバサダー」" enterkeyhint="search">
+      <div class="row-wrap" style="margin-top:10px">
+        <button class="btn" id="btnBrSearch">🔎 横断検索</button>
+        <button class="btn" id="btnBrBrief">⚡ 商談ブリーフ</button>
+      </div>
+      <div id="brRes" style="margin-top:12px"></div>
+      <div class="muted" style="margin-top:8px;font-size:12px">検索先＝Notionミラー5DB（2時間毎同期・議事録にPlaud要点入り）＋rayly-brain（Obsidian）</div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="field-label">今日の作戦盤（rayly-brain/作戦盤.md・毎朝自動生成）</div>
+      <div id="brBoardBody"><div class="muted">読み込み中…</div></div>
+      <div class="muted" id="brMeta" style="margin-top:8px;font-size:12px"></div>
+    </div>
 
     <h2 class="sec-title">🗄 アーカイブ（月次実績）</h2>
     <div class="month-sel">
