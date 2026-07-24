@@ -81,6 +81,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (btn.dataset.view === 'home') loadHomeMonth();
     if (btn.dataset.view === 'gen' && !loadReelList._did) { loadReelList._did = true; loadReelList(); }
     if (btn.dataset.view === 'more' && !loadArchive._did) { loadArchive._did = true; loadArchive(); }
+    if (btn.dataset.view === 'more' && !brBoardDone) brLoadBoard();   // 🧠作戦盤の自動読込（s9）
   });
 });
 
@@ -159,7 +160,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s8';   // s8=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s9';   // s9=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -457,6 +458,89 @@ if ($('btnSkSend')) $('btnSkSend').addEventListener('click', async () => {
     btn.disabled = false;   // 失敗時のみ再試行可
   }
 });
+
+/* ==== 🧠2026-07-24 第二の脳（Plaud×Obsidian×Notion横断・読取専用・s9）====
+ * 検索/ブリーフ/作戦盤＝サーバのapiBrain*へ委譲。結果はDOMノード+textContentで組立（エスケープ事故ゼロ） */
+function brNode(tag, cls, txt) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  return e;
+}
+
+function brRenderSearch(box, r) {
+  box.textContent = '';
+  let any = false;
+  (r.notion || []).forEach(tb => {
+    any = true;
+    const c = brNode('div', '');
+    c.style.cssText = 'border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:10px';
+    c.appendChild(brNode('div', 'field-label', 'Notion｜' + tb.tab + '（' + tb.n + '件）'));
+    (tb.hits || []).forEach(h => {
+      const d = brNode('div', '');
+      d.style.cssText = 'padding:6px 0;border-top:1px solid var(--line);font-size:13px;line-height:1.6';
+      h.forEach(f => {
+        const s = brNode('div', '');
+        s.appendChild(brNode('b', '', f.k + '：'));
+        s.appendChild(document.createTextNode(f.v));
+        d.appendChild(s);
+      });
+      c.appendChild(d);
+    });
+    box.appendChild(c);
+  });
+  if (r.vaultErr) box.appendChild(brNode('div', 'muted', '🧠 ' + r.vaultErr));
+  (r.vault || []).forEach(f0 => {
+    any = true;
+    const c = brNode('div', '');
+    c.style.cssText = 'border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:10px';
+    c.appendChild(brNode('div', 'field-label', 'Obsidian｜' + f0.path));
+    if (f0.body) {
+      const p = brNode('pre', 'draft-pre', f0.body);
+      c.appendChild(p);
+    }
+    box.appendChild(c);
+  });
+  if (!any) box.textContent = '「' + r.q + '」の該当なし（Notionミラー5DB＋rayly-brainを横断）';
+}
+
+if ($('btnBrSearch')) $('btnBrSearch').addEventListener('click', async () => {   // 旧キャッシュHTML対策のnullガード
+  const q = $('brQ').value.trim(), box = $('brRes');
+  if (!q) { box.textContent = '検索語を入れてください（例：提携先名・人名）'; return; }
+  box.textContent = '検索中…（Notionミラー5DB＋rayly-brain横断）';
+  try {
+    const r = await api({ api: 'brainSearch', q });
+    brRenderSearch(box, r);
+  } catch (e) { box.textContent = e.message; }
+});
+
+if ($('btnBrBrief')) $('btnBrBrief').addEventListener('click', async () => {
+  const q = $('brQ').value.trim(), box = $('brRes');
+  if (!q) { box.textContent = 'ブリーフの相手名・案件名を入れてください'; return; }
+  box.textContent = '⚡ ブリーフ生成中…（Notion+Obsidianの実データをGeminiが整形）';
+  try {
+    const r = await api({ api: 'brainBrief', q });
+    box.textContent = '';
+    const c = brNode('div', '');
+    c.style.cssText = 'border:1px solid var(--accent);border-radius:14px;padding:12px';
+    c.appendChild(brNode('div', 'field-label', '⚡ 商談ブリーフ｜' + r.q));
+    c.appendChild(brNode('pre', 'draft-pre', r.brief));
+    box.appendChild(c);
+  } catch (e) { box.textContent = e.message; }
+});
+
+let brBoardDone = false;
+async function brLoadBoard() {
+  const b = $('brBoardBody');
+  if (!b) return;
+  try {
+    const r = await api({ api: 'brainBoard' });
+    b.textContent = '';
+    b.appendChild(brNode('pre', 'draft-pre', r.board));
+    if ($('brMeta') && r.meta) $('brMeta').textContent = 'データ鮮度：' + r.meta;
+    brBoardDone = true;
+  } catch (e) { b.textContent = e.message; }
+}
 
 /* ==== レシート ==== */
 let rcB64 = null, rcName = null;
