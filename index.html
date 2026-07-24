@@ -84,6 +84,24 @@
   <!-- 📝報告（勤怠＋レシート＋紹介登録＋カレンダー登録の縦積み） -->
   <section id="view-report" class="view hidden">
 
+    <!-- 🆕2026-07-24 出勤時間報告（フレックス）＝日付+時刻→テンプレ承認→Slack C054KRTSF8T へ@channel（本人名義・本文はサーバ再構築） -->
+    <div id="view-shukkin">
+      <h2 class="sec-title">🌅 出勤時間報告</h2>
+      <div class="card">
+        <div class="two-col">
+          <div><label class="field-label" for="skDate">日付</label><input type="date" id="skDate"></div>
+          <div><label class="field-label" for="skTime">出勤時刻</label><input type="text" id="skTime" placeholder="9:30" inputmode="numeric"></div>
+        </div>
+        <div id="skBox" class="hidden" style="margin-top:12px;border:1px solid #0071e3;border-radius:14px;padding:12px">
+          <div class="field-label">投稿テンプレ（確認して承認）</div>
+          <pre id="skTxt" style="margin:0 0 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:inherit;background:transparent"></pre>
+          <button class="btn btn-primary" id="btnSkSend">✅ Slackへ出勤時間報告（@channel）</button>
+          <div class="result" id="skRes"></div>
+        </div>
+        <div class="muted" style="margin-top:8px;font-size:12px">本人名義・@channel付きで出勤報告チャンネルへ。日付を変えれば未来/過去日もOK</div>
+      </div>
+    </div>
+
     <!-- 勤怠（自由記述・2026-07-23刷新：ボタン打刻廃止／音声入力主体／過去日の遡及報告OK）＝既存無傷で再配置 -->
     <div id="view-kintai">
       <h2 class="sec-title">⏱ 勤怠報告</h2>
