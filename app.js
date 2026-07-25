@@ -85,6 +85,33 @@ document.querySelectorAll('.tab').forEach(btn => {
   });
 });
 
+/* ==== s12 報告タブ再設計（松原指示・世界一のダッシュボードへ）====
+ * 全セクション=既定で閉じたアコーディオン（タイトルだけの一覧＝スクロール不要）＋
+ * 並び=松原式二層【🔥日本一への一手】紹介→議事録→候補日時→カレンダー【🛡毎日の運用】出勤→勤怠→レシート。
+ * HTMLは無傷＝JSで並び替え・開閉化（IDと既存リスナーは全て不変） */
+(function () {
+  const rep = document.getElementById('view-report');
+  if (!rep) return;
+  const cap = txt => { const d = document.createElement('div'); d.className = 'gcap'; d.textContent = txt; return d; };
+  const frag = document.createDocumentFragment();
+  frag.appendChild(cap('🔥 日本一への一手'));
+  ['view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  frag.appendChild(cap('🛡 毎日の運用'));
+  ['view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  rep.insertBefore(frag, rep.firstChild);
+  rep.querySelectorAll(':scope > div[id^="view-"]').forEach(sec => {
+    const h = sec.querySelector('.sec-title');
+    if (!h) return;
+    const chev = document.createElement('span');
+    chev.className = 'accv';
+    chev.textContent = '▾';
+    h.appendChild(chev);
+    h.classList.add('acch');
+    sec.classList.add('accsec', 'cls');   // 既定=閉（状態は保持しない＝毎回スマートな初期観）
+    h.addEventListener('click', () => sec.classList.toggle('cls'));
+  });
+})();
+
 /* ==== 月ユーティリティ（ホーム/アーカイブの月セレクタ共通） ==== */
 function ymNow() {
   const d = new Date();
@@ -160,7 +187,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s12';   // s12=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s13';   // s13=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
