@@ -165,11 +165,31 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 #view-report > div{margin-bottom:8px}
 
 /* ===== 2026-07-24 s12 報告タブ再設計：全セクション既定閉アコーディオン＋二層見出し ===== */
-.gcap{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--sub);text-transform:uppercase;margin:22px 4px 0}
 .acch{display:flex;align-items:center;cursor:pointer;user-select:none;-webkit-user-select:none}
-.accv{margin-left:auto;color:var(--sub);font-size:14px;line-height:1;transition:transform .25s ease}
+.accv{margin-left:auto;flex:none;color:var(--sub);font-size:13px;line-height:1;opacity:.75;transition:transform .25s ease}
 .accsec.cls .accv{transform:rotate(-90deg)}
 .accsec.cls > :not(.sec-title){display:none}
+.accsec.cls .acch{margin-bottom:0}
+
+/* ===== 2026-07-24 s14 タイポグラフィ／視認性（PCブラウザ版 v5.7 と同一の正本値・監査27件反映） =====
+ * 見出し＝主役／小見出し＝第2ティア／説明・脚注＝脇役。中立色は3段ランプで役割を色でも伝える */
+:root{--sub2:#5c5c61;--sub3:#6e6e73}
+@media (prefers-color-scheme:dark){:root{--sub:#a1a1a6;--sub2:#b8b8bd;--sub3:#a1a1a6;--accent:#2997ff}}
+.sec-title{font-size:clamp(17px,.9vw + 13px,21px);font-weight:700;color:var(--ink);letter-spacing:-.008em;line-height:1.4}
+.card-label{font-size:13.5px;font-weight:600;color:var(--sub);letter-spacing:0;margin-bottom:10px}
+.field-label{font-size:12.5px;font-weight:600;color:var(--sub);letter-spacing:.01em}
+.card-detail{font-size:12.5px;font-weight:500;color:var(--sub);letter-spacing:.012em;line-height:1.55}
+.muted{color:var(--sub3);line-height:1.55}
+.notif-body,.sched .t{color:var(--sub2)}
+/* グループ見出し＝容れ物（中身のカード見出しより弱かった階層逆転を是正・アクセントは形で持たせる） */
+.gcap{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700;letter-spacing:.04em;
+  color:var(--ink);text-transform:none;margin:26px 2px 14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.gcap::before{content:"";flex:none;width:3px;height:15px;border-radius:2px;background:var(--accent)}
+/* 操作部品の境界（未選択チップがカード背景と同色で境界1.22:1だった問題の是正） */
+.chip{border-color:#86868b}
+@media (prefers-color-scheme:dark){.chip{border-color:#6e6e73}}
+/* 数値まわりのディセンダ/字面の切れ防止（PC版と同一の安全余白） */
+.card-num,.uri-v{padding-bottom:.06em}
 
 /* ===== 2026-07-24 任務A：スケジュール開閉ヘッダ（最上部カード） ===== */
 .sched-head{display:flex;align-items:center;gap:10px;padding:12px 0 8px;cursor:pointer;user-select:none;-webkit-user-select:none}
