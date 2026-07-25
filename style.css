@@ -164,6 +164,13 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 /* 報告タブの縦積みセクション余白 */
 #view-report > div{margin-bottom:8px}
 
+/* ===== 2026-07-24 s12 報告タブ再設計：全セクション既定閉アコーディオン＋二層見出し ===== */
+.gcap{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--sub);text-transform:uppercase;margin:22px 4px 0}
+.acch{display:flex;align-items:center;cursor:pointer;user-select:none;-webkit-user-select:none}
+.accv{margin-left:auto;color:var(--sub);font-size:14px;line-height:1;transition:transform .25s ease}
+.accsec.cls .accv{transform:rotate(-90deg)}
+.accsec.cls > :not(.sec-title){display:none}
+
 /* ===== 2026-07-24 任務A：スケジュール開閉ヘッダ（最上部カード） ===== */
 .sched-head{display:flex;align-items:center;gap:10px;padding:12px 0 8px;cursor:pointer;user-select:none;-webkit-user-select:none}
 .sched-head .sched-title{font-size:14px;font-weight:700}
