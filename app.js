@@ -187,7 +187,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s13';   // s13=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s14';   // s14=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
