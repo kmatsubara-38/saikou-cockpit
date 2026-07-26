@@ -187,7 +187,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s17';   // s17=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s18';   // s18=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -607,6 +607,19 @@ function pnd(t, c, x) {
   return e;
 }
 
+function futBox(f) {
+  const w = pnd('div', 'fut');
+  [['go', '✨ 実行したら訪れる未来', f.go], ['ng', '⚠️ 実行しなかった場合の未来', f.ng]].forEach(p9 => {
+    const b = pnd('div', 'futb ' + p9[0]);
+    b.appendChild(pnd('b', null, p9[1]));
+    const ol = document.createElement('ol');
+    (p9[2] || []).forEach(x => ol.appendChild(pnd('li', null, x)));
+    b.appendChild(ol);
+    w.appendChild(b);
+  });
+  return w;
+}
+
 function pipeOpen(host, btn, label, text) {
   const d = pnd('div', 'pbody', text);
   d.style.display = 'none';
@@ -674,6 +687,7 @@ function pipePatient(p) {
       fdr.addEventListener('click', () => { done = false; gen(true); });
       t.appendChild(fd); t.appendChild(fdr); t.appendChild(fdb);
     }
+    if (s.fut) t.appendChild(futBox(s.fut));
     if (s.n.indexOf('フィードバック') >= 0) {
       const lw = document.createElement('label');
       lw.className = 'pchk';
@@ -774,6 +788,7 @@ function pipePartner(vv) {
       gb.addEventListener('click', () => pipeStep(vv.id, 'give', gb, '✅ 提供済みにする'));
       t.appendChild(gb);
     }
+    if (s.fut) t.appendChild(futBox(s.fut));
     row.appendChild(t);
     if (s.at) row.appendChild(pnd('span', 'pat', s.at));
     ls.appendChild(row);
