@@ -191,6 +191,28 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 /* 数値まわりのディセンダ/字面の切れ防止（PC版と同一の安全余白） */
 .card-num,.uri-v{padding-bottom:.06em}
 
+/* ===== 2026-07-26 v6.0 パイプライン（PC版 rayly_cockpit.gs と同一の見た目） ===== */
+.pcard{border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:12px;background:var(--card)}
+.pcard h4{font-size:15.5px;font-weight:700;margin:0 0 3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.4}
+.pmeta{font-size:12.5px;color:var(--sub);margin-bottom:12px;line-height:1.6}
+.pstep{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:13.5px;align-items:flex-start}
+.pstep.first{border-top:0;padding-top:2px}
+.pdot{flex:none;width:22px;text-align:center;font-size:14px;line-height:1.5}
+.pstep .ptx{flex:1;min-width:0}
+.pstep .pnm{font-weight:600}
+.pstep .psub{font-size:12.5px;color:var(--sub);margin-top:2px;line-height:1.55}
+.pat{flex:none;font-size:12px;color:var(--sub2);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.pbody{margin-top:7px;font-size:12.5px;line-height:1.75;color:var(--sub2);white-space:pre-wrap;word-break:break-word;
+  background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;max-height:200px;overflow:auto}
+.ppill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;background:var(--line);color:var(--sub);white-space:nowrap}
+.ppill.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.ppill.wa{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
+.pmini{border:0;background:var(--line);color:var(--ink);border-radius:99px;padding:6px 14px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px}
+.pmini.go{background:var(--accent);color:#fff}
+.pmini:disabled{opacity:.45;cursor:default}
+.psec{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.psec>.psh{font-size:12.5px;font-weight:700;color:var(--sub);letter-spacing:.04em;margin-bottom:8px}
+
 /* ===== 2026-07-24 任務A：スケジュール開閉ヘッダ（最上部カード） ===== */
 .sched-head{display:flex;align-items:center;gap:10px;padding:12px 0 8px;cursor:pointer;user-select:none;-webkit-user-select:none}
 .sched-head .sched-title{font-size:14px;font-weight:700}
