@@ -212,6 +212,18 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 .pmini:disabled{opacity:.45;cursor:default}
 .psec{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .psec>.psh{font-size:12.5px;font-weight:700;color:var(--sub);letter-spacing:.04em;margin-bottom:8px}
+.psec>.psub{font-size:12.5px;color:var(--sub);line-height:1.55}
+.pcard .pcard{border:0;padding:0;margin-top:10px;background:transparent}
+/* リスト（既定=閉・ヘッダタップで開閉） */
+.plist{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.plh{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.plh .plt{font-size:14.5px;font-weight:700}
+.plh .plc{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
+.plist .accv{margin-left:auto;color:var(--sub);font-size:13px;opacity:.75;transform:rotate(-90deg);transition:transform .25s ease}
+.plist.op .accv{transform:none}
+.plctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+.plctl label{margin:0;font-size:12px;color:var(--sub);font-weight:600}
+.plctl select{width:auto;min-width:150px;margin:0}
 
 /* ===== 2026-07-24 任務A：スケジュール開閉ヘッダ（最上部カード） ===== */
 .sched-head{display:flex;align-items:center;gap:10px;padding:12px 0 8px;cursor:pointer;user-select:none;-webkit-user-select:none}
