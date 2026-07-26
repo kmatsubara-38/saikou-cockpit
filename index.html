@@ -69,6 +69,16 @@
       </div>
     </div>
 
+    <!-- 🔎2026-07-26 v6.0 パイプライン（患者CV × 提携先ライフサイクル）＝PC版と同一機能 -->
+    <h2 class="sec-title">🔎 パイプライン</h2>
+    <div class="card">
+      <label class="field-label" for="pipeQ">患者様名／提携サロン名／管理番号</label>
+      <input type="text" id="pipeQ" placeholder="例「三島」「BIANCA」「1034」" enterkeyhint="search">
+      <button class="btn btn-primary" id="btnPipeGo" style="margin-top:10px">検索</button>
+      <div id="pipeRes" style="margin-top:12px"></div>
+      <div class="muted" style="margin-top:8px;font-size:12px">Salesforce（患者・提携先・活動記録）とNotion CRM（CV要因）を読み取り、進捗はSalesforceの活動記録に残します</div>
+    </div>
+
     <a class="browser-link" id="browserLink" href="#" target="_blank" rel="noopener">フル機能はブラウザ版へ →</a>
   </section>
 
