@@ -187,7 +187,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s15';   // s15=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s16';   // s16=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -843,6 +843,108 @@ async function pipeHansoku(vv, host, btn) {
   host.appendChild(box);
   btn.style.display = 'none';
 }
+
+/* 🆕2026-07-26 リスト行：既定は閉じた1行、ボタンでその場展開（リロードなし） */
+function plPatientRow(p) {
+  const c = pnd('div', 'pcard');
+  const h = pnd('h4');
+  h.appendChild(document.createTextNode(p.name));
+  if (p.status) h.appendChild(pnd('span', 'ppill ok', p.status));
+  if (p.kubun) h.appendChild(pnd('span', 'ppill' + (p.kubun === 'PJT' ? ' ok' : ''), p.kubun));
+  c.appendChild(h);
+  const st = p.steps || [];
+  let dn = 0;
+  st.forEach(x => { if (x.done) dn++; });
+  let m = p.partnerName ? ('紹介元 ' + p.partnerName + (p.kanri ? '（#' + p.kanri + '）' : '')) : '紹介元 —';
+  m += '　/　進捗 ' + dn + '/' + st.length;
+  if (st[0] && st[0].sub) m += '　/　' + st[0].sub;
+  c.appendChild(pnd('div', 'pmeta', m));
+  const b = pnd('button', 'pmini', 'この患者様の進捗を開く');
+  const w = pnd('div');
+  w.style.display = 'none';
+  b.addEventListener('click', () => {
+    const o = w.style.display === 'none';
+    if (o && !w.hasChildNodes()) w.appendChild(pipePatient(p));
+    w.style.display = o ? '' : 'none';
+    b.textContent = o ? '閉じる' : 'この患者様の進捗を開く';
+  });
+  c.appendChild(b);
+  c.appendChild(w);
+  return c;
+}
+
+function plPartnerRow(it) {
+  const c = pnd('div', 'pcard');
+  const h = pnd('h4');
+  h.appendChild(document.createTextNode(it.name));
+  if (it.kanri) h.appendChild(pnd('span', 'ppill', '#' + it.kanri));
+  if (it.status) h.appendChild(pnd('span', 'ppill ok', it.status));
+  if (it.active) h.appendChild(pnd('span', 'ppill' + (it.active.indexOf('休') >= 0 ? ' wa' : ''), it.active));
+  c.appendChild(h);
+  const m = [];
+  if (it.contract) m.push('契約 ' + it.contract);
+  if (it.lastAct) m.push('最終活動 ' + it.lastAct);
+  if (it.nextNote) m.push('次回 ' + (it.nextDate ? it.nextDate + ' ' : '') + it.nextNote);
+  c.appendChild(pnd('div', 'pmeta', m.join('　/　') || '—'));
+  const b = pnd('button', 'pmini', 'この提携先の全体を開く');
+  const w = pnd('div');
+  w.style.display = 'none';
+  b.addEventListener('click', async () => {
+    if (w.hasChildNodes()) {
+      const o = w.style.display === 'none';
+      w.style.display = o ? '' : 'none';
+      b.textContent = o ? '閉じる' : 'この提携先の全体を開く';
+      return;
+    }
+    b.disabled = true;
+    b.textContent = '読込中…';
+    try {
+      const r = await api({ api: 'partnerDetail', recordId: it.id });
+      w.appendChild(pipePartner(r.partner));
+      w.style.display = '';
+      b.textContent = '閉じる';
+    } catch (e) { b.textContent = 'この提携先の全体を開く'; showErr(e.message); }
+    finally { b.disabled = false; }
+  });
+  c.appendChild(b);
+  c.appendChild(w);
+  return c;
+}
+
+async function plLoad(kind) {
+  const host = $('pl' + kind + 'R');
+  if (!host) return;
+  const n = parseInt($('pl' + kind + 'N').value, 10) || 50;
+  const ord = $('pl' + kind + 'O').value;
+  host.textContent = '読込中…';
+  try {
+    const r = await api({ api: kind === 'Partner' ? 'partnerList' : 'patientList', limit: n, order: ord });
+    host.textContent = '';
+    const c9 = $('pl' + kind + 'Cnt');
+    if (c9) c9.textContent = (r.total ? '全' + r.total + '件' : '') +
+      ((r.items && r.total > r.items.length) ? '／表示' + r.items.length : '');
+    if (r.fbErr) host.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + r.fbErr));
+    if (!r.items || !r.items.length) { host.appendChild(pnd('div', 'muted', '該当がありません')); return; }
+    r.items.forEach(it => host.appendChild(kind === 'Partner' ? plPartnerRow(it) : plPatientRow(it)));
+  } catch (e) { host.textContent = e.message; }
+}
+
+['Partner', 'Patient'].forEach(kind => {
+  const head = $('pl' + kind + 'H');
+  if (!head) return;
+  let loaded = false;
+  head.addEventListener('click', () => {
+    const b = $('pl' + kind + 'B'), w = $('pl' + kind);
+    const open = b.style.display === 'none';
+    b.style.display = open ? '' : 'none';
+    w.className = open ? 'plist op' : 'plist';
+    if (open && !loaded) { loaded = true; plLoad(kind); }
+  });
+  ['N', 'O'].forEach(sfx => {
+    const el = $('pl' + kind + sfx);
+    if (el) el.addEventListener('change', () => plLoad(kind));
+  });
+});
 
 if ($('btnPipeGo')) $('btnPipeGo').addEventListener('click', async () => {   // 旧キャッシュHTML対策のnullガード
   const q = $('pipeQ').value.trim(), b = $('pipeRes');
