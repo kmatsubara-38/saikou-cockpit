@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v14';   /* 2026-07-26 タイポ階層/視認性（PC v5.7と同一正本・監査27件反映）（s14）。v13=報告タブ再設計 */
+const CACHE = 'cp-shell-v15';   /* 2026-07-26 タイポ階層/視認性（PC v5.7と同一正本・監査27件反映）（s15）。v14=タイポ階層 */
 const ASSETS = [
   './',
   './index.html',
