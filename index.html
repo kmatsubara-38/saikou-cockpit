@@ -76,7 +76,34 @@
       <input type="text" id="pipeQ" placeholder="例「三島」「BIANCA」「1034」" enterkeyhint="search">
       <button class="btn btn-primary" id="btnPipeGo" style="margin-top:10px">検索</button>
       <div id="pipeRes" style="margin-top:12px"></div>
-      <div class="muted" style="margin-top:8px;font-size:12px">Salesforce（患者・提携先・活動記録）とNotion CRM（CV要因）を読み取り、進捗はSalesforceの活動記録に残します</div>
+      <!-- 🆕2026-07-26 担当サロン様リスト／患者様リスト（既定=閉・行はボタンでその場展開） -->
+      <div class="plist" id="plPartner">
+        <div class="plh" id="plPartnerH"><span class="plt">🏪 担当サロン様リスト</span>
+          <span class="plc" id="plPartnerCnt"></span><span class="accv">▾</span></div>
+        <div class="plb" id="plPartnerB" style="display:none">
+          <div class="plctl">
+            <label>表示</label>
+            <select id="plPartnerN"><option value="50">50件</option><option value="100">100件</option><option value="200">200件</option></select>
+            <label>並び順</label>
+            <select id="plPartnerO"><option value="contract">契約日（新しい順）</option><option value="kanri">管理番号順</option></select>
+          </div>
+          <div id="plPartnerR"></div>
+        </div>
+      </div>
+      <div class="plist" id="plPatient">
+        <div class="plh" id="plPatientH"><span class="plt">🧑 患者様リスト</span>
+          <span class="plc" id="plPatientCnt"></span><span class="accv">▾</span></div>
+        <div class="plb" id="plPatientB" style="display:none">
+          <div class="plctl">
+            <label>表示</label>
+            <select id="plPatientN"><option value="50">50件</option><option value="100">100件</option><option value="200">200件</option></select>
+            <label>並び順</label>
+            <select id="plPatientO"><option value="apply">予約申込日（新しい順）</option><option value="visit">受診日時順</option></select>
+          </div>
+          <div id="plPatientR"></div>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:8px;font-size:12px">担当サロン様（PR担当=松原）からのご紹介のみを表示。進捗はSalesforceの活動記録に残ります</div>
     </div>
 
     <a class="browser-link" id="browserLink" href="#" target="_blank" rel="noopener">フル機能はブラウザ版へ →</a>
