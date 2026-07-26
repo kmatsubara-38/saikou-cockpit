@@ -187,7 +187,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s16';   // s16=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s17';   // s17=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -639,16 +639,60 @@ function pipePatient(p) {
       const lb = (s.bodyLabel || '内容') + 'を開く';
       pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
     }
-    if (s.body2) {
-      const lb2 = (s.body2Label || '申し送り') + 'を開く';
-      const b2 = pnd('button', 'pmini', lb2);
-      b2.style.marginLeft = '6px';
-      pipeOpen(t, b2, lb2, s.body2);
+    if (s.act2 === 'fbdraft') {
+      const fd = pnd('button', 'pmini go', '受診後フィードバックメッセージ案を開く');
+      const fdb = pnd('div', 'pbody');
+      fdb.style.display = 'none';
+      const fdr = pnd('button', 'pmini', '↻ 作り直す');
+      fdr.style.marginLeft = '6px';
+      fdr.style.display = 'none';
+      let done = false;
+      const gen = async (force) => {
+        if (!force && done) {
+          const op = fdb.style.display === 'none';
+          fdb.style.display = op ? '' : 'none';
+          fdr.style.display = op ? '' : 'none';
+          fd.textContent = op ? '閉じる' : '受診後フィードバックメッセージ案を開く';
+          return;
+        }
+        fd.disabled = true; fdr.disabled = true;
+        fd.textContent = '生成中…';
+        fdb.style.display = '';
+        fdb.textContent = '紹介元スタイリスト様へお送りする文面を作成しています…';
+        try {
+          const x = await api({ api: 'fbDraft', id: p.id });
+          fdb.textContent = x.text || '';
+          done = true;
+          fd.textContent = '閉じる';
+          fdr.style.display = '';
+        } catch (e) {
+          fdb.textContent = e.message;
+          fd.textContent = '受診後フィードバックメッセージ案を開く';
+        } finally { fd.disabled = false; fdr.disabled = false; }
+      };
+      fd.addEventListener('click', () => gen(false));
+      fdr.addEventListener('click', () => { done = false; gen(true); });
+      t.appendChild(fd); t.appendChild(fdr); t.appendChild(fdb);
     }
-    if (s.act === 'fb') {
-      const fb = pnd('button', 'pmini go', '✅ フィードバック実施を記録');
-      fb.addEventListener('click', () => pipeFb(p.id, p.name, fb, p.whoId));
-      t.appendChild(fb);
+    if (s.n.indexOf('フィードバック') >= 0) {
+      const lw = document.createElement('label');
+      lw.className = 'pchk';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      if (s.done) {
+        cb.checked = true; cb.disabled = true;
+        lw.appendChild(cb);
+        lw.appendChild(document.createTextNode('実施済み' + (s.at ? '（' + s.at + '）' : '')));
+      } else if (s.act === 'fb') {
+        cb.addEventListener('change', () => { if (cb.checked) { cb.disabled = true; pipeFb(p.id, p.name, cb, lw); } });
+        lw.appendChild(cb);
+        lw.appendChild(document.createTextNode('実施した（チェックでSalesforceに記録）'));
+      } else {
+        cb.disabled = true;
+        lw.appendChild(cb);
+        lw.appendChild(document.createTextNode('状況を確認できません'));
+      }
+      t.appendChild(lw);
     }
     row.appendChild(t);
     if (s.at) row.appendChild(pnd('span', 'pat', s.at));
@@ -677,23 +721,15 @@ function pipePatient(p) {
   return c;
 }
 
-async function pipeFb(id, name, btn, whoId) {
-  if (btn.dataset.arm !== '1') {   // 二段タップ（confirmはPWAでも抑止され得る）
-    btn.dataset.arm = '1';
-    btn.textContent = '⚠️ もう一度タップで記録';
-    setTimeout(() => { if (btn.dataset.arm === '1') { btn.dataset.arm = ''; btn.textContent = '✅ フィードバック実施を記録'; } }, 5000);
-    return;
-  }
-  btn.dataset.arm = '';
-  btn.disabled = true;
-  btn.textContent = '記録中…';
+async function pipeFb(id, name, cb, lw) {   // cb=チェックボックス / lw=ラベル
   try {
-    const r = await api({ api: 'pipeFb', id, name, whoId: whoId || '' });
-    btn.textContent = '✅ 記録済み';
+    const r = await api({ api: 'pipeFb', id, name });
+    cb.checked = true;
+    lw.lastChild.textContent = '実施済み';
     showErr(r.msg || '記録しました');
   } catch (e) {
-    btn.disabled = false;
-    btn.textContent = '✅ フィードバック実施を記録';
+    cb.checked = false;
+    cb.disabled = false;
     showErr(e.message);
   }
 }
@@ -752,17 +788,27 @@ function pipePartner(vv) {
   const ad = pnd('div', 'psec');
   ad.appendChild(pnd('div', 'psh', '今後どのようなアプローチが求められるか'));
   const ab = pnd('button', 'pmini', '⚡ 提案を生成');
+  const abr = pnd('button', 'pmini', '↻ 作り直す');
+  abr.style.marginLeft = '6px';
+  abr.style.display = 'none';
   const abd = pnd('div', 'pbody');
   abd.style.display = 'none';
-  ab.addEventListener('click', async () => {
-    ab.disabled = true;
+  const advGen = async () => {
+    ab.disabled = true; abr.disabled = true;
     ab.textContent = '生成中…';
     abd.style.display = '';
-    try { const x = await api({ api: 'pipeAdvice', kanri: vv.kanri, recordId: vv.id }); abd.textContent = x.advice || ''; }
-    catch (e) { abd.textContent = e.message; }
-    finally { ab.disabled = false; ab.textContent = '⚡ 提案を生成'; }
-  });
+    abd.textContent = '実データを読み解いています…';
+    try {
+      const x = await api({ api: 'pipeAdvice', kanri: vv.kanri, recordId: vv.id });
+      abd.textContent = x.advice || '';
+      abr.style.display = '';
+    } catch (e) { abd.textContent = e.message; }
+    finally { ab.disabled = false; abr.disabled = false; ab.textContent = '⚡ 提案を生成'; }
+  };
+  ab.addEventListener('click', advGen);
+  abr.addEventListener('click', advGen);
   ad.appendChild(ab);
+  ad.appendChild(abr);
   ad.appendChild(abd);
   c.appendChild(ad);
   if (vv.patients && vv.patients.length) {
@@ -839,6 +885,15 @@ async function pipeHansoku(vv, host, btn) {
     }
   });
   box.appendChild(sd);
+  const rs = pnd('button', 'pmini', '↻ 作り直す');
+  rs.style.marginLeft = '6px';
+  rs.addEventListener('click', () => {
+    host.removeChild(box);
+    btn.style.display = '';
+    btn.disabled = false;
+    btn.textContent = '📮 依頼文を作る';
+  });
+  box.appendChild(rs);
   if (r.note) box.appendChild(pnd('div', 'muted', r.note));
   host.appendChild(box);
   btn.style.display = 'none';
@@ -946,6 +1001,10 @@ async function plLoad(kind) {
   });
 });
 
+if ($('btnPipeReset')) $('btnPipeReset').addEventListener('click', () => {
+  const b = $('pipeRes'); if (b) b.textContent = '';
+  const q = $('pipeQ'); if (q) { q.value = ''; q.focus(); }
+});
 if ($('btnPipeGo')) $('btnPipeGo').addEventListener('click', async () => {   // 旧キャッシュHTML対策のnullガード
   const q = $('pipeQ').value.trim(), b = $('pipeRes');
   if (!q) { b.textContent = '患者様名・提携サロン名・管理番号のいずれかを入れてください'; return; }
