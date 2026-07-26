@@ -187,7 +187,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s14';   // s14=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s15';   // s15=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -597,6 +597,272 @@ async function brLoadBoard() {
     brBoardDone = true;
   } catch (e) { b.textContent = e.message; }
 }
+
+/* ==== 🔎2026-07-26 v6.0 パイプライン（患者CV × 提携先ライフサイクル）＝PC版と同一契約 ====
+ * 表示は全てDOMノード+textContent（エスケープ事故ゼロ）。書込はSF活動記録のみ */
+function pnd(t, c, x) {
+  const e = document.createElement(t);
+  if (c) e.className = c;
+  if (x != null) e.textContent = x;
+  return e;
+}
+
+function pipeOpen(host, btn, label, text) {
+  const d = pnd('div', 'pbody', text);
+  d.style.display = 'none';
+  btn.addEventListener('click', () => {
+    const o = d.style.display === 'none';
+    d.style.display = o ? '' : 'none';
+    btn.textContent = o ? '閉じる' : label;
+  });
+  host.appendChild(btn);
+  host.appendChild(d);
+}
+
+function pipePatient(p) {
+  const c = pnd('div', 'pcard');
+  const h = pnd('h4');
+  h.appendChild(document.createTextNode(p.name));
+  if (p.status) h.appendChild(pnd('span', 'ppill ok', p.status));
+  c.appendChild(h);
+  let m = p.partnerName ? ('紹介元 ' + p.partnerName + (p.kanri ? '（#' + p.kanri + '）' : '')) : '紹介元 —';
+  if (p.source) m += '　/　' + p.source;
+  if (p.nextVisit) m += '　/　次回来院 ' + p.nextVisit;
+  c.appendChild(pnd('div', 'pmeta', m));
+  (p.steps || []).forEach((s, i) => {
+    const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
+    row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
+    const t = pnd('div', 'ptx');
+    t.appendChild(pnd('div', 'pnm', s.n));
+    if (s.sub) t.appendChild(pnd('div', 'psub', s.sub));
+    if (s.body) {
+      const lb = (s.bodyLabel || '内容') + 'を開く';
+      pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
+    }
+    if (s.body2) {
+      const lb2 = (s.body2Label || '申し送り') + 'を開く';
+      const b2 = pnd('button', 'pmini', lb2);
+      b2.style.marginLeft = '6px';
+      pipeOpen(t, b2, lb2, s.body2);
+    }
+    if (s.act === 'fb') {
+      const fb = pnd('button', 'pmini go', '✅ フィードバック実施を記録');
+      fb.addEventListener('click', () => pipeFb(p.id, p.name, fb, p.whoId));
+      t.appendChild(fb);
+    }
+    row.appendChild(t);
+    if (s.at) row.appendChild(pnd('span', 'pat', s.at));
+    c.appendChild(row);
+  });
+  const sec = pnd('div', 'psec');
+  const cv = pnd('button', 'pmini', '📋 整理（CV要因）をNotionから読む');
+  const cvb = pnd('div', 'pbody');
+  cvb.style.display = 'none';
+  cv.addEventListener('click', async () => {
+    cv.disabled = true;
+    cv.textContent = '読込中…';
+    cvb.style.display = '';
+    try {
+      const x = await api({ api: 'pipeCv', name: p.name });
+      cv.textContent = '整理（CV要因）／Notion CRM';
+      cvb.textContent = x.text || '';
+    } catch (e) {
+      cv.textContent = '📋 整理（CV要因）をNotionから読む';
+      cvb.textContent = e.message;
+    } finally { cv.disabled = false; }
+  });
+  sec.appendChild(cv);
+  sec.appendChild(cvb);
+  c.appendChild(sec);
+  return c;
+}
+
+async function pipeFb(id, name, btn, whoId) {
+  if (btn.dataset.arm !== '1') {   // 二段タップ（confirmはPWAでも抑止され得る）
+    btn.dataset.arm = '1';
+    btn.textContent = '⚠️ もう一度タップで記録';
+    setTimeout(() => { if (btn.dataset.arm === '1') { btn.dataset.arm = ''; btn.textContent = '✅ フィードバック実施を記録'; } }, 5000);
+    return;
+  }
+  btn.dataset.arm = '';
+  btn.disabled = true;
+  btn.textContent = '記録中…';
+  try {
+    const r = await api({ api: 'pipeFb', id, name, whoId: whoId || '' });
+    btn.textContent = '✅ 記録済み';
+    showErr(r.msg || '記録しました');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '✅ フィードバック実施を記録';
+    showErr(e.message);
+  }
+}
+
+async function pipeStep(id, kind, btn, lbl) {
+  btn.disabled = true;
+  btn.textContent = '記録中…';
+  try {
+    await api({ api: 'pipeStep', id, kind });
+    btn.textContent = '✅ 記録済み';
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = lbl;
+    showErr(e.message);
+  }
+}
+
+function pipePartner(vv) {
+  const c = pnd('div', 'pcard');
+  const h = pnd('h4');
+  h.appendChild(document.createTextNode(vv.name));
+  if (vv.kanri) h.appendChild(pnd('span', 'ppill', '#' + vv.kanri));
+  if (vv.status) h.appendChild(pnd('span', 'ppill ok', vv.status));
+  if (vv.active) h.appendChild(pnd('span', 'ppill' + (vv.active.indexOf('休') >= 0 ? ' wa' : ''), vv.active));
+  c.appendChild(h);
+  c.appendChild(pnd('div', 'pmeta', '担当 ' + (vv.tanto || '—') + (vv.lastAct ? '　/　最終活動 ' + vv.lastAct : '')));
+  const ls = pnd('div', 'psec');
+  ls.appendChild(pnd('div', 'psh', '対応ステータス（新規提携の前後）'));
+  (vv.life || []).forEach((s, i) => {
+    const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
+    row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
+    const t = pnd('div', 'ptx');
+    t.appendChild(pnd('div', 'pnm', s.n));
+    if (s.v) t.appendChild(pnd('div', 'psub', s.v));
+    if (s.act === 'hansoku' && !vv._amb) {
+      const hb = pnd('button', 'pmini go', '📮 依頼文を作る');
+      hb.addEventListener('click', () => pipeHansoku(vv, t, hb));
+      t.appendChild(hb);
+    }
+    if (s.act === 'give' && !vv._amb) {
+      const gb = pnd('button', 'pmini', '✅ 提供済みにする');
+      gb.addEventListener('click', () => pipeStep(vv.id, 'give', gb, '✅ 提供済みにする'));
+      t.appendChild(gb);
+    }
+    row.appendChild(t);
+    if (s.at) row.appendChild(pnd('span', 'pat', s.at));
+    ls.appendChild(row);
+  });
+  c.appendChild(ls);
+  if (vv.nextNote || vv.nextDate) {
+    const na = pnd('div', 'psec');
+    na.appendChild(pnd('div', 'psh', '次回アクション'));
+    na.appendChild(pnd('div', 'psub', (vv.nextDate ? vv.nextDate + '　' : '') + (vv.nextNote || '')));
+    c.appendChild(na);
+  }
+  const ad = pnd('div', 'psec');
+  ad.appendChild(pnd('div', 'psh', '今後どのようなアプローチが求められるか'));
+  const ab = pnd('button', 'pmini', '⚡ 提案を生成');
+  const abd = pnd('div', 'pbody');
+  abd.style.display = 'none';
+  ab.addEventListener('click', async () => {
+    ab.disabled = true;
+    ab.textContent = '生成中…';
+    abd.style.display = '';
+    try { const x = await api({ api: 'pipeAdvice', kanri: vv.kanri, recordId: vv.id }); abd.textContent = x.advice || ''; }
+    catch (e) { abd.textContent = e.message; }
+    finally { ab.disabled = false; ab.textContent = '⚡ 提案を生成'; }
+  });
+  ad.appendChild(ab);
+  ad.appendChild(abd);
+  c.appendChild(ad);
+  if (vv.patients && vv.patients.length) {
+    const ps = pnd('div', 'psec');
+    ps.appendChild(pnd('div', 'psh', '紹介実績 ' + (vv.patientsTotal || vv.patients.length) + '件' +
+      (vv.patientsTotal > vv.patients.length ? '（直近' + vv.patients.length + '件を表示）' : '') + '　名前をタップで進捗を開く'));
+    vv.patients.forEach(p => {
+      const bt = pnd('button', 'pmini', p.name + '（' + (p.status || '—') + '）');
+      bt.style.marginRight = '6px';
+      const wrap = pnd('div');
+      wrap.style.display = 'none';
+      bt.addEventListener('click', () => {
+        const o = wrap.style.display === 'none';
+        if (o && !wrap.hasChildNodes()) wrap.appendChild(pipePatient(p));
+        wrap.style.display = o ? '' : 'none';
+      });
+      ps.appendChild(bt);
+      ps.appendChild(wrap);
+    });
+    c.appendChild(ps);
+  }
+  if (vv.acts && vv.acts.length) {
+    const as = pnd('div', 'psec');
+    as.appendChild(pnd('div', 'psh', '活動実績 ' + vv.acts.length + '件'));
+    vv.acts.forEach(a => {
+      const row = pnd('div', 'pstep');
+      row.appendChild(pnd('span', 'pdot', '•'));
+      const t = pnd('div', 'ptx');
+      t.appendChild(pnd('div', 'pnm', a.s));
+      if (a.b) t.appendChild(pnd('div', 'psub', a.b));
+      row.appendChild(t);
+      if (a.d) row.appendChild(pnd('span', 'pat', a.d));
+      as.appendChild(row);
+    });
+    c.appendChild(as);
+  }
+  return c;
+}
+
+async function pipeHansoku(vv, host, btn) {
+  btn.disabled = true;
+  btn.textContent = '作成中…';
+  let r;
+  try { r = await api({ api: 'hansokuDraft', kanri: vv.kanri, partnerName: vv.name }); }
+  catch (e) { btn.disabled = false; btn.textContent = '📮 依頼文を作る'; showErr(e.message); return; }
+  btn.disabled = false;
+  btn.textContent = '📮 依頼文を作る';
+  const box = pnd('div');
+  box.style.marginTop = '8px';
+  const pv = pnd('div', 'pbody', r.text || '');
+  box.appendChild(pv);
+  box.appendChild(pnd('div', 'psub', '補足（任意・この内容だけが依頼文に差し込まれます）'));
+  const ta = document.createElement('textarea');
+  ta.placeholder = '例）A5サイズ・両面／ロゴは既存データで';
+  ta.rows = 3;
+  box.appendChild(ta);
+  const cp = pnd('button', 'pmini', '📋 依頼文をコピー');
+  cp.addEventListener('click', () => { try { navigator.clipboard.writeText(pv.textContent); } catch (e) {} });
+  box.appendChild(cp);
+  const sd = pnd('button', 'pmini go', '✅ Slackへ投稿して記録');
+  sd.style.marginLeft = '6px';
+  sd.disabled = !r.hasCh;
+  sd.addEventListener('click', async () => {
+    sd.disabled = true;
+    sd.textContent = '送信中…';
+    try {
+      const x = await api({ api: 'hansokuSend', id: vv.id, kanri: vv.kanri, partnerName: vv.name, extra: ta.value });
+      sd.textContent = '送信済み';
+      showErr(x.msg || '送信しました');
+    } catch (e) {
+      sd.disabled = false;
+      sd.textContent = '✅ Slackへ投稿して記録';
+      showErr(e.message);
+    }
+  });
+  box.appendChild(sd);
+  if (r.note) box.appendChild(pnd('div', 'muted', r.note));
+  host.appendChild(box);
+  btn.style.display = 'none';
+}
+
+if ($('btnPipeGo')) $('btnPipeGo').addEventListener('click', async () => {   // 旧キャッシュHTML対策のnullガード
+  const q = $('pipeQ').value.trim(), b = $('pipeRes');
+  if (!q) { b.textContent = '患者様名・提携サロン名・管理番号のいずれかを入れてください'; return; }
+  b.textContent = '検索中…（Salesforceを横断）';
+  try {
+    const r = await api({ api: 'pipeSearch', q });
+    b.textContent = '';
+    if (r.warn) b.appendChild(pnd('div', 'muted', '⚠️ ' + r.warn));
+    if (r.fbErr) b.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + r.fbErr));
+    if (r.partner) { r.partner._amb = !!r.ambiguous; b.appendChild(pipePartner(r.partner)); }
+    if (r.patients && r.patients.length) {
+      const s = pnd('div', 'psec');
+      s.appendChild(pnd('div', 'psh', '患者様 ' + r.patients.length + '件（コンバージョン前後の進捗）'));
+      r.patients.forEach(p => s.appendChild(pipePatient(p)));
+      b.appendChild(s);
+    }
+    if (r.note) b.appendChild(pnd('div', 'muted', r.note));
+  } catch (e) { b.textContent = e.message; }
+});
 
 /* ==== レシート ==== */
 let rcB64 = null, rcName = null;
