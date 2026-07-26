@@ -74,7 +74,10 @@
     <div class="card">
       <label class="field-label" for="pipeQ">患者様名／提携サロン名／管理番号</label>
       <input type="text" id="pipeQ" placeholder="例「三島」「BIANCA」「1034」" enterkeyhint="search">
-      <button class="btn btn-primary" id="btnPipeGo" style="margin-top:10px">検索</button>
+      <div class="row-wrap" style="margin-top:10px">
+        <button class="btn btn-primary" id="btnPipeGo">検索</button>
+        <button class="btn" id="btnPipeReset">✕ リセット</button>
+      </div>
       <div id="pipeRes" style="margin-top:12px"></div>
       <!-- 🆕2026-07-26 担当サロン様リスト／患者様リスト（既定=閉・行はボタンでその場展開） -->
       <div class="plist" id="plPartner">
