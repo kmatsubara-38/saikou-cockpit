@@ -39,11 +39,9 @@
       <ul class="sched" id="schedList"><li class="muted">読み込み中…</li></ul>
     </div>
 
-    <!-- 🆕月セレクタ（当月=api:home／過去月=api:homeMonth・リロードなしスケルトン差替） -->
+    <!-- 月セレクタ＝プルダウン（2026-07-27 松原指示。過去月={api:'homeMonth'}・リロードなし） -->
     <div class="month-sel">
-      <button class="ms-btn" id="hmPrev" aria-label="前の月">‹</button>
-      <div class="ms-label" id="hmLabel">–</div>
-      <button class="ms-btn" id="hmNext" aria-label="次の月">›</button>
+      <select id="hmSel" class="ms-select" aria-label="表示する月"></select>
     </div>
     <div class="cards">
       <div class="card" id="cardPjt">
@@ -69,7 +67,10 @@
       </div>
     </div>
 
-    <!-- 🔎2026-07-26 v6.0 パイプライン（患者CV × 提携先ライフサイクル）＝PC版と同一機能 -->
+  </section>
+
+  <!-- 🔎 パイプライン＝独立タブ（2026-07-27 松原指示）。一覧はプルダウンで切替 -->
+  <section id="view-pipe" class="view hidden">
     <h2 class="sec-title">🔎 パイプライン</h2>
     <div class="card">
       <label class="field-label" for="pipeQ">患者様名／提携サロン名／管理番号</label>
@@ -79,37 +80,39 @@
         <button class="btn" id="btnPipeReset">✕ リセット</button>
       </div>
       <div id="pipeRes" style="margin-top:12px"></div>
-      <!-- 🆕2026-07-26 担当サロン様リスト／患者様リスト（既定=閉・行はボタンでその場展開） -->
-      <div class="plist" id="plPartner">
-        <div class="plh" id="plPartnerH"><span class="plt">🏪 担当サロン様リスト</span>
-          <span class="plc" id="plPartnerCnt"></span><span class="accv">▾</span></div>
-        <div class="plb" id="plPartnerB" style="display:none">
+    </div>
+    <div class="card" style="margin-top:12px">
+      <label class="field-label" for="plKind">一覧を選ぶ</label>
+      <select id="plKind">
+        <option value="Partner">🏪 担当サロン様リスト</option>
+        <option value="Patient">🧑 患者様リスト</option>
+      </select>
+      <div class="plist op" id="plPartner">
+        <div class="plb" id="plPartnerB">
           <div class="plctl">
             <label>表示</label>
             <select id="plPartnerN"><option value="50">50件</option><option value="100">100件</option><option value="200">200件</option></select>
             <label>並び順</label>
             <select id="plPartnerO"><option value="contract">契約日（新しい順）</option><option value="kanri">管理番号順</option></select>
+            <span class="plc" id="plPartnerCnt"></span>
           </div>
           <div id="plPartnerR"></div>
         </div>
       </div>
-      <div class="plist" id="plPatient">
-        <div class="plh" id="plPatientH"><span class="plt">🧑 患者様リスト</span>
-          <span class="plc" id="plPatientCnt"></span><span class="accv">▾</span></div>
-        <div class="plb" id="plPatientB" style="display:none">
+      <div class="plist op hidden" id="plPatient">
+        <div class="plb" id="plPatientB">
           <div class="plctl">
             <label>表示</label>
             <select id="plPatientN"><option value="50">50件</option><option value="100">100件</option><option value="200">200件</option></select>
             <label>並び順</label>
             <select id="plPatientO"><option value="apply">予約申込日（新しい順）</option><option value="visit">受診日時順</option></select>
+            <span class="plc" id="plPatientCnt"></span>
           </div>
           <div id="plPatientR"></div>
         </div>
       </div>
       <div class="muted" style="margin-top:8px;font-size:12px">担当サロン様（PR担当=松原）からのご紹介のみを表示。進捗はSalesforceの活動記録に残ります</div>
     </div>
-
-    <a class="browser-link" id="browserLink" href="#" target="_blank" rel="noopener">フル機能はブラウザ版へ →</a>
   </section>
 
   <!-- 通知 -->
@@ -155,11 +158,11 @@
           <label class="field-label" for="plKanri">管理番号</label>
           <input type="text" id="plKanri" placeholder="例 1034" inputmode="numeric">
         </div>
-        <label class="field-label" for="plUrl">Plaud共有URL（貼るだけで丸ごと保存）</label>
-        <input type="url" id="plUrl" placeholder="https://web.plaud.ai/s/pub_… を貼り付け">
+        <label class="field-label" for="plUrl">Plaud共有URL／MeetメモURL（貼るだけで丸ごと保存）</label>
+        <input type="url" id="plUrl" placeholder="web.plaud.ai/s/pub_… または docs.google.com/document/…">
         <button class="btn btn-primary" id="btnPlPull" style="margin-top:10px">⬇ 取込</button>
         <div class="result" id="plRes"></div>
-        <div class="muted" style="margin-top:8px;font-size:12px">🤝提携先＝第二の脳＋Salesforce活動記録へ自動転記。🏠社内・📎その他＝第二の脳のみ。Meetメモは毎時自動・同じ録音は上書き＝重複しない</div>
+        <div class="muted" style="margin-top:8px;font-size:12px">🤝提携先＝第二の脳＋Salesforce活動記録へ自動転記。🏠社内・📎その他＝第二の脳のみ。MeetメモのURLを貼れば管理番号つきで確実に活動記録へ。取込済みのURLは上書き前に必ず確認します</div>
       </div>
     </div>
 
@@ -291,73 +294,8 @@
 
   </section>
 
-  <!-- 🎬生成（動画生成） -->
-  <section id="view-gen" class="view hidden">
-    <h2 class="sec-title">🎬 動画生成（リール）</h2>
-    <div class="card">
-      <label class="field-label" for="reelUrl">YouTube URL（自分が権利を持つ動画のみ）</label>
-      <input type="url" id="reelUrl" placeholder="https://youtu.be/… / youtube.com/watch?v=…">
-      <button class="btn btn-primary" id="btnReelUrl">🔗 受付（転送ゼロ）</button>
-      <div class="result" id="reelUrlRes"></div>
-    </div>
-
-    <div id="reelWork" class="hidden">
-      <h2 class="sec-title">現在の案件 <span class="muted" id="reelWorkName"></span></h2>
-      <div class="card">
-        <div class="row-wrap">
-          <button class="btn" id="btnReelAnalyze">① 解析（1〜4分）</button>
-          <button class="btn" id="btnReelPkgAll">② 全体パッケージ</button>
-          <button class="btn" id="btnReelFactory">🏭 工場解析（大容量向け）</button>
-        </div>
-        <div class="result" id="reelWorkRes"></div>
-        <div id="reelOut" class="hidden" style="margin-top:10px"><a id="reelOutLink" href="#" target="_blank" rel="noopener" class="browser-link" style="margin:0">🎞 完成動画を開く →</a></div>
-        <div id="reelAnBox" class="hidden" style="margin-top:12px">
-          <div class="field-label">解析サマリー</div>
-          <div class="draft-body" id="reelAnSummary"></div>
-        </div>
-        <div id="reelCands"></div>
-        <div id="reelPkgBox" class="hidden" style="margin-top:12px">
-          <div class="field-label">制作パッケージ</div>
-          <div id="reelPkgSecs"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="row-between">
-      <h2 class="sec-title">履歴</h2>
-      <button class="btn btn-small" id="btnReelReload">更新</button>
-    </div>
-    <div id="reelList"><div class="muted pad">読み込み中…</div></div>
-  </section>
-
-  <!-- ⋯その他（第二の脳＋アーカイブ＋学び＋給与明細＋設定） -->
+  <!-- ⋯その他（学び＋設定）＝2026-07-27 松原指示で第二の脳・アーカイブ・給与明細を撤去 -->
   <section id="view-more" class="view hidden">
-
-    <!-- 🧠 第二の脳（2026-07-24 s9）＝Plaud×Obsidian×Notion横断（読取専用・PCパリティ） -->
-    <h2 class="sec-title">🧠 第二の脳</h2>
-    <div class="card">
-      <label class="field-label" for="brQ">相手名・キーワード（Plaud × Obsidian × Notion 横断）</label>
-      <input type="text" id="brQ" placeholder="例「島原」「BELO」「アンバサダー」" enterkeyhint="search">
-      <div class="row-wrap" style="margin-top:10px">
-        <button class="btn" id="btnBrSearch">🔎 横断検索</button>
-        <button class="btn" id="btnBrBrief">⚡ 商談ブリーフ</button>
-      </div>
-      <div id="brRes" style="margin-top:12px"></div>
-      <div class="muted" style="margin-top:8px;font-size:12px">検索先＝Notionミラー5DB（2時間毎同期）＋rayly-brain（Obsidian）。議事録の取込は「報告」タブの📝議事録取込から</div>
-    </div>
-    <div class="card" style="margin-top:12px">
-      <div class="field-label">今日の作戦盤（rayly-brain/作戦盤.md・毎朝自動生成）</div>
-      <div id="brBoardBody"><div class="muted">読み込み中…</div></div>
-      <div class="muted" id="brMeta" style="margin-top:8px;font-size:12px"></div>
-    </div>
-
-    <h2 class="sec-title">🗄 アーカイブ（月次実績）</h2>
-    <div class="month-sel">
-      <button class="ms-btn" id="arPrev" aria-label="前の月">‹</button>
-      <div class="ms-label" id="arLabel">–</div>
-      <button class="ms-btn" id="arNext" aria-label="次の月">›</button>
-    </div>
-    <div id="arBody"><div class="muted pad">読み込み中…</div></div>
 
     <div class="row-between">
       <h2 class="sec-title">📚 学びのアーカイブ</h2>
@@ -371,20 +309,9 @@
     </div>
     <div id="intelList"><div class="muted pad">「更新」で読み込み</div></div>
 
-    <h2 class="sec-title">💴 給与明細の登録</h2>
-    <div class="card">
-      <label class="file-drop" for="salFile">
-        <input type="file" id="salFile" accept="application/pdf" hidden>
-        <span id="salFileLabel">📄 給与明細PDFを選択</span>
-      </label>
-      <button class="btn btn-primary" id="btnSalSend" disabled>読み取って登録（額は画面に出ません）</button>
-      <div class="result" id="salResult"></div>
-    </div>
-
     <h2 class="sec-title">⚙️ 設定</h2>
     <div class="card">
       <button class="btn" id="btnReSetup">合鍵・接続先URLを再設定</button>
-      <a class="browser-link" id="browserLink2" href="#" target="_blank" rel="noopener">フル機能はブラウザ版へ →</a>
     </div>
 
   </section>
@@ -393,9 +320,9 @@
 
 <nav class="tabbar">
   <button class="tab active" data-view="home"><span class="tab-ic">⌂</span>ホーム</button>
-  <button class="tab" data-view="notif"><span class="tab-ic">🔔</span>通知<span class="badge hidden" id="notifBadge"></span></button>
+  <button class="tab" data-view="pipe"><span class="tab-ic">🔎</span>パイプライン</button>
   <button class="tab" data-view="report"><span class="tab-ic">📝</span>報告</button>
-  <button class="tab" data-view="gen"><span class="tab-ic">🎬</span>生成</button>
+  <button class="tab" data-view="notif"><span class="tab-ic">🔔</span>通知<span class="badge hidden" id="notifBadge"></span></button>
   <button class="tab" data-view="more"><span class="tab-ic">⋯</span>その他</button>
 </nav>
 
