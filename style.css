@@ -243,3 +243,6 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 .futb.ng b{color:var(--bad)}
 .futb ol{margin:0;padding-left:1.15em}
 .futb li{margin:3px 0}
+
+/* 2026-07-27 s19: 月セレクタ＝プルダウン化（松原指示） */
+.ms-select{min-width:200px;max-width:70vw;text-align:center;font-weight:600}
