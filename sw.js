@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v18';   /* 2026-07-26 🔎パイプライン（患者CV×提携先ライフサイクル・監査33件反映）（s16）。v15=パイプライン */
+const CACHE = 'cp-shell-v19';   /* 2026-07-27 s19＝パイプライン独立タブ・月プルダウン・断捨離（給与/第二の脳/アーカイブ/動画生成/ブラウザ誘導撤去） */
 const ASSETS = [
   './',
   './index.html',
