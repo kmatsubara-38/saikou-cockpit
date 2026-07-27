@@ -79,9 +79,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (v) v.classList.remove('hidden');
     if (btn.dataset.view === 'notif') loadNotifs();
     if (btn.dataset.view === 'home') loadHomeMonth();
-    if (btn.dataset.view === 'gen' && !loadReelList._did) { loadReelList._did = true; loadReelList(); }
-    if (btn.dataset.view === 'more' && !loadArchive._did) { loadArchive._did = true; loadArchive(); }
-    if (btn.dataset.view === 'more' && !brBoardDone) brLoadBoard();   // 🧠作戦盤の自動読込（s9）
+    if (btn.dataset.view === 'pipe') plKindShow();   // 🔎入場時に選択中の一覧を読み込む
   });
 });
 
@@ -161,11 +159,13 @@ function renderGauges(d) {
   $('uriShoshin').textContent = yen(u.shoshin);
   $('uriSaishin').textContent = yen(u.saishin);
   $('uriGokei').textContent  = yen(u.gokei);
+  // 注記＝初診/再診の受診数と単価（松原指定 2026-07-27）。単価=売上÷件数の四捨五入
+  const uf = (label, total, cnt) => cnt
+    ? `${label}：受診${cnt}名/単価${Math.round((total || 0) / cnt).toLocaleString('ja-JP')}円`
+    : `${label}：受診0名`;
   $('uriDetail').textContent = u.err
     ? '読取エラー: ' + u.err
-    : (u.salarySet
-      ? `給与差①${yen(u.diff1)}(${u.pct1 ?? '–'}%)｜差②${yen(u.diff2)}(${u.pct2 ?? '–'}%)`
-      : '給与明細 未登録（「その他」タブから登録できます）');
+    : uf('初診', u.shoshin, u.shoshinN) + '　' + uf('再診', u.saishin, u.saishinN);
 }
 
 function renderHome(d) {
@@ -187,7 +187,7 @@ function renderHome(d) {
   schedApply(schedOpen());   // 🆕開閉状態を再適用（閉時=ヘッダ右の「次の予定」を最新化）
   // 通知バッジ・更新時刻
   setBadge(d.notifUnread || 0);
-  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s18';   // s18=シェル版数（更新の見える化）
+  $('updatedAt').textContent = (d.updated ? '更新 ' + d.updated : '') + ' · s19';   // s19=シェル版数（更新の見える化）
 }
 
 /* ==== 🆕2026-07-24 任務A：スケジュール開閉（ブラウザ版cpSchedOpenとは別キー cp_sched_open・既定=開） ====
@@ -256,10 +256,7 @@ async function loadHome() {
 /* 🆕月セレクタ：当月=既存{api:'home'}経路そのまま／過去月={api:'homeMonth', ym}（計器のみ差替・リロードなし） */
 async function loadHomeMonth() {
   const seq = (loadHomeMonth._seq = (loadHomeMonth._seq || 0) + 1);   // 連打ガード＝最後の要求だけ描画（古い応答の後着上書きを防止）
-  const lb = $('hmLabel');
-  if (lb) lb.textContent = ymLabel(hmYm) + (hmYm === ymNow() ? '（当月）' : '');
-  const nx = $('hmNext');
-  if (nx) nx.disabled = hmYm >= ymNow();
+  hmSelSync();
   if (hmYm === ymNow()) { setSkeleton(true); await loadHome(); return; }
   setSkeleton(true);
   try {
@@ -272,20 +269,34 @@ async function loadHomeMonth() {
     if (seq !== loadHomeMonth._seq) return;
     showErr(e.message);
     hmYm = ymNow();   // エラー復元＝当月へ復帰（ブラウザ版hmFailと同等・古い月の計器を出しっぱなしにしない）
-    if (lb) lb.textContent = ymLabel(hmYm) + '（当月）';
-    if (nx) nx.disabled = true;
+    hmSelSync();
     const cached = readCache(LS.HOME);
     if (cached) renderGauges(cached);
   } finally {
     if (seq === loadHomeMonth._seq) setSkeleton(false);
   }
 }
-if ($('hmPrev')) $('hmPrev').addEventListener('click', () => { hmYm = ymShift(hmYm, -1); loadHomeMonth(); });
-if ($('hmNext')) $('hmNext').addEventListener('click', () => {
-  if (hmYm >= ymNow()) return;
-  hmYm = ymShift(hmYm, 1);
-  loadHomeMonth();
-});
+/* 月セレクタ＝プルダウン（2026-07-27 松原指示）。2024-01起点＝ブラウザ版アーカイブと同じ遡り */
+function hmSelFill() {
+  const sel = $('hmSel');
+  if (!sel || sel.options.length) return;
+  const cur = ymNow();
+  for (let ym = cur; ym >= '2024-01'; ym = ymShift(ym, -1)) {
+    const op = document.createElement('option');
+    op.value = ym;
+    op.textContent = ymLabel(ym) + (ym === cur ? '（当月）' : '');
+    sel.appendChild(op);
+  }
+}
+function hmSelSync() {
+  hmSelFill();
+  const sel = $('hmSel');
+  if (sel) sel.value = hmYm;
+}
+if ($('hmSel')) {
+  hmSelFill();
+  $('hmSel').addEventListener('change', () => { hmYm = $('hmSel').value || ymNow(); loadHomeMonth(); });
+}
 
 /* ==== 通知 ==== */
 function setBadge(n) {
@@ -564,17 +575,38 @@ document.querySelectorAll('#gjChips .chip').forEach(c => c.addEventListener('cli
   if ($('gjKanriBox')) $('gjKanriBox').classList.toggle('hidden', gjKubun !== '提携先');
 }));
 
-if ($('btnPlPull')) $('btnPlPull').addEventListener('click', async () => {   // 📝Plaud共有URL取込
+async function gjPull(force) {   // 📝Plaud/Meet URL取込（force=取込済みの明示上書き）
   const u = $('plUrl').value.trim(), kn = ($('plKanri') ? $('plKanri').value.trim() : ''), res = $('plRes');
-  if (!u) { res.className = 'result ng'; res.textContent = 'Plaudの共有URL（web.plaud.ai/s/pub_…）を貼ってください'; return; }
+  if (!u) { res.className = 'result ng'; res.textContent = 'PlaudかMeetメモのURLを貼ってください'; return; }
   if (gjKubun === '提携先' && !kn) { res.className = 'result ng'; res.textContent = '提携先の議事録は管理番号を入れてください（例 1034）'; return; }
   res.className = 'result';
   res.textContent = '⬇ 取込中…（' + gjKubun + 'として処理：要約＋全文→Notion' + (gjKubun === '提携先' ? '＋SF活動記録' : '') + '）';
   $('btnPlPull').disabled = true;
   try {
-    const r = await api({ api: 'plaudPull', url: u, kubun: gjKubun, kanri: kn });
+    const r = await api({ api: 'plaudPull', url: u, kubun: gjKubun, kanri: kn, force: force === true });
+    // 🔴取込済み＝黙って上書きしない。上書きは明示のタップで
+    if (r && r.dup) {
+      res.className = 'result';
+      res.textContent = '';
+      res.appendChild(document.createTextNode('⚠️ ' + (r.msg || '取込済みのURLです')));
+      const rw = document.createElement('div');
+      rw.style.marginTop = '8px';
+      const b1 = document.createElement('button');
+      b1.className = 'btn btn-small btn-primary';
+      b1.textContent = '♻️ 上書きして最新化';
+      b1.addEventListener('click', () => gjPull(true));
+      rw.appendChild(b1);
+      const b2 = document.createElement('button');
+      b2.className = 'btn btn-small';
+      b2.style.marginLeft = '6px';
+      b2.textContent = 'やめる';
+      b2.addEventListener('click', () => { res.textContent = ''; });
+      rw.appendChild(b2);
+      res.appendChild(rw);
+      return;
+    }
     res.className = 'result ok';
-    res.textContent = r.msg + '\n日付: ' + (r.date || '') + ' / 文字起こし ' + (r.segs || 0) + 'セグメント' +
+    res.textContent = r.msg + '\n日付: ' + (r.date || '') + (r.segs ? (' / 文字起こし ' + r.segs + 'セグメント') : '') +
       (r.partner ? ' / 提携先: ' + r.partner : '') + '\n' + (r.sf ? r.sf + '\n' : '') + (r.note || '');
     $('plUrl').value = '';
   } catch (e) {
@@ -583,7 +615,8 @@ if ($('btnPlPull')) $('btnPlPull').addEventListener('click', async () => {   // 
   } finally {
     $('btnPlPull').disabled = false;
   }
-});
+}
+if ($('btnPlPull')) $('btnPlPull').addEventListener('click', () => gjPull(false));
 
 let brBoardDone = false;
 async function brLoadBoard() {
@@ -652,8 +685,15 @@ function pipePatient(p) {
       const lb = (s.bodyLabel || '内容') + 'を開く';
       pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
     }
+    if (s.act2 === 'fblock') {
+      const lk = pnd('button', 'pmini', '✉️ 受診後フィードバックメッセージを生成');
+      lk.disabled = true;
+      lk.style.opacity = '.45';
+      lk.title = '医師記入欄が更新されると押せます';
+      t.appendChild(lk);
+    }
     if (s.act2 === 'fbdraft') {
-      const fd = pnd('button', 'pmini go', '受診後フィードバックメッセージ案を開く');
+      const fd = pnd('button', 'pmini go', '✉️ 受診後フィードバックメッセージを生成');
       const fdb = pnd('div', 'pbody');
       fdb.style.display = 'none';
       const fdr = pnd('button', 'pmini', '↻ 作り直す');
@@ -665,7 +705,7 @@ function pipePatient(p) {
           const op = fdb.style.display === 'none';
           fdb.style.display = op ? '' : 'none';
           fdr.style.display = op ? '' : 'none';
-          fd.textContent = op ? '閉じる' : '受診後フィードバックメッセージ案を開く';
+          fd.textContent = op ? '閉じる' : '✉️ 受診後フィードバックメッセージを生成';
           return;
         }
         fd.disabled = true; fdr.disabled = true;
@@ -680,7 +720,7 @@ function pipePatient(p) {
           fdr.style.display = '';
         } catch (e) {
           fdb.textContent = e.message;
-          fd.textContent = '受診後フィードバックメッセージ案を開く';
+          fd.textContent = '✉️ 受診後フィードバックメッセージを生成';
         } finally { fd.disabled = false; fdr.disabled = false; }
       };
       fd.addEventListener('click', () => gen(false));
@@ -688,7 +728,7 @@ function pipePatient(p) {
       t.appendChild(fd); t.appendChild(fdr); t.appendChild(fdb);
     }
     if (s.fut) t.appendChild(futBox(s.fut));
-    if (s.n.indexOf('フィードバック') >= 0) {
+    if (s.isFb) {
       const lw = document.createElement('label');
       lw.className = 'pchk';
       const cb = document.createElement('input');
@@ -999,17 +1039,20 @@ async function plLoad(kind) {
   } catch (e) { host.textContent = e.message; }
 }
 
-['Partner', 'Patient'].forEach(kind => {
-  const head = $('pl' + kind + 'H');
-  if (!head) return;
-  let loaded = false;
-  head.addEventListener('click', () => {
-    const b = $('pl' + kind + 'B'), w = $('pl' + kind);
-    const open = b.style.display === 'none';
-    b.style.display = open ? '' : 'none';
-    w.className = open ? 'plist op' : 'plist';
-    if (open && !loaded) { loaded = true; plLoad(kind); }
+/* 一覧の切替＝プルダウン（2026-07-27 松原指示。タブ入場時と切替時に、空なら読み込む） */
+function plKindShow() {
+  const sel = $('plKind');
+  if (!sel) return;
+  const kind = sel.value === 'Patient' ? 'Patient' : 'Partner';
+  ['Partner', 'Patient'].forEach(k => {
+    const w = $('pl' + k);
+    if (w) w.classList.toggle('hidden', k !== kind);
   });
+  const host = $('pl' + kind + 'R');
+  if (host && !host.firstChild) plLoad(kind);
+}
+if ($('plKind')) $('plKind').addEventListener('change', plKindShow);
+['Partner', 'Patient'].forEach(kind => {
   ['N', 'O'].forEach(sfx => {
     const el = $('pl' + kind + sfx);
     if (el) el.addEventListener('change', () => plLoad(kind));
