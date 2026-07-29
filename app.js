@@ -1828,9 +1828,9 @@ function calModeShow(m) {
     const el = $('calM_' + x);
     if (el) el.classList.toggle('hidden', x !== m);
   });
-  const free = $('calTx') ? $('calTx').closest('.card') : null;
-  const freeBits = ['calTx', 'btnCalParse'];
-  freeBits.forEach(id => { const e = $(id); if (e) e.classList.toggle('hidden', m !== 'free'); });
+  // 自由記述もタブの1つ＝他のモードと同じ出し入れにする（欄が別カードに残る食い違いの解消）
+  const fr = $('calM_free');
+  if (fr) fr.classList.toggle('hidden', m !== 'free');
   const bb = $('btnCalBuild');
   if (bb) bb.classList.toggle('hidden', m === 'free');
   $('calMDraft').classList.add('hidden');
