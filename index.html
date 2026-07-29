@@ -239,9 +239,18 @@
     </div>
 
     <!-- 🆕カレンダー登録（自由記述→calParse→下書き承認→calCreate） -->
-    <div id="view-cal">
-      <h2 class="sec-title">📅 カレンダー登録</h2>
-      <div class="card">
+    <div id="view-cal4">
+      <!-- 🗓 予定を登録（2026-07-29：ブラウザ版と同じ4モード） -->
+      <section class="card" id="sec-cal4">
+        <h2>🗓 予定を登録</h2>
+        <div class="chips" id="calModeChips">
+          <button class="chip on" data-cal="free">自由記述</button>
+          <button class="chip" data-cal="task">タスク</button>
+          <button class="chip" data-cal="mtg">定期MTG</button>
+          <button class="chip" data-cal="adv">受診アドバイザー対応</button>
+        </div>
+
+        <div id="calM_free" class="calm">
         <label class="field-label" for="calTx">予定を自由記述（例「明日15時 佐藤様とオンライン打合せ」）</label>
         <textarea id="calTx" rows="3" placeholder="日時・相手・用件を書いて解析へ"></textarea>
         <button class="btn btn-primary" id="btnCalParse">AIで解析（登録はまだされません）</button>
@@ -261,19 +270,6 @@
           <pre id="calMsgDraft" class="hidden draft-pre"></pre>
           <button class="btn btn-small hidden" id="btnCalMsgCopy">相手へのメッセージ案をコピー</button>
         </div>
-      </div>
-    </div>
-
-    <!-- 🆕2026-07-24 任務B：候補日時ファインダー（定期MTGの日程候補を即答＝{api:'slotFind'}・計算はサーバ1箇所） -->
-    <div id="view-cal4">
-      <!-- 🗓 予定を登録（2026-07-29：ブラウザ版と同じ4モード） -->
-      <section class="card" id="sec-cal4">
-        <h2>🗓 予定を登録</h2>
-        <div class="chips" id="calModeChips">
-          <button class="chip on" data-cal="free">自由記述</button>
-          <button class="chip" data-cal="task">タスク</button>
-          <button class="chip" data-cal="mtg">定期MTG</button>
-          <button class="chip" data-cal="adv">受診アドバイザー対応</button>
         </div>
 
         <div id="calM_task" class="calm hidden">
