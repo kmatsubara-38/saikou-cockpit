@@ -265,6 +265,100 @@
     </div>
 
     <!-- 🆕2026-07-24 任務B：候補日時ファインダー（定期MTGの日程候補を即答＝{api:'slotFind'}・計算はサーバ1箇所） -->
+    <div id="view-cal4">
+      <!-- 🗓 予定を登録（2026-07-29：ブラウザ版と同じ4モード） -->
+      <section class="card" id="sec-cal4">
+        <h2>🗓 予定を登録</h2>
+        <div class="chips" id="calModeChips">
+          <button class="chip on" data-cal="free">自由記述</button>
+          <button class="chip" data-cal="task">タスク</button>
+          <button class="chip" data-cal="mtg">定期MTG</button>
+          <button class="chip" data-cal="adv">受診アドバイザー対応</button>
+        </div>
+
+        <div id="calM_task" class="calm hidden">
+          <label>内容</label>
+          <input id="ctTitle" placeholder="例）Fee明細の作成">
+          <label>対象日</label>
+          <input id="ctDate" type="date">
+          <label>時間帯（1行に1枠）</label>
+          <textarea id="ctTimes" rows="3" placeholder="10:30-11:00&#10;14:00-15:00"></textarea>
+        </div>
+
+        <div id="calM_mtg" class="calm hidden">
+          <label>手段</label>
+          <select id="cmHow"><option>オンライン</option><option>オフライン</option><option>電話</option></select>
+          <label>管理番号</label>
+          <input id="cmKanri" inputmode="numeric" placeholder="例）1034">
+          <label>サロン名（番号から自動で入ります）</label>
+          <input id="cmSalon" placeholder="自動入力">
+          <label>担当者名</label>
+          <input id="cmTanto" placeholder="例）志田">
+          <label>日付</label>
+          <input id="cmDate" type="date">
+          <label>開始時刻</label>
+          <input id="cmStart" placeholder="14:00">
+          <label>所要（分）</label>
+          <input id="cmDur" inputmode="numeric" value="30">
+        </div>
+
+        <div id="calM_adv" class="calm hidden">
+          <label>手段</label>
+          <select id="cvHow"><option>オンライン</option><option>オフライン</option><option>電話</option></select>
+          <label>お客様名</label>
+          <input id="cvName" placeholder="例）浜村 拓志">
+          <label>紹介元の管理番号</label>
+          <input id="cvKanri" inputmode="numeric" placeholder="例）1152">
+          <label>紹介元サロン名（自動）</label>
+          <input id="cvSalon" placeholder="自動入力">
+          <label>日付</label>
+          <input id="cvDate" type="date">
+          <label>開始時刻</label>
+          <input id="cvStart" placeholder="15:00">
+          <label>所要（分）</label>
+          <input id="cvDur" inputmode="numeric" value="60">
+        </div>
+
+        <button class="btn" id="btnCalBuild">下書きをつくる</button>
+        <div id="calMDraft" class="hidden">
+          <div class="muted" style="margin-top:8px">この内容で登録します</div>
+          <div id="calMBody" class="pbody"></div>
+          <button class="btn" id="btnCalMGo">この内容で登録する</button>
+        </div>
+        <div id="calMResult" class="result hidden"></div>
+      </section>
+
+      <!-- ✍️ 文体ラボ（2026-07-29：音声入力が主役なのでスマホでこそ効く） -->
+      <section class="card" id="sec-style">
+        <h2>✍️ 文体ラボ</h2>
+        <div class="muted">話した内容が、いつもの僕の文章になります</div>
+        <div class="chips" id="stChChips">
+          <button class="chip on" data-stch="slack">Slack</button>
+          <button class="chip" data-stch="line">LINE</button>
+          <button class="chip" data-stch="mail">メール</button>
+        </div>
+        <div class="chips" id="stToneChips">
+          <button class="chip on" data-sttone="normal">いつも通り</button>
+          <button class="chip" data-sttone="polite">丁寧に</button>
+          <button class="chip" data-sttone="short">短く</button>
+        </div>
+        <label>相手（任意）</label>
+        <input id="stTo" placeholder="山本先生／MAKIRA様 など">
+        <label>話した内容</label>
+        <textarea id="stIn" rows="5" placeholder="例）高木さんに、MAKIRA様のパンフ30部お願いしたい、期限は一週間以内で"></textarea>
+        <button class="btn" id="btnStWrite">✍️ いつもの僕の文章にする</button>
+        <div id="stOutWrap" class="hidden">
+          <label>できあがり</label>
+          <textarea id="stOut" rows="7"></textarea>
+          <button class="btn btn-small" id="btnStCopy">📋 コピー</button>
+          <button class="btn btn-small" id="btnStPolite">もっと丁寧に</button>
+          <button class="btn btn-small" id="btnStShort">もっと短く</button>
+          <div id="stFix" class="muted"></div>
+        </div>
+        <div id="stResult" class="result hidden"></div>
+      </section>
+</div>
+
     <div id="view-slotf">
       <h2 class="sec-title">🗓 候補日時ファインダー</h2>
       <div class="card">
