@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v21';   /* 2026-07-29 s21＝Proud URL複数対応（s20=予定登録4モード・文体ラボ搭載） */
+const CACHE = 'cp-shell-v22';   /* 2026-07-29 s22＝予定登録を1カードに統合（自由記述の欄が出ない不具合の解消） */
 const ASSETS = [
   './',
   './index.html',
