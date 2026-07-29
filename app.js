@@ -59,7 +59,13 @@ function setOffline(off) {
   const b = $('offlineBanner');
   if (b) b.classList.toggle('hidden', !off);
 }
-window.addEventListener('online',  () => { setOffline(false); loadHome(); });
+window.addEventListener('online',  () => {
+  setOffline(false);
+  // 🔴過去月を表示中に当月の数字で塗り替えない（月は変わらないのに計器だけ動く誤読の防止）
+  const sel = document.getElementById('hmSel');
+  if (sel && sel.value && typeof loadHomeMonth === 'function') loadHomeMonth(sel.value);
+  else loadHome();
+});
 window.addEventListener('offline', () => setOffline(true));
 
 /* ---- キャッシュ（最終取得データ） ---- */
@@ -174,7 +180,9 @@ function renderHome(d) {
   const ul = $('schedList');
   ul.innerHTML = '';
   const sched = d.sched || [];
-  if (!sched.length) ul.innerHTML = '<li class="muted">今日の予定はありません</li>';
+  // 🔴読めなかったことを「無い」と混同しない（予定があるのに"なし"と出す事故の防止）
+  if (d.schedErr) ul.innerHTML = '<li class="muted">⚠️ 予定を読めませんでした：' + esc(d.schedErr) + '</li>';
+  else if (!sched.length) ul.innerHTML = '<li class="muted">今日の予定はありません</li>';
   sched.forEach(s => {
     const li = document.createElement('li');
     if (s.routine) li.classList.add('routine');
@@ -243,7 +251,7 @@ async function loadHome() {
   if (cached) renderHome(cached);           // まずキャッシュを即描画
   try {
     const d = await api({ api: 'home' });
-    saveCache(LS.HOME, d);
+    if (!d.schedErr) saveCache(LS.HOME, d);   // 🔴読めなかった中身を保存すると次回も"予定なし"が出続ける
     renderHome(d);
   } catch (e) {
     if (!cached) $('schedList').innerHTML = '<li class="muted">取得失敗</li>';
@@ -310,6 +318,10 @@ function renderNotifs(d) {
   box.innerHTML = '';
   const items = d.items || [];
   setBadge(d.unread || 0);
+  if (d.nodb || d.missing) {
+    box.innerHTML = '<div class="muted pad">⚠️ 通知の保管先が見つかりません（承認待ちが埋もれている可能性があります）</div>';
+    return;
+  }
   if (!items.length) { box.innerHTML = '<div class="muted pad">通知はありません</div>'; return; }
   items.forEach(it => {
     const div = document.createElement('div');
@@ -903,7 +915,21 @@ function pipePartner(vv) {
   return c;
 }
 
+// 🔴2026-07-29：販促物はブラウザ版がv6.8（QR鮮度チェック→フォルダ生成→生成→依頼→発送案内）に
+//   作り替わっており、PWAに残っていた旧v6.0の経路は「発送案内が永久に作れない」「同じサロンへ
+//   2通目の依頼が飛ぶ」実害があった。スマホからは着手させず、ブラウザ版へ案内する。
 async function pipeHansoku(vv, host, btn) {
+  const box = pnd('div');
+  box.style.marginTop = '8px';
+  box.appendChild(pnd('div', 'pbody',
+    '販促物の依頼は、ブラウザ版の「🎁 販促物制作」からお願いします。\n' +
+    'QRの鮮度確認・フォルダ生成・完了報告の追跡まで一続きになっており、\n' +
+    'スマホから出すと発送案内が作れなくなります。'));
+  host.appendChild(box);
+  return;
+}
+
+async function pipeHansokuLegacy_(vv, host, btn) {
   btn.disabled = true;
   btn.textContent = '作成中…';
   let r;
@@ -1036,7 +1062,12 @@ async function plLoad(kind) {
     if (r.fbErr) host.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + r.fbErr));
     if (!r.items || !r.items.length) { host.appendChild(pnd('div', 'muted', '該当がありません')); return; }
     r.items.forEach(it => host.appendChild(kind === 'Partner' ? plPartnerRow(it) : plPatientRow(it)));
-  } catch (e) { host.textContent = e.message; }
+  } catch (e) {
+    // 🔴host自身にエラーを書くと「中身がある」と判定され、以後ずっと再読込されなくなる
+    host.innerHTML = '';
+    host.appendChild(pnd('div', 'muted', '読み込みに失敗しました：' + e.message + '（もう一度お試しください）'));
+    host.dataset.err = '1';
+  }
 }
 
 /* 一覧の切替＝プルダウン（2026-07-27 松原指示。タブ入場時と切替時に、空なら読み込む） */
@@ -1049,7 +1080,7 @@ function plKindShow() {
     if (w) w.classList.toggle('hidden', k !== kind);
   });
   const host = $('pl' + kind + 'R');
-  if (host && !host.firstChild) plLoad(kind);
+  if (host && (!host.firstChild || host.dataset.err === '1')) { delete host.dataset.err; plLoad(kind); }
 }
 if ($('plKind')) $('plKind').addEventListener('change', plKindShow);
 ['Partner', 'Patient'].forEach(kind => {
@@ -1703,3 +1734,200 @@ if ($('hmLabel')) $('hmLabel').textContent = ymLabel(hmYm) + '（当月）';
 if ($('hmNext')) $('hmNext').disabled = true;   // 起動時=当月（未来月へは進めない）
 if (!localStorage.getItem(LS.KEY)) showSetup();
 else loadHome();
+
+
+/* ==== 🗓 予定を登録（4モード・2026-07-29）＝ブラウザ版と同じ決定論ロジック ====
+   🔴件名に管理番号が入らないと「定期MTG n/20」に計上されない。だからAI任せにせず型で組む。 */
+let calMode4 = 'free', calDrafts4 = null;
+
+function calHM4(x) {
+  x = String(x || '').trim().replace(/：/g, ':').replace(/(\d{1,2})時半/, '$1:30')
+       .replace(/(\d{1,2})時(\d{1,2})分?/, '$1:$2').replace(/(\d{1,2})時/, '$1:00');
+  const m = x.match(/^(\d{1,2}):(\d{2})$/) || x.match(/^(\d{1,2})(\d{2})$/) || x.match(/^(\d{1,2})$/);
+  if (!m) return null;
+  const hh = +m[1], mi = +(m[2] || 0);
+  if (hh > 23 || mi > 59) return null;
+  return ('0' + hh).slice(-2) + ':' + ('0' + mi).slice(-2);
+}
+function calShift4(date, hm, min) {
+  const d = new Date(date + 'T' + hm + ':00');
+  const e = new Date(d.getTime() + min * 60000);
+  return e.getFullYear() + '-' + ('0' + (e.getMonth() + 1)).slice(-2) + '-' + ('0' + e.getDate()).slice(-2) +
+         'T' + ('0' + e.getHours()).slice(-2) + ':' + ('0' + e.getMinutes()).slice(-2);
+}
+function calMShow4(evs) {
+  calDrafts4 = evs;
+  const b = $('calMBody');
+  if (!b) return;
+  b.textContent = evs.map(e => '・' + e.title + '\n　' + e.start.replace('T', ' ') + ' 〜 ' + e.end.replace('T', ' ')).join('\n');
+  $('calMDraft').classList.remove('hidden');
+}
+function calErr4(m) { const r = $('calMResult'); if (r) { r.className = 'result ng'; r.textContent = m; r.classList.remove('hidden'); } }
+
+function calBuildTask4() {
+  const ti = ($('ctTitle').value || '').trim(), dt = $('ctDate').value;
+  if (!ti) return calErr4('内容を書いてください');
+  if (!dt) return calErr4('対象日を選んでください');
+  const lines = ($('ctTimes').value || '').split(/\n/).map(x => x.trim()).filter(Boolean);
+  if (!lines.length) return calErr4('時間帯を1行以上書いてください（例 10:30-11:00）');
+  const evs = [], bad = [];
+  lines.forEach(ln => {
+    const p = ln.split(/[-−~〜]/);
+    const s1 = calHM4(p[0]), e1 = calHM4(p[1]);
+    if (!s1 || !e1 || s1 >= e1) { bad.push(ln); return; }
+    evs.push({ title: '【タスク】' + ti, start: dt + 'T' + s1, end: dt + 'T' + e1 });
+  });
+  if (bad.length) return calErr4('読めない時間帯があります：' + bad.join(' / '));
+  calMShow4(evs);
+}
+function calBuildMtg4() {
+  const how = $('cmHow').value, k = ($('cmKanri').value || '').trim(), sal = ($('cmSalon').value || '').trim();
+  const ta = ($('cmTanto').value || '').trim(), dt = $('cmDate').value, st = calHM4($('cmStart').value);
+  const du = parseInt($('cmDur').value, 10) || 30;
+  if (!k) return calErr4('管理番号を書いてください');
+  if (!sal) return calErr4('サロン名が未入力です（番号から自動で入ります）');
+  if (!ta) return calErr4('担当者名を書いてください');
+  if (!dt || !st) return calErr4('日付と開始時刻を書いてください');
+  const base = k + '：' + sal + ' ' + ta + '様｜定期MTG';
+  calMShow4([
+    { title: '【タスク】' + base + '準備', start: calShift4(dt, st, -30), end: dt + 'T' + st },
+    { title: '【' + how + '】' + base, start: dt + 'T' + st, end: calShift4(dt, st, du), online: how === 'オンライン' },
+    { title: '【タスク】' + base + '振り返り', start: calShift4(dt, st, du), end: calShift4(dt, st, du + 30) },
+  ]);
+}
+function calBuildAdv4() {
+  const how = $('cvHow').value, nm = ($('cvName').value || '').trim(), k = ($('cvKanri').value || '').trim();
+  const sal = ($('cvSalon').value || '').trim(), dt = $('cvDate').value, st = calHM4($('cvStart').value);
+  const du = parseInt($('cvDur').value, 10) || 60;
+  if (!nm) return calErr4('お客様名を書いてください');
+  if (!k) return calErr4('紹介元の管理番号を書いてください');
+  if (!sal) return calErr4('紹介元サロン名が未入力です（番号から自動で入ります）');
+  if (!dt || !st) return calErr4('日付と開始時刻を書いてください');
+  const base = nm + '　※紹介元：' + k + '_' + sal + '｜受診アドバイザー対応';
+  calMShow4([
+    { title: '【タスク】' + base + '準備', start: calShift4(dt, st, -30), end: dt + 'T' + st },
+    { title: '【' + how + '】' + base, start: dt + 'T' + st, end: calShift4(dt, st, du), online: how === 'オンライン' },
+    { title: '【タスク】' + base + '振り返り', start: calShift4(dt, st, du), end: calShift4(dt, st, du + 30) },
+  ]);
+}
+
+/* 管理番号→サロン名の自動補完（手打ちのブレが件名判定を外すのを防ぐ） */
+async function calKanriFill(kanriId, salonId) {
+  const k = ($(kanriId).value || '').trim();
+  if (!/^\d{3,6}$/.test(k)) return;
+  try {
+    const r = await api({ api: 'kanriName', kanri: k });
+    if (r && r.name) $(salonId).value = r.name;
+  } catch (e) {}
+}
+
+function calModeShow(m) {
+  calMode4 = m;
+  document.querySelectorAll('#calModeChips .chip').forEach(c => c.classList.toggle('on', c.dataset.cal === m));
+  ['task', 'mtg', 'adv'].forEach(x => {
+    const el = $('calM_' + x);
+    if (el) el.classList.toggle('hidden', x !== m);
+  });
+  const free = $('calTx') ? $('calTx').closest('.card') : null;
+  const freeBits = ['calTx', 'btnCalParse'];
+  freeBits.forEach(id => { const e = $(id); if (e) e.classList.toggle('hidden', m !== 'free'); });
+  const bb = $('btnCalBuild');
+  if (bb) bb.classList.toggle('hidden', m === 'free');
+  $('calMDraft').classList.add('hidden');
+  calDrafts4 = null;
+}
+
+async function calMultiGo() {
+  if (!calDrafts4 || !calDrafts4.length) return;
+  const go = $('btnCalMGo'), res = $('calMResult');
+  go.disabled = true; go.textContent = '登録中…';
+  try {
+    const r = await api({ api: 'calMulti', payload: { events: calDrafts4 } });
+    res.className = 'result ' + (r.ok ? 'ok' : 'ng');
+    res.textContent = r.msg || (r.ok ? '登録しました' : '登録に失敗しました');
+    if (r.ng && r.ng.length) res.textContent += '\n⚠️ ' + r.ng.join('\n');
+    res.classList.remove('hidden');
+    if (r.ok) {
+      // 🔴成功したときだけ消す（失敗して消すと全部打ち直しになる）
+      ['ctTitle', 'ctTimes', 'cmKanri', 'cmSalon', 'cmTanto', 'cmStart', 'cvName', 'cvKanri', 'cvSalon', 'cvStart']
+        .forEach(id => { const e = $(id); if (e) e.value = ''; });
+      $('calMDraft').classList.add('hidden');
+      calDrafts4 = null;
+    }
+  } catch (e) {
+    res.className = 'result ng'; res.textContent = e.message; res.classList.remove('hidden');
+  }
+  go.disabled = false; go.textContent = 'この内容で登録する';
+}
+
+/* ==== ✍️ 文体ラボ（2026-07-29） ==== */
+let stCh4 = 'slack', stTone4 = 'normal';
+async function stWrite4() {
+  const v = ($('stIn').value || '').trim();
+  const res = $('stResult');
+  if (!v) { res.className = 'result ng'; res.textContent = '話した内容を入れてください'; res.classList.remove('hidden'); return; }
+  const b = $('btnStWrite');
+  b.disabled = true; b.textContent = '整えています…';
+  res.className = 'result'; res.textContent = '✍️ いつもの言い方に整えています…'; res.classList.remove('hidden');
+  try {
+    const r = await api({ api: 'styleWrite', voice: v, ch: stCh4, tone: stTone4, to: ($('stTo').value || '') });
+    if (!r.ok) throw new Error(r.msg || '整えられませんでした');
+    $('stOut').value = r.text || '';
+    $('stOutWrap').classList.remove('hidden');
+    let ft = (r.fixes && r.fixes.length) ? ('🔧 整えた箇所：' + r.fixes.join('／')) : '🔧 整える箇所はありませんでした';
+    if (r.warns && r.warns.length) ft += '\n⚠️ ' + r.warns.join('／');
+    $('stFix').textContent = ft;
+    res.className = 'result ok';
+    res.textContent = '✅ 整えました（型' + (r.pairs || 0) + '件・骨格' + (r.skel || 0) + '件を参照' +
+                      (r.shots ? '＋あなたの文' + r.shots + '件' : '') + '）';
+  } catch (e) {
+    res.className = 'result ng'; res.textContent = e.message;
+  }
+  b.disabled = false; b.textContent = '✍️ いつもの僕の文章にする';
+}
+
+function wireCal4AndStyle() {
+  const chips = $('calModeChips');
+  if (chips) chips.addEventListener('click', ev => {
+    const c = ev.target.closest('button[data-cal]');
+    if (c) calModeShow(c.dataset.cal);
+  });
+  const bb = $('btnCalBuild');
+  if (bb) bb.addEventListener('click', () => {
+    $('calMResult').classList.add('hidden');
+    if (calMode4 === 'task') calBuildTask4();
+    else if (calMode4 === 'mtg') calBuildMtg4();
+    else if (calMode4 === 'adv') calBuildAdv4();
+  });
+  const gg = $('btnCalMGo');
+  if (gg) gg.addEventListener('click', calMultiGo);
+  const ck = $('cmKanri'); if (ck) ck.addEventListener('blur', () => calKanriFill('cmKanri', 'cmSalon'));
+  const vk = $('cvKanri'); if (vk) vk.addEventListener('blur', () => calKanriFill('cvKanri', 'cvSalon'));
+  // 日付の初期値は開くたびに入れ直す（開きっぱなしで日を跨いでも前日にならない）
+  ['ctDate', 'cmDate', 'cvDate'].forEach(id => {
+    const e = $(id);
+    if (e && !e.value) { const d = new Date(); e.value = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  });
+
+  const cc = $('stChChips');
+  if (cc) cc.addEventListener('click', ev => {
+    const c = ev.target.closest('button[data-stch]');
+    if (!c) return;
+    stCh4 = c.dataset.stch;
+    cc.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+  });
+  const tc = $('stToneChips');
+  if (tc) tc.addEventListener('click', ev => {
+    const c = ev.target.closest('button[data-sttone]');
+    if (!c) return;
+    stTone4 = c.dataset.sttone;
+    tc.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+  });
+  const sw = $('btnStWrite'); if (sw) sw.addEventListener('click', stWrite4);
+  const sc = $('btnStCopy');
+  if (sc) sc.addEventListener('click', () => { try { navigator.clipboard.writeText($('stOut').value); showOk('コピーしました'); } catch (e) {} });
+  const sp = $('btnStPolite'); if (sp) sp.addEventListener('click', () => { stTone4 = 'polite'; stWrite4(); });
+  const ss = $('btnStShort'); if (ss) ss.addEventListener('click', () => { stTone4 = 'short'; stWrite4(); });
+  calModeShow('free');
+}
+document.addEventListener('DOMContentLoaded', wireCal4AndStyle);
