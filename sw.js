@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v22';   /* 2026-07-29 s22＝予定登録を1カードに統合（自由記述の欄が出ない不具合の解消） */
+const CACHE = 'cp-shell-v37';   /* 2026-08-07 s35＝PWA同格化：📊計測（homeの便に同乗・往復ゼロ増）＋⚡楽観的更新（タスク/学び/既読チップ） */
 const ASSETS = [
   './',
   './index.html',
