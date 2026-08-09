@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<!-- 🔴2026-07-31：常時ダーク＝OSの設定で色が変わらない -->
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="コックピット">
 <title>個人コックピット</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -29,6 +29,27 @@
 
   <!-- ホーム -->
   <section id="view-home" class="view">
+    <!-- 🌅ver.2第1手 PWA同格（2026-08-09 b67/sw v37）：修身レイヤー＝素読→充足（🧭）→1問。
+         ブラウザ版b66と同じ序列（『大学』修身為本）・並びはverify_v59が機械固定 -->
+    <div class="card card-flat" id="sodokuCard">
+      <div class="sched-head"><span class="sched-title">素読</span>
+        <span class="sched-next">声に出して一度（意味は考え込まない）</span></div>
+      <pre class="sodoku" id="sdCredo"></pre>
+      <div class="sd-setsu"><div class="sd-k">今日の一節（『大学』伊與田覺）</div>
+        <div class="sd-v" id="sdSetsu"></div></div>
+    </div>
+    <div class="card card-flat" id="needsCard">
+      <div class="sched-head"><span class="sched-title">🧭 今日の6つのニーズ</span>
+        <span class="sched-next" id="ndCnt4"></span></div>
+      <div class="chips ndchips" id="ndChips4"><span class="muted">読み込み中…</span></div>
+    </div>
+    <div class="card card-flat" id="oneqCard">
+      <div class="sched-head"><span class="sched-title">今日の1問</span>
+        <span class="sched-next" id="oqSt4"></span></div>
+      <div class="oq-q" id="oqQ4"></div>
+      <div id="oqBody4"><span class="muted">読み込み中…</span></div>
+    </div>
+
     <!-- 🆕2026-07-24 任務A：今日のスケジュール＝最上部＋開閉式（ヘッダタップ・localStorage cp_sched_open・既定=開・閉時は次の予定1件をヘッダ右に常時表示） -->
     <div class="card card-flat" id="schedCard">
       <div class="sched-head" id="schedHead" role="button" tabindex="0" aria-controls="schedList">
@@ -36,7 +57,66 @@
         <span class="sched-next hidden" id="schedNext"></span>
         <span class="sched-chev" id="schedChev" aria-hidden="true">⌄</span>
       </div>
+      <!-- 🔴2026-08-02 松原指示③：日ごとに前後へ動かせるようにし、カレンダー本体も開けるように -->
+      <!-- 📆b67：日⇄週セグメント（ブラウザ版b63と同格）。‹›は週表示で±7日 -->
+      <div class="sched-nav" id="schedNav">
+        <button class="chip on" id="scVd4">📅 日</button>
+        <button class="chip" id="scVw4">📆 週</button>
+        <button class="chip" id="scPrev" aria-label="前へ">‹</button>
+        <input type="date" id="scD" aria-label="表示する日">
+        <button class="chip" id="scNext" aria-label="次へ">›</button>
+        <button class="chip" id="scToday">今日</button>
+        <a class="chip" id="scCal" target="_blank" rel="noopener">📅 カレンダー</a>
+      </div>
+      <div class="note bad hidden" id="scLinkWarn"></div>
       <ul class="sched" id="schedList"><li class="muted">読み込み中…</li></ul>
+      <div id="scWk" class="hidden"></div>
+    </div>
+
+    <!-- 🔴2026-08-02 松原指示①：タスク（ブラウザ版と同じ実体を触る） -->
+    <div class="card card-flat" id="taskCard">
+      <div class="sched-head" id="tkHead" role="button" tabindex="0" aria-controls="tkList">
+        <span class="sched-title">タスク</span>
+        <span class="sched-next" id="tkCnt"></span>
+        <span class="sched-chev" id="tkChev" aria-hidden="true">⌄</span>
+      </div>
+      <div id="tkBody">
+        <div class="tk-add">
+          <input type="text" id="tkT" placeholder="やること" enterkeyhint="done">
+          <!-- 🔴2026-08-05：期限は2本立て。アクション=自分が動く日（必須）／アライメント=擦り合わせの締め（任意） -->
+          <input type="date" id="tkD" aria-label="アクション期限（必須）" title="アクション期限（自分が動く日・必須）">
+          <input type="date" id="tkD2" aria-label="アライメント期限（任意）" title="アライメント期限（擦り合わせの締め・任意）">
+          <button class="btn" id="tkAddBtn">＋ 追加</button>
+        </div>
+        <!-- 🔴2026-08-04 松原の定義：「残タスク＝脳のリソース（スペース・余裕）を奪っていくもの」。
+             主役の数字はタスク総数ではなく“まだ頭で持ち続けている数”。理想は0件
+             （＝やることが無い、ではなく「覚えておく必要が無い」状態）。ブラウザ版と同じ作り。 -->
+        <div class="bx">
+          <div class="bxt">
+            <span class="bxn" id="tkBn">–</span><span class="bxu">件</span>
+            <span class="bxl" id="tkBl">を、まだ頭が抱えています</span>
+            <button class="chip bxq" id="tkWhyB" aria-controls="tkWhy">なぜ？</button>
+          </div>
+          <div class="bxb" id="tkBb" hidden><i id="tkB1"></i><i id="tkB2"></i><i id="tkB3"></i></div>
+          <div class="bxk" id="tkBk"></div>
+          <div class="bxs" id="tkBs"></div>
+        </div>
+        <div class="tk-why" id="tkWhy">
+          <b>残タスクは、抱えている間ずっと脳の余裕を奪います。</b><br>
+          🧠 <b>握られ続ける</b>　終わっていない用事は脳が保持し続け、他への集中を削ります（ツァイガルニク効果）<br>
+          🧮 <b>置ける数は4つ前後</b>　同時に保持できるのは約4チャンク。超えた分は、思い出す努力そのものが判断の質を削ります<br>
+          📅 <b>降ろし方</b>　いつやるかを決め、動き出した用事は頭から降ります（Masicampo &amp; Baumeister 2011）<br>
+          🚦 <b>未着手は降りない</b>　このまま残れば——予定に入れても、着手されない計画は「意図と行動のギャップ」として開き続け、「決めたのに動いていない」という記録が自己効力感を目減りさせます。最初の5分だけ着手すれば、ループは閉じ始めます<br>
+          🔍 <b>「あとで」は届かない</b>　人は自分の作業を短く見積もります（計画錯誤）。置き場所を決めない限り残り続けます<br>
+          🤝 <b>信頼</b>　一度の遅れが「この人の期限は目安だ」という学習を相手に作ります<br>
+          <span class="bxf">理想は0件。ここに書いた時点で「忘れない」はもう預かっています。あとは📅で置き場所を決めるだけです。</span>
+        </div>
+        <div id="tkList"></div>
+        <div class="tk-foot">
+          <button class="chip" id="tkBrainTgl">🧠 頭に残っているものだけ</button>
+          <button class="chip" id="tkDoneTgl">✔ 完了も見る</button>
+        </div>
+      </div>
     </div>
 
     <!-- 月セレクタ＝プルダウン（2026-07-27 松原指示。過去月={api:'homeMonth'}・リロードなし） -->
@@ -135,11 +215,18 @@
           <div><label class="field-label" for="skDate">日付</label><input type="date" id="skDate"></div>
           <div><label class="field-label" for="skTime">出勤時刻</label><input type="text" id="skTime" placeholder="9:30" inputmode="numeric"></div>
         </div>
-        <div id="skBox" class="hidden" style="margin-top:12px;border:1px solid #0071e3;border-radius:14px;padding:12px">
-          <div class="field-label">投稿テンプレ（確認して承認）</div>
-          <pre id="skTxt" style="margin:0 0 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:inherit;background:transparent"></pre>
+        <div id="skBox" class="hidden" style="margin-top:12px;border:1px solid var(--accent);border-radius:14px;padding:12px">
+          <!-- 🔴2026-07-31 松原指示：読むだけ→直せる欄へ。直した言い回しは次から最初から出る -->
+          <div class="field-label">出勤時間報告（直してから送れます）</div>
+          <textarea id="skTxt" rows="6" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7"></textarea>
           <button class="btn btn-primary" id="btnSkSend">✅ Slackへ出勤時間報告（@channel）</button>
+          <div class="chips" style="margin-top:8px">
+            <span class="chip" id="skReset">↩ 型に戻す</span>
+            <span class="chip" id="skLearn">📚 覚えた言い回し</span>
+          </div>
           <div class="result" id="skRes"></div>
+          <div id="mlBox2" class="hidden" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
+          <div class="muted" style="margin-top:6px;font-size:12px">直して送ると、変えた言い回しを覚えて次から最初からその形で出します（日付・時刻・数字・その日の作業内容は覚えません）</div>
         </div>
         <div class="muted" style="margin-top:8px;font-size:12px">本人名義・@channel付きで出勤報告チャンネルへ。日付を変えれば未来/過去日もOK</div>
       </div>
@@ -175,11 +262,18 @@
         <button class="btn btn-primary" id="btnKintaiSend">送信</button>
         <div class="result" id="ktResult"></div>
         <!-- 🆕2026-07-23 残業報告テンプレ（残業ありの時のみ表示→✅承認でSlackへ@channel送信。本文はサーバ側で再構築） -->
-        <div id="ktZho" class="hidden" style="margin-top:12px;border:1px solid #0071e3;border-radius:14px;padding:12px">
-          <div class="field-label">残業報告テンプレ（確認して承認）</div>
-          <pre id="ktZhoTxt" style="margin:0 0 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:inherit;background:transparent"></pre>
+        <div id="ktZho" class="hidden" style="margin-top:12px;border:1px solid var(--accent);border-radius:14px;padding:12px">
+          <!-- 🔴2026-07-31 松原指示：読むだけ→直せる欄へ -->
+          <div class="field-label">残業報告（直してから送れます）</div>
+          <textarea id="ktZhoTxt" rows="8" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7"></textarea>
           <button class="btn btn-primary" id="btnZhoSend">✅ Slackへ残業報告（@channel）</button>
+          <div class="chips" style="margin-top:8px">
+            <span class="chip" id="zhoReset">↩ 型に戻す</span>
+            <span class="chip" id="zhoLearn">📚 覚えた言い回し</span>
+          </div>
           <div class="result" id="ktZhoRes"></div>
+          <div id="mlBox" class="hidden" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
+          <div class="muted" style="margin-top:6px;font-size:12px">直して送ると、変えた言い回しを覚えて次から最初からその形で出します（日付・時刻・数字・その日の作業内容は覚えません）</div>
         </div>
         <div id="ktZhoNone" class="muted hidden" style="margin-top:8px;font-size:12px">残業なし＝Slackへの残業報告は不要です</div>
       </div>
@@ -227,8 +321,8 @@
           <button type="button" class="chip" data-v="staff">⑤スタッフ</button>
           <button type="button" class="chip" data-v="pjt">⑥PJT（松原介入）</button>
         </div>
-        <label class="field-label" for="skPlaud">Proud URL（任意）</label>
-        <input type="url" id="skPlaud" placeholder="https://web.plaud.ai/share/…">
+        <label class="field-label" for="skPlaud">Proud URL（任意・複数可）</label>
+        <textarea id="skPlaud" rows="2" placeholder="https://web.plaud.ai/share/…&#10;複数ある場合は1行に1つずつ"></textarea>
         <label class="field-label" for="skSonota">その他（CV要因メモ・任意）</label>
         <textarea id="skSonota" rows="2" placeholder="決め手や介入の内容（CRM整理の核）"></textarea>
         <label class="field-label" for="skSfp">SF患者リンク（任意）</label>
@@ -239,9 +333,18 @@
     </div>
 
     <!-- 🆕カレンダー登録（自由記述→calParse→下書き承認→calCreate） -->
-    <div id="view-cal">
-      <h2 class="sec-title">📅 カレンダー登録</h2>
-      <div class="card">
+    <div id="view-cal4">
+      <!-- 🗓 予定を登録（2026-07-29：ブラウザ版と同じ4モード） -->
+      <section class="card" id="sec-cal4">
+        <h2>🗓 予定を登録</h2>
+        <div class="chips" id="calModeChips">
+          <button class="chip on" data-cal="free">自由記述</button>
+          <button class="chip" data-cal="task">タスク</button>
+          <button class="chip" data-cal="mtg">定期MTG</button>
+          <button class="chip" data-cal="adv">受診アドバイザー対応</button>
+        </div>
+
+        <div id="calM_free" class="calm">
         <label class="field-label" for="calTx">予定を自由記述（例「明日15時 佐藤様とオンライン打合せ」）</label>
         <textarea id="calTx" rows="3" placeholder="日時・相手・用件を書いて解析へ"></textarea>
         <button class="btn btn-primary" id="btnCalParse">AIで解析（登録はまだされません）</button>
@@ -261,10 +364,91 @@
           <pre id="calMsgDraft" class="hidden draft-pre"></pre>
           <button class="btn btn-small hidden" id="btnCalMsgCopy">相手へのメッセージ案をコピー</button>
         </div>
-      </div>
-    </div>
+        </div>
 
-    <!-- 🆕2026-07-24 任務B：候補日時ファインダー（定期MTGの日程候補を即答＝{api:'slotFind'}・計算はサーバ1箇所） -->
+        <div id="calM_task" class="calm hidden">
+          <label>内容</label>
+          <input id="ctTitle" placeholder="例）Fee明細の作成">
+          <label>対象日</label>
+          <input id="ctDate" type="date">
+          <label>時間帯（1行に1枠）</label>
+          <textarea id="ctTimes" rows="3" placeholder="10:30-11:00&#10;14:00-15:00"></textarea>
+        </div>
+
+        <div id="calM_mtg" class="calm hidden">
+          <label>手段</label>
+          <select id="cmHow"><option>オンライン</option><option>オフライン</option><option>電話</option></select>
+          <label>管理番号</label>
+          <input id="cmKanri" inputmode="numeric" placeholder="例）1034">
+          <label>サロン名（番号から自動で入ります）</label>
+          <input id="cmSalon" placeholder="自動入力">
+          <label>担当者名</label>
+          <input id="cmTanto" placeholder="例）志田">
+          <label>日付</label>
+          <input id="cmDate" type="date">
+          <label>開始時刻</label>
+          <input id="cmStart" placeholder="14:00">
+          <label>所要（分）</label>
+          <input id="cmDur" inputmode="numeric" value="30">
+        </div>
+
+        <div id="calM_adv" class="calm hidden">
+          <label>手段</label>
+          <select id="cvHow"><option>オンライン</option><option>オフライン</option><option>電話</option></select>
+          <label>お客様名</label>
+          <input id="cvName" placeholder="例）浜村 拓志">
+          <label>紹介元の管理番号</label>
+          <input id="cvKanri" inputmode="numeric" placeholder="例）1152">
+          <label>紹介元サロン名（自動）</label>
+          <input id="cvSalon" placeholder="自動入力">
+          <label>日付</label>
+          <input id="cvDate" type="date">
+          <label>開始時刻</label>
+          <input id="cvStart" placeholder="15:00">
+          <label>所要（分）</label>
+          <input id="cvDur" inputmode="numeric" value="60">
+        </div>
+
+        <button class="btn" id="btnCalBuild">下書きをつくる</button>
+        <div id="calMDraft" class="hidden">
+          <div class="muted" style="margin-top:8px">この内容で登録します</div>
+          <div id="calMBody" class="pbody"></div>
+          <button class="btn" id="btnCalMGo">この内容で登録する</button>
+        </div>
+        <div id="calMResult" class="result hidden"></div>
+      </section>
+
+      <!-- ✍️ 文体ラボ（2026-07-29：音声入力が主役なのでスマホでこそ効く） -->
+      <section class="card" id="sec-style">
+        <h2>✍️ 文体ラボ</h2>
+        <div class="muted">話した内容が、いつもの僕の文章になります</div>
+        <div class="chips" id="stChChips">
+          <button class="chip on" data-stch="slack">Slack</button>
+          <button class="chip" data-stch="line">LINE</button>
+          <button class="chip" data-stch="mail">メール</button>
+        </div>
+        <div class="chips" id="stToneChips">
+          <button class="chip on" data-sttone="normal">いつも通り</button>
+          <button class="chip" data-sttone="polite">丁寧に</button>
+          <button class="chip" data-sttone="short">短く</button>
+        </div>
+        <label>相手（任意）</label>
+        <input id="stTo" placeholder="山本先生／MAKIRA様 など">
+        <label>話した内容</label>
+        <textarea id="stIn" rows="5" placeholder="例）高木さんに、MAKIRA様のパンフ30部お願いしたい、期限は一週間以内で"></textarea>
+        <button class="btn" id="btnStWrite">✍️ いつもの僕の文章にする</button>
+        <div id="stOutWrap" class="hidden">
+          <label>できあがり</label>
+          <textarea id="stOut" rows="7"></textarea>
+          <button class="btn btn-small" id="btnStCopy">📋 コピー</button>
+          <button class="btn btn-small" id="btnStPolite">もっと丁寧に</button>
+          <button class="btn btn-small" id="btnStShort">もっと短く</button>
+          <div id="stFix" class="muted"></div>
+        </div>
+        <div id="stResult" class="result hidden"></div>
+      </section>
+</div>
+
     <div id="view-slotf">
       <h2 class="sec-title">🗓 候補日時ファインダー</h2>
       <div class="card">
