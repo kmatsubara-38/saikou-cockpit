@@ -1,18 +1,27 @@
 /* ===== 個人コックピット PWA — コックピット共通デザイン言語 ===== */
+/* 🔴2026-07-31 松原指示：ダークモードが常時のデザイン。OSがライトでも暗いまま。
+ *   実装＝dark用の @media 包みを外して常時適用（OSの配色を見る @media が
+ *   このファイルに1つも無いのが正）。ライト用の値は上書きされる側として残す＝二重管理しない。 */
+:root{color-scheme:dark}
+/* 🔴白文字を載せる面は「塗り専用」トークンを使う（PC版 v5.7 と同じ不変条件・2026-07-31）。
+ *   常時ダーク化で --accent が #2997ff に固定されたが、白文字を載せると 3.01:1 で読めない。
+ *   文字・アイコンの藍（--accent）と、面の藍（--accent-fill）を分ける。--accent-fill は
+ *   白文字で 4.85:1（PC版と同値）。ここを一本化すると必ずコントラストが壊れる。 */
+:root{--accent-fill:#1f5f96}
 :root{
   --bg:#f5f5f7;
   --card:#ffffff;
   --ink:#1d1d1f;
   --sub:#6e6e73;
   --line:rgba(0,0,0,.08);
-  --accent:#0071e3;
+  --accent:var(--accent);
   --ok:#34c759;
   --warn:#ff9500;
   --bad:#ff3b30;
   --radius:28px;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro JP","SF Pro Display","Helvetica Neue","Hiragino Sans","Yu Gothic UI",sans-serif;
 }
-@media (prefers-color-scheme:dark){
+
   :root{
     --bg:#000000;
     --card:#1c1c1e;
@@ -21,7 +30,7 @@
     --line:rgba(255,255,255,.12);
     --accent:#0a84ff;
   }
-}
+
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
 body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
@@ -65,11 +74,97 @@ main{padding:8px 16px 16px;max-width:640px;margin:0 auto}
 
 /* schedule */
 .sched{list-style:none}
-.sched li{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}
+.sched li{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;flex-wrap:wrap}
+/* ✏️予定を直す（2026-08-04 松原指示）。指で押せる大きさを確保しつつ、ふだんは控えめに */
+.sched .evx{flex:none;border:0;background:transparent;color:inherit;cursor:pointer;font-size:14px;
+  line-height:1;padding:6px 8px;border-radius:10px;opacity:.75}
+.sched .evx:active{background:color-mix(in srgb,var(--accent-fill) 22%,transparent)}
+.evp{flex-basis:100%;width:100%;margin:10px 0 2px;padding:12px;border:1px solid var(--line);
+  border-radius:14px;background:var(--bg)}
+.evp-h{font-size:12px;font-weight:700;color:var(--sub);margin-bottom:2px}
+.evp label{display:block;font-size:12px;color:var(--sub);margin:8px 0 4px}
+.evp input,.evp textarea{width:100%;margin:0}
+.evp .g2b{display:flex;gap:10px;flex-wrap:wrap}
+.evp .g2b>div{flex:1;min-width:104px}
+.evp .s9w{display:flex;align-items:center;gap:6px}
+.evp .s9w input{width:auto;margin:0}
+.evp-b{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.evp-b .btn,.evp-b .chip{width:auto;margin:0;flex:none}
+.evp .note{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.55}
+.evp .note.bad{color:var(--bad)}
 .sched li:last-child{border-bottom:none}
 .sched .t{font-variant-numeric:tabular-nums;font-weight:600;min-width:44px;color:var(--sub);font-size:13px}
 .sched .title{flex:1;line-height:1.4}
 .sched .tag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+/* 🔴2026-08-02 松原指示②：Meetが付いている予定はその場から入れる */
+/* 🔴2026-08-04：「オンライン開始」＝押す前提のボタン。指で押せる大きさにする */
+.sched .mt{display:inline-block;margin-left:8px;padding:4px 12px;border-radius:999px;font-size:11.5px;font-weight:700;
+  text-decoration:none;color:#fff;background:var(--accent-fill);white-space:nowrap}
+/* 件名は【オンライン】なのにURLが無い＝先方の発行漏れ。責めず、静かに知らせるだけ */
+.sched .mtn{margin-left:8px;font-style:normal;font-size:11px;color:var(--sub);white-space:nowrap}
+/* 📆週表示（b67リビルド＝ブラウザ版b63と同格）：1日=1列の横スクロール+スナップ・列の中は縦スクロール */
+.wkg{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(238px,84vw);gap:8px;margin-top:8px;
+  overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding-bottom:8px;
+  -webkit-overflow-scrolling:touch}
+.wkd{border:1px solid var(--line);border-radius:12px;padding:0 10px 9px;background:var(--card);
+  max-height:min(430px,58vh);overflow-y:auto;min-width:0;scroll-snap-align:start}
+.wkd.end{background:color-mix(in srgb,var(--sub) 8%,var(--card))}
+.wkd.cur{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent-fill) 30%,transparent)}
+.wkh{position:sticky;top:0;z-index:1;display:block;width:100%;text-align:left;cursor:pointer;
+  border:0;background:inherit;font-size:12px;font-weight:700;color:var(--sub);font-family:inherit;
+  padding:9px 0 6px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+.wkd.cur .wkh{color:var(--accent)}
+.wki{font-size:12px;line-height:1.45;display:flex;gap:6px;align-items:baseline;padding:2px 0}
+.wki b{flex:none;color:var(--sub);font-variant-numeric:tabular-nums;font-weight:600;font-size:11px}
+.wki span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wki.rt{opacity:.45}
+.wki .tag{font-style:normal;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;
+  color:#fff;background:var(--accent-fill)}
+.wke{font-size:11.5px;color:var(--sub)}
+/* 🔴同③：日ごとに動かす操作列 */
+.sched-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 2px}
+.sched-nav input[type=date]{flex:none;width:auto;margin:0}
+.sched-nav .chip{flex:none}
+.sched-nav a.chip{text-decoration:none}
+/* 🔴同①：タスク */
+.tk-add{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.tk-add input[type=text]{flex:1;min-width:150px;margin:0}
+.tk-add input[type=date]{flex:none;width:auto;margin:0}
+.tk-add .btn{flex:none;width:auto;margin:0}
+.tk-why{font-size:12px;line-height:1.65;color:var(--sub);border-left:3px solid var(--accent-fill);
+  padding-left:11px;margin:0 0 12px}
+.tk-why[hidden]{display:none}
+.tk-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+/* 🧠脳の空きメーター（2026-08-04 松原の定義）。面には文字を載せないので薄い混色で作る。
+   --accent-fill は「白文字を載せる塗り専用」なので、ここには流さない（PC版と同じ不変条件）。 */
+.bx{margin:0 0 12px;padding:13px 15px;border:1px solid var(--line);border-radius:16px;
+  background:color-mix(in srgb,var(--accent-fill) 9%,var(--card))}
+.bxt{display:flex;align-items:baseline;gap:4px 9px;flex-wrap:wrap}
+.bxn{font-size:32px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.bxu{font-size:13px;color:var(--sub)}
+.bxl{font-size:13.5px;font-weight:600;flex:1;min-width:120px;color:var(--ink)}
+.bxq{flex:none;padding:5px 12px;font-size:12px}
+.bxb{display:flex;height:7px;border-radius:999px;overflow:hidden;margin:11px 0 8px;background:var(--line)}
+.bxb[hidden]{display:none}
+.bxb i{display:block;transition:width .55s cubic-bezier(.16,1,.3,1)}
+.bxk{font-size:11.5px;color:var(--sub);display:flex;gap:5px 14px;flex-wrap:wrap;align-items:center}
+.bxk span{display:inline-flex;align-items:center;gap:5px}
+.bxk em{width:8px;height:8px;border-radius:3px;display:inline-block;font-size:0;flex:none}
+.bxs{font-size:12px;color:var(--sub);line-height:1.55;margin-top:8px}
+.bxf{opacity:.85}
+.tk-row{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tk-row:last-child{border-bottom:none}
+.tk-main{flex:1;min-width:0}
+.tk-meta{font-size:12px;color:var(--sub);margin-top:3px}
+.tk-meta.over{color:var(--bad)}
+.tk-btns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tk-done .tk-title{text-decoration:line-through;opacity:.6}
+.tk-panel{flex-basis:100%;width:100%;margin:10px 0 2px;padding:12px;border:1px solid var(--line);
+  border-radius:14px;background:var(--bg)}
+.tk-panel label{display:block;font-size:12px;color:var(--sub);margin:8px 0 4px}
+.tk-panel input,.tk-panel textarea{width:100%;margin:0}
+.tk-panel .note{font-size:12px;color:var(--sub);margin-top:8px}
+.tk-panel .note.bad{color:var(--bad)}
 .sched .routine{opacity:.55}
 
 /* notifications */
@@ -85,13 +180,13 @@ main{padding:8px 16px 16px;max-width:640px;margin:0 auto}
 .btn:active{opacity:.6}
 .btn:disabled{opacity:.35}
 .btn-small{padding:6px 14px;font-size:12px}
-.btn-primary{background:var(--accent);color:#fff;width:100%;padding:14px;margin-top:14px}
+.btn-primary{background:var(--accent-fill);color:#fff;width:100%;padding:14px;margin-top:14px}
 .btn-approve{background:var(--ok);color:#fff}
 .kintai-btns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
-.btn-punch{padding:22px;font-size:17px;border-radius:20px;background:var(--accent);color:#fff}
+.btn-punch{padding:22px;font-size:17px;border-radius:20px;background:var(--accent-fill);color:#fff}
 .btn-out{background:var(--ink);color:var(--bg)}
 .field-label{display:block;font-size:12px;font-weight:600;color:var(--sub);margin:10px 0 6px}
-textarea,input[type=password],input[type=url]{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink);resize:vertical}
+textarea,input[type=password],input[type=url],input[type=text],input[type=date]{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink);resize:vertical}
 .check{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:10px}
 .result{font-size:13px;margin-top:10px;white-space:pre-wrap}
 .result.ok{color:var(--ok)}
@@ -140,7 +235,7 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 /* chips（区分・学びフィルタ） */
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 10px}
 .chip{border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600;background:var(--card);color:var(--sub);cursor:pointer;font-family:inherit}
-.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.on{background:var(--accent-fill);border-color:var(--accent-fill);color:#fff}
 
 /* draft（カレンダー下書き・パッケージ本文） */
 .draft-card{margin-top:12px;border:1px solid var(--accent);border-radius:14px;padding:12px}
@@ -174,7 +269,7 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 /* ===== 2026-07-24 s14 タイポグラフィ／視認性（PCブラウザ版 v5.7 と同一の正本値・監査27件反映） =====
  * 見出し＝主役／小見出し＝第2ティア／説明・脚注＝脇役。中立色は3段ランプで役割を色でも伝える */
 :root{--sub2:#5c5c61;--sub3:#6e6e73}
-@media (prefers-color-scheme:dark){:root{--sub:#a1a1a6;--sub2:#b8b8bd;--sub3:#a1a1a6;--accent:#2997ff}}
+:root{--sub:#a1a1a6;--sub2:#b8b8bd;--sub3:#a1a1a6;--accent:#2997ff}
 .sec-title{font-size:clamp(17px,.9vw + 13px,21px);font-weight:700;color:var(--ink);letter-spacing:-.008em;line-height:1.4}
 .card-label{font-size:13.5px;font-weight:600;color:var(--sub);letter-spacing:0;margin-bottom:10px}
 .field-label{font-size:12.5px;font-weight:600;color:var(--sub);letter-spacing:.01em}
@@ -187,7 +282,7 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 .gcap::before{content:"";flex:none;width:3px;height:15px;border-radius:2px;background:var(--accent)}
 /* 操作部品の境界（未選択チップがカード背景と同色で境界1.22:1だった問題の是正） */
 .chip{border-color:#86868b}
-@media (prefers-color-scheme:dark){.chip{border-color:#6e6e73}}
+.chip{border-color:#6e6e73}
 /* 数値まわりのディセンダ/字面の切れ防止（PC版と同一の安全余白） */
 .card-num,.uri-v{padding-bottom:.06em}
 
@@ -208,7 +303,7 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 .ppill.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
 .ppill.wa{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)}
 .pmini{border:0;background:var(--line);color:var(--ink);border-radius:99px;padding:6px 14px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px}
-.pmini.go{background:var(--accent);color:#fff}
+.pmini.go{background:var(--accent-fill);color:#fff}
 .pmini:disabled{opacity:.45;cursor:default}
 .psec{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .psec>.psh{font-size:12.5px;font-weight:700;color:var(--sub);letter-spacing:.04em;margin-bottom:8px}
@@ -246,3 +341,18 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 
 /* 2026-07-27 s19: 月セレクタ＝プルダウン化（松原指示） */
 .ms-select{min-width:200px;max-width:70vw;text-align:center;font-weight:600}
+
+/* 🔴showOk 用（成功は赤くしない・2026-08-02） */
+.err-box.ok{background:var(--accent-fill);color:#fff;border-color:transparent}
+
+/* 🌅ver.2第1手 修身レイヤー（2026-08-09 b67）＝素読→🧭6ニーズ→今日の1問 */
+.sodoku{margin:8px 0 0;white-space:pre-wrap;font-family:inherit;font-size:13.5px;line-height:1.9;color:var(--fg)}
+.sd-setsu{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.sd-k{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.04em}
+.sd-v{font-size:14.5px;font-weight:600;line-height:1.8;margin-top:4px}
+.ndchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.ndchips .ndd{font-size:11px;opacity:.75}
+.oq-q{font-size:14px;font-weight:600;line-height:1.7;margin-top:8px}
+.oq-in{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.oq-in input{flex:1;min-width:200px}
+.oq-a{font-size:15px;font-weight:700;line-height:1.7;margin-top:8px}
