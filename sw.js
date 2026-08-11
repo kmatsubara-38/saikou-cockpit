@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v37';   /* 2026-08-07 s35＝PWA同格化：📊計測（homeの便に同乗・往復ゼロ増）＋⚡楽観的更新（タスク/学び/既読チップ） */
+const CACHE = 'cp-shell-v38';   /* 2026-08-07 s35＝PWA同格化：📊計測（homeの便に同乗・往復ゼロ増）＋⚡楽観的更新（タスク/学び/既読チップ） */
 const ASSETS = [
   './',
   './index.html',
