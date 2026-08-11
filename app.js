@@ -2067,7 +2067,35 @@ function schedLi4(s) {
     li.dataset.eid = s.id;
     li.querySelector('.evx').addEventListener('click', () => scEdit4(li));
   }
+  /* 💬b70（sw v38）：受診後FB行＝スケジュールの中でFB案（薬機法・個人情報準拠）／所見未更新表示。母艦と同格 */
+  const t9 = String(s.title || '').trim();
+  if (/^【タスク】/.test(t9) && /受診後FB$/.test(t9)) {
+    const fb = document.createElement('button');
+    fb.className = 'evx'; fb.textContent = '💬'; fb.setAttribute('aria-label', '受診後FB案');
+    fb.addEventListener('click', () => fbSc4(li, t9));
+    li.appendChild(fb);
+  }
   return li;
+}
+async function fbSc4(li, title) {
+  const ex = li.querySelector('.evp'); if (ex) { ex.remove(); return; }
+  document.querySelectorAll('.evp').forEach(x => x.remove());
+  const p = document.createElement('div'); p.className = 'evp';
+  p.innerHTML = '<div class="muted">🩺 所見を確認してFB案を作っています…</div>';
+  li.appendChild(p);
+  try {
+    const r = await api({ api: 'fbSched', title });
+    p.textContent = '';
+    if (!(r && r.ok)) { p.innerHTML = '<div class="note bad"></div>'; p.firstChild.textContent = (r && r.msg) || '生成できませんでした'; return; }
+    if (r.pending) { p.innerHTML = '<div class="note bad"></div>'; p.firstChild.textContent = r.msg; return; }
+    const h = document.createElement('div'); h.className = 'evp-h';
+    h.textContent = '💬 ' + (r.name || '') + ' 様の受診後FB案';
+    const ta = document.createElement('textarea'); ta.readOnly = true; ta.value = r.text;
+    ta.style.minHeight = '180px';
+    const cp = document.createElement('button'); cp.className = 'chip'; cp.textContent = '📋 コピー';
+    cp.addEventListener('click', () => { try { navigator.clipboard.writeText(r.text); showOk('コピーしました'); } catch (e) {} });
+    p.appendChild(h); p.appendChild(ta); p.appendChild(cp);
+  } catch (e) { p.innerHTML = '<div class="note bad"></div>'; p.firstChild.textContent = e.message; }
 }
 /* 📹2026-08-04：GoogleのUIから付けたMeetは説明文に入らない（conferenceDataに入る）。
    ホームの一覧はそれを知らずに描かれるので、あとからリンクだけを取りに行って埋める。
