@@ -1645,6 +1645,20 @@ async function loadIntel() {
 }
 if ($('btnIntelReload')) $('btnIntelReload').addEventListener('click', loadIntel);
 
+/* 🔑合鍵の正規化（2026-08-20 s42・iPhone実機「合鍵が一致しません」の根治）：
+ *   iOSはホーム画面アプリがSafariと**別の保存領域**＝URLで開いた時の合鍵が引き継がれない（OS仕様）。
+ *   だから初回画面での手貼りが本線になる。その手貼りを壊す3つの罠を全部ここで吸収する＝
+ *   ①合鍵付きURLを丸ごと貼った（?k=を取り出して使う）②%エンコードのまま写した（復号する）
+ *   ③コピーに改行・空白・不可視文字が混ざった（全部落とす。合鍵は空白を含まない前提）。 */
+function normKey(raw) {
+  let s = String(raw || '').trim();
+  try {
+    if (/^https?:\/\//i.test(s)) { const u = new URL(s); const kk = u.searchParams.get('k'); if (kk) s = kk; }
+  } catch (e) {}
+  if (/%[0-9A-Fa-f]{2}/.test(s)) { try { s = decodeURIComponent(s); } catch (e) {} }
+  return s.replace(/[​-‍﻿\s]/g, '');
+}
+
 /* ==== 初回セットアップ（合鍵） ==== */
 function showSetup(msg) {
   $('setup').classList.remove('hidden');
@@ -1652,8 +1666,8 @@ function showSetup(msg) {
   if (msg) { $('setupErr').className = 'result ng'; $('setupErr').textContent = msg; }
 }
 $('setupSave').addEventListener('click', () => {
-  const k = $('setupKey').value.trim();
-  if (!k) { $('setupErr').className = 'result ng'; $('setupErr').textContent = '合鍵を入力してください'; return; }
+  const k = normKey($('setupKey').value);   /* s42：URLごと貼ってもOK・空白/不可視文字も吸収 */
+  if (!k) { $('setupErr').className = 'result ng'; $('setupErr').textContent = '合鍵（または合鍵付きURL）を貼り付けてください'; return; }
   localStorage.setItem(LS.KEY, k);
   const u = $('setupUrl').value.trim();
   if (u) localStorage.setItem(LS.URL, u); else localStorage.removeItem(LS.URL);
@@ -1689,7 +1703,7 @@ if ($('hmNext')) $('hmNext').disabled = true;   // 起動時=当月（未来月�
  *   ＝リンクを誰かに転送しても・履歴に残っても、鍵が露出しない設計。 */
 try {
   const q9 = new URLSearchParams(location.search);
-  const qk9 = (q9.get('k') || '').trim();
+  const qk9 = normKey(q9.get('k') || '');
   if (qk9) {
     localStorage.setItem(LS.KEY, qk9);
     const qu9 = (q9.get('u') || '').trim();
