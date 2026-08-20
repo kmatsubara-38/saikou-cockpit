@@ -29,26 +29,11 @@
 
   <!-- ホーム -->
   <section id="view-home" class="view">
-    <!-- 🌅ver.2第1手 PWA同格（2026-08-09 b67/sw v37）：修身レイヤー＝素読→充足（🧭）→1問。
-         ブラウザ版b66と同じ序列（『大学』修身為本）・並びはverify_v59が機械固定 -->
-    <div class="card card-flat" id="sodokuCard">
-      <div class="sched-head"><span class="sched-title">素読</span>
-        <span class="sched-next">声に出して一度（意味は考え込まない）</span></div>
-      <pre class="sodoku" id="sdCredo"></pre>
-      <div class="sd-setsu"><div class="sd-k">今日の一節（『大学』伊與田覺）</div>
-        <div class="sd-v" id="sdSetsu"></div></div>
-    </div>
-    <div class="card card-flat" id="needsCard">
-      <div class="sched-head"><span class="sched-title">🧭 今日の6つのニーズ</span>
-        <span class="sched-next" id="ndCnt4"></span></div>
-      <div class="chips ndchips" id="ndChips4"><span class="muted">読み込み中…</span></div>
-    </div>
-    <div class="card card-flat" id="oneqCard">
-      <div class="sched-head"><span class="sched-title">今日の1問</span>
-        <span class="sched-next" id="oqSt4"></span></div>
-      <div class="oq-q" id="oqQ4"></div>
-      <div id="oqBody4"><span class="muted">読み込み中…</span></div>
-    </div>
+    <!-- 🗑2026-08-20 b120 / sw v40：修身レイヤー3枚（#sodokuCard / #needsCard / #oneqCard）を撤廃。
+         松原「添付スクショのコンテンツも撤廃してほしい。素晴らしい内容だが、機能していないから」。
+         🔴PC版（rayly_cockpit.gs b120）と同時撤去＝スマホにだけ生き残る不整合を作らない。
+         🔴データは1バイトも消していない（needs / oneq シート・Vaultのジャーナリング記録は健在）。
+         復活には意図的な変更が要る＝verify_v59_pwa_shushin.js が不在を機械固定している。 -->
 
     <!-- 🆕2026-07-24 任務A：今日のスケジュール＝最上部＋開閉式（ヘッダタップ・localStorage cp_sched_open・既定=開・閉時は次の予定1件をヘッダ右に常時表示） -->
     <div class="card card-flat" id="schedCard">
