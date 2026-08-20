@@ -1684,6 +1684,19 @@ try { metView('pwahome', (window.performance && performance.now) ? performance.n
 schedApply(schedOpen());   // 🆕起動時にスケジュール開閉状態を復元（既定=開）
 if ($('hmLabel')) $('hmLabel').textContent = ymLabel(hmYm) + '（当月）';
 if ($('hmNext')) $('hmNext').disabled = true;   // 起動時=当月（未来月へは進めない）
+/* 🔑合鍵付きURL（2026-08-20 松原「スマホ再インストール用に合鍵付きURLを発行したい」）：
+ *   ?k=（＋任意で&u=）を開いた瞬間に端末へ保存し、**URLバーと履歴から即座に消す**
+ *   ＝リンクを誰かに転送しても・履歴に残っても、鍵が露出しない設計。 */
+try {
+  const q9 = new URLSearchParams(location.search);
+  const qk9 = (q9.get('k') || '').trim();
+  if (qk9) {
+    localStorage.setItem(LS.KEY, qk9);
+    const qu9 = (q9.get('u') || '').trim();
+    if (qu9) localStorage.setItem(LS.URL, qu9);
+    history.replaceState(null, '', location.pathname);
+  }
+} catch (e) {}
 if (!localStorage.getItem(LS.KEY)) showSetup();
 else loadHome();
 
