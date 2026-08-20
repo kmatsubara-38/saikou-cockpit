@@ -185,7 +185,10 @@ document.querySelectorAll('.tab').forEach(btn => {
   const cap = txt => { const d = document.createElement('div'); d.className = 'gcap'; d.textContent = txt; return d; };
   const frag = document.createDocumentFragment();
   frag.appendChild(cap('🔥 日本一への一手'));
-  ['view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  /* 🔴2026-08-20 b120で発見・同乗修正：'view-cal' は**実在しないid**だった（実体は index.html の `view-cal4`）。
+   *   そのため「🗓カレンダー登録」だけ【🔥日本一への一手】に入らず、報告タブの最下部に取り残されていた。
+   *   idの綴り違いは `if (s)` に黙って吸われる＝例外も出ない。並び替え台帳は実在idで書くこと。 */
+  ['view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   frag.appendChild(cap('🛡 毎日の運用'));
   ['view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   rep.insertBefore(frag, rep.firstChild);
@@ -1889,117 +1892,16 @@ document.addEventListener('DOMContentLoaded', wireCal4AndStyle);
 const todayYmd = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
 
 /* ── ③ 日ごとのスケジュール ── */
-/* ════════ 🌅ver.2第1手 修身レイヤー（2026-08-09 b67・ブラウザ版b66と同格） ════════
- * 素読（クレド全文＋『大学』一節ローテ・意味の解説なし＝伊與田の素読思想）→🧭6ニーズ→今日の1問。
- * 一節はVault思想ノートの捏造検証済み4句のみ・JST通日%4＝ブラウザ版と同じ日は同じ言葉。 */
-const SODOKU4 = [
-  '天子より庶人に至るまで、壹に是れ皆身を修むるを以て本と為す',
-  '本乱れて末治まる者は否（あら）ず',
-  '明明徳　親民　止於至善（三綱領）',
-  '格物 → 致知 → 誠意 → 正心 → 修身 → 斉家 → 治国 → 平天下（八条目）'
-];
-const CREDO4 = '今日も\n志に共感してくださる最高のパートナーの方々とともに\n「悩んでいるなら相談しましょう」　の世界を創り\n課題解決と価値提供に努めます🤝❤️‍🔥\n\n人生 は 選択 と 魂の修行\nビジネス は 恩返し\n\n過去 に 感謝 を\n現在 に 最善 を\n未来 に 希望 を\n\nすべき より やりたい\n正しさ より 情熱\n\nAre you keeping your promises to yourself?';
-const NEEDS4 = [
-  ['安定', 'アーリーワークをやり切った'],
-  ['多様', '受診アドバイザーとして動いた・今日1日やり切った'],
-  ['重要', '実績・進捗FBで「超重要な存在」を確認した'],
-  ['つながり', 'スタイリストと雑談・家族から愛あるアプローチ'],
-  ['成長', '成長したことを具体で言えた'],
-  ['貢献', '「有り難う」を10回もらった']
-];
-function shushin4() {
-  const c = $('sdCredo'), s = $('sdSetsu');
-  if (c) c.textContent = CREDO4;
-  const doy = Math.floor(Date.now() / 86400e3 + 0.375);   // JST通日＝ブラウザ版と同一式
-  if (s) s.textContent = SODOKU4[doy % SODOKU4.length];
-}
-function nd4Cnt(n) {
-  const t = $('ndCnt4'); if (t) t.textContent = n + '/6' + (n === 6 ? '＝全方位で満たされた日' : '');
-}
-async function nd4Load() {
-  const box = $('ndChips4'); if (!box) return;
-  try {
-    const r = await api({ api: 'needsGet' });
-    if (!(r && r.ok)) { box.innerHTML = '<span class="muted">⚠️ 読めませんでした</span>'; return; }
-    box.innerHTML = '';
-    let n = 0;
-    NEEDS4.forEach((d, i) => {
-      const c = document.createElement('span');
-      c.className = 'chip' + (r.v[i] ? ' on' : '');
-      c.id = 'nd4_' + i;
-      c.title = d[1];
-      c.innerHTML = esc(d[0]) + '<span class="ndd">｜' + esc(d[1]) + '</span>';
-      if (r.v[i]) n++;
-      c.addEventListener('click', () => nd4Tgl(i, c));
-      box.appendChild(c);
-    });
-    nd4Cnt(n);
-  } catch (e) { box.innerHTML = '<span class="muted">⚠️ ' + esc(e.message) + '</span>'; }
-}
-async function nd4Tgl(i, c) {
-  if (c.dataset.busy) return;
-  const was = c.classList.contains('on');
-  c.classList.toggle('on', !was);            // ⚡楽観＝先に反映
-  c.dataset.busy = '1';
-  let n = 0; for (let j = 0; j < 6; j++) { const z = $('nd4_' + j); if (z && z.classList.contains('on')) n++; }
-  nd4Cnt(n);
-  try {
-    const r = await api({ api: 'needsToggle', i });
-    delete c.dataset.busy;
-    if (!(r && r.ok)) { c.classList.toggle('on', was); showErr((r && r.msg) || '記録できませんでした'); return; }
-    c.classList.toggle('on', !!r.on);
-    nd4Cnt(r.n);
-    if (r.msg) showOk(r.msg);
-  } catch (e) { delete c.dataset.busy; c.classList.toggle('on', was); showErr(e.message); }
-}
-function oq4Render(r) {
-  const b = $('oqBody4'), st = $('oqSt4'), q = $('oqQ4');
-  if (q && r.q) q.textContent = r.q;
-  if (!b) return;
-  b.innerHTML = '';
-  if (!r.a) {
-    const w = document.createElement('div'); w.className = 'oq-in';
-    const inp = document.createElement('input'); inp.id = 'oqA4'; inp.maxLength = 200;
-    inp.placeholder = '1行でいい＝今日の1結果';
-    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') oq4Save(); });
-    const bt = document.createElement('button'); bt.className = 'btn'; bt.id = 'oqGo4';
-    bt.textContent = 'この1結果に決める'; bt.addEventListener('click', oq4Save);
-    w.appendChild(inp); w.appendChild(bt); b.appendChild(w);
-    if (st) st.textContent = '';
-    return;
-  }
-  const a = document.createElement('div'); a.className = 'oq-a'; a.textContent = '▶ ' + r.a; b.appendChild(a);
-  const row = document.createElement('div'); row.className = 'chips';
-  const c1 = document.createElement('span'); c1.className = 'chip' + (r.done === '1' ? ' on' : '');
-  c1.textContent = '✅ 達成した'; c1.addEventListener('click', () => oq4Done(true));
-  const c2 = document.createElement('span'); c2.className = 'chip' + (r.done === '0' ? ' on' : '');
-  c2.textContent = '△ まだ／未達'; c2.addEventListener('click', () => oq4Done(false));
-  row.appendChild(c1); row.appendChild(c2); b.appendChild(row);
-  if (st) st.textContent = r.done === '1' ? '今日の約束＝守った' : (r.done === '0' ? '未達も事実＝明日へ' : '夜に✅か△を1タップ');
-}
-async function oq4Load() {
-  try { const r = await api({ api: 'oneqGet' }); if (r && r.ok) oq4Render(r); }
-  catch (e) { const b = $('oqBody4'); if (b) b.innerHTML = '<span class="muted">⚠️ ' + esc(e.message) + '</span>'; }
-}
-async function oq4Save() {
-  const e = $('oqA4'), bt = $('oqGo4'); if (!e) return;
-  const a = (e.value || '').trim();
-  if (!a) { showErr('1行でいい＝今日の1結果を書いてください'); return; }
-  if (bt) { bt.disabled = true; bt.textContent = '決めています…'; }
-  try {
-    const r = await api({ api: 'oneqSave', a });
-    if (!(r && r.ok)) { if (bt) { bt.disabled = false; bt.textContent = 'この1結果に決める'; } showErr((r && r.msg) || '保存できませんでした'); return; }
-    showOk(r.msg); oq4Render({ ok: true, a: r.a, done: '' });
-  } catch (e2) { if (bt) { bt.disabled = false; bt.textContent = 'この1結果に決める'; } showErr(e2.message); }
-}
-async function oq4Done(v) {
-  try {
-    const r = await api({ api: 'oneqDone', v });
-    if (!(r && r.ok)) { showErr((r && r.msg) || '記録できませんでした'); return; }
-    showOk(r.msg);
-    oq4Render({ ok: true, a: ($('oqBody4').querySelector('.oq-a') || {}).textContent ? $('oqBody4').querySelector('.oq-a').textContent.slice(2) : '（記録済み）', done: r.done });
-  } catch (e) { showErr(e.message); }
-}
+/* ════════ 🗑 撤廃済み（2026-08-20 b120 / sw v40） ════════
+ * ここに 🌅修身レイヤー（素読 → 🧭6ニーズ → 今日の1問）のPWA実装が在った：
+ *   SODOKU4 / CREDO4 / NEEDS4 / shushin4() / nd4Cnt() / nd4Load() / nd4Tgl() /
+ *   oq4Render() / oq4Load() / oq4Save() / oq4Done()
+ * 松原「添付スクショのコンテンツも撤廃してほしい。素晴らしい内容だが、機能していないから」。
+ * 🔴PC版（rayly_cockpit.gs b120）と**同時**に撤去した。素読はapi非依存の定数ベタ持ちだったため、
+ *   PC側だけ消すとスマホにだけ生き残る＝いちばん質の悪い不整合になるところだった。
+ * 🔴叩いていたサーバ口（doPost needsGet/needsToggle/oneqGet/oneqSave/oneqDone）も同時に撤去済み。
+ * 🔴データは1バイトも消していない（needs / oneq シート・Vaultのジャーナリング記録は健在）。
+ * 🔴復活には意図的な変更が要る＝verify_v59_pwa_shushin.js が不在を機械固定している。 */
 
 function scYmd4() {
   const e = $('scD'); if (!e) return '';
@@ -2507,8 +2409,8 @@ document.addEventListener('DOMContentLoaded', () => {
   on('scVd4', () => scView4('day'));
   on('scVw4', () => scView4('week'));
   try { if (localStorage.getItem('cpScV4') === 'week') scView4('week'); } catch (e) {}
-  /* 🌅ver.2第1手：修身レイヤー（素読→🧭→1問） */
-  shushin4(); nd4Load(); oq4Load();
+  /* 🗑b120：ここに `shushin4(); nd4Load(); oq4Load();` が在った（修身レイヤーの起動）。
+   *   2026-08-20 松原「機能していないから」＝カードごと撤廃したので起動点も撤去。 */
   on('tkAddBtn', tkAdd4);
   const ti = $('tkT');
   if (ti) ti.addEventListener('keydown', ev => { if (ev.key === 'Enter') tkAdd4(); });
