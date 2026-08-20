@@ -26,7 +26,17 @@
 - リクエスト = `fetch(URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({k, api, ...})})`
   → **text/plain なので CORS プリフライトが発生しない**。
 - `k` が Script Property `CP_KEY` と不一致 → `{ok:false,error:'auth'}` → 合鍵再入力画面。
-- 使用API: `home` / `homeMonth` / `notifs` / `notifRead` / `notifReadAll` / `approve` / `kintaiFree` / `zangyoReport` / `receipt` / `shokai` / `calParse` / `calCreate` / `slotFind` / `archive` / `intel` / `intelStatus` / `salaryPdf` / `reelList` / `reelFromUrl` / `reelAnalyze` / `reelPackage` / `reelRender` / `reelFactoryAnalyze` / `reelGet`（旧 `kintai` は後方互換で契約維持）。
+- 使用API（2026-08-20 b120時点の**実測49本**＝`grep "api: '"` で数え直したもの。以前ここに書いてあった
+  一覧は古く、既に廃止した `reel*` 系が残っていた）:
+  `approve` / `brainBoard` / `brainBrief` / `brainSearch` / `calCreate` / `calMulti` / `calParse` /
+  `fbDraft` / `fbSched` / `hansokuDraft` / `hansokuSend` / `home` / `homeMonth` / `intel` / `intelStatus` /
+  `kanriName` / `kintai` / `kintaiFree` / `msgLearnForget` / `msgLearnList` / `notifRead` / `notifReadAll` /
+  `notifs` / `partnerDetail` / `pipeAdvice` / `pipeCv` / `pipeFb` / `pipeSearch` / `pipeStep` / `plaudPull` /
+  `receipt` / `schedDay` / `schedEvDelete` / `schedEvGet` / `schedEvSave` / `schedLinks` / `schedWeek` /
+  `shokai` / `shukkinReport` / `slotFind` / `styleWrite` / `taskDelete` / `taskEvGet` / `taskEvSave` /
+  `taskSave` / `taskStatus` / `tasks` / `undo` / `zangyoReport`（旧 `kintai` は後方互換で契約維持）。
+- 🗑2026-08-20 b120で**削除**したAPI: `needsGet` / `needsToggle` / `oneqGet` / `oneqSave` / `oneqDone`
+  （朝の儀式3カード＝素読・🧭6ニーズ・今日の1問の撤廃に伴い、PC側のdoPost口ごと撤去）。
 
 ## 動作仕様
 
@@ -41,9 +51,14 @@
 
 ## 更新時の注意
 
-- シェル資産（HTML/CSS/JS/アイコン）を変更したら `sw.js` の `CACHE = 'cp-shell-v◯'` の版数を上げる（現行=v7・旧キャッシュはactivate時に自動削除）。あわせて `app.js` の `s◯` 表示（updatedAt横のシェル版数）も更新。
+- シェル資産（HTML/CSS/JS/アイコン）を変更したら `sw.js` の `CACHE = 'cp-shell-v◯'` の版数を上げる
+  （**現行=v40**／2026-08-20 b120・旧キャッシュはactivate時に自動削除）。
+  画面右上の `s◯` 表示は `app.js` が **sw.js を読んで自動生成**するので手書き更新は不要（`readVer()`）。
+  🔴このREADMEに「現行=v7」と書かれたまま実体がv39まで進んでいた（記録腐り）。**版を上げる回に必ずここも直す**。
 - アイコン再生成: System.Drawing を使うPowerShellスクリプトで生成（グラデ背景＋アクセントリング＋「創」）。日本語文字は文字コード指定（`[char]0x5275`）でBOM問題を回避。
 
 ## サイズ
 
-合計 約51KB（アイコン2枚含む）。外部依存・外部フォント・CDN読み込みなし。
+合計 **約616KB**（アイコン2枚 約430KB含む／コード実体は index.html 30KB＋app.js 127KB＋style.css 24KB＋sw.js 2KB＝**約183KB**）。
+外部依存・外部フォント・CDN読み込みなし。
+🔴以前ここに「約51KB」と書いてあったが実測と乖離していた（記録腐り）。2026-08-20 b120で実測し直し。
