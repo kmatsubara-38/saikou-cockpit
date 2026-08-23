@@ -9,7 +9,13 @@ const LS = {
   KEY: 'cp_key',            // 合鍵（初回入力・端末ローカルのみ）
   URL: 'cp_url',            // GAS URL上書き
   HOME: 'cp_cache_home',    // 最終取得 home
-  NOTIF: 'cp_cache_notifs'  // 最終取得 notifs
+  NOTIF: 'cp_cache_notifs', // 最終取得 notifs
+  /* ✍️2026-08-23 s43 文体ラボの控え（Last-Known-Good）。
+   *   STYLE=最後に作れた文（オフライン／クォータ死のとき「いつ時点の控えか」を添えて出す）
+   *   STYLEST=最後に読めた手本の内訳（読む照会なので控えでよい）
+   *   🔴書く照会（styleTeach / styleHarvest / styleRefresh）は控えで偽らない＝b109の線引き */
+  STYLE: 'cp_cache_style',
+  STYLEST: 'cp_cache_style_stat'
 };
 
 const $ = (id) => document.getElementById(id);
@@ -188,11 +194,18 @@ document.querySelectorAll('.tab').forEach(btn => {
   /* 🔴2026-08-20 b120で発見・同乗修正：'view-cal' は**実在しないid**だった（実体は index.html の `view-cal4`）。
    *   そのため「🗓カレンダー登録」だけ【🔥日本一への一手】に入らず、報告タブの最下部に取り残されていた。
    *   idの綴り違いは `if (s)` に黙って吸われる＝例外も出ない。並び替え台帳は実在idで書くこと。 */
-  ['view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  /* ✍️2026-08-23 s43：'view-style'（文体ラボ）を🔥の先頭へ。PC版 b131 の NAVP が
+   *   HOMEの次に「文体ラボ」を置いたのと同じ優先順＝1日に数十回叩く道具を最短距離に置く。
+   *   他4本は畳まれた見出し1行ずつなので、押し出される情報量はゼロ。 */
+  ['view-style', 'view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   frag.appendChild(cap('🛡 毎日の運用'));
   ['view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   rep.insertBefore(frag, rep.firstChild);
   rep.querySelectorAll(':scope > div[id^="view-"]').forEach(sec => {
+    /* ✍️s43：文体ラボだけは畳まない＝**このタブの主役**（PC版 b131 の独立ページと同格）。
+     *   PC側の決着＝「主役の器は開いたまま・副次（📚手本を教える／🗂いまの手本）だけ .cls で閉じる」。
+     *   ここを外すと『開かないと使えない道具』に静かに退行するので、番人 v95 が機械で固定している。 */
+    if (sec.id === 'view-style') return;
     const h = sec.querySelector('.sec-title');
     if (!h) return;
     const chev = document.createElement('span');
@@ -1839,30 +1852,320 @@ async function calMultiGo() {
   go.disabled = false; go.textContent = 'この内容で登録する';
 }
 
-/* ==== ✍️ 文体ラボ（2026-07-29） ==== */
+/* ════════ ✍️ 文体ラボ（2026-07-29 新設／2026-08-23 s43 でPC版 b131 と同格化）════════
+ * 松原指示（2026-08-23）：「文体ラボはスマホアプリ版にも絶対に実装させる」
+ *   ＝憲法②（PWA反映の申告なき納品は納品ではない）の格上げ。「PWAには無いので見送り」は選べない。
+ *
+ * s43で埋めた穴＝**doPostに口はあるのに app.js から誰も呼んでいなかった3つ**：
+ *   styleTeach（📚手本を教える）／styleHarvest（📥収穫）／styleRefresh（↻取り直し）
+ *   ＋ styleStatus（🗂いまの手本の内訳。PC側も未使用だった口をPWAで初めて使う）
+ * これで doPost の style* 5口すべてに呼び手が居る（番人 v95 が機械照合＝口だけの幽霊を二度と作らない）。
+ *
+ * 通信は全て既存の api()＝同じ doPost に相乗り。外部通信は1本も増やしていない。
+ * 🔴PC版が google.script.run で叩く apiStyleTeachMulti（複数欄をまとめて1通信）は
+ *   **doPostに口が無い**（＝PWAからは物理的に叩けない）。よってPWAは1欄＋種別選択の
+ *   styleTeach で同じ仕事をする（1回の貼り付け＝1通信＝憲法⑬は満たす）。 */
+
+/* ⏱「だいたい何秒」の予告。3秒ルールの例外は生成系だけだが、**例外は黙ってではなく申告して**通す。
+ *   数字の出どころは検証ハーネスの実測 speed_baseline.json（coldMs／2026-08-23 perf_probe）：
+ *     apiStyleWrite 6,389ms ／ apiStyleHarvest 9,024ms ／ apiStyleRefresh 5,674ms
+ *     （styleTeach 843ms・styleStatus 87ms は3秒以内なので予告は要らない）
+ *   🔴write の 7 はPC版の予告表 LSEC の "文体" と同値。番人 v95 が
+ *     ①LSEC と ②speed_baseline.json の両方に突き合わせるので、実測が動いたら赤くなって直せと言う。 */
+const ST_ETA = { write: 7, harvest: 10, refresh: 6 };
+const ST_ETA_SEC = ST_ETA.write;
+const ST_CHNAME = { slack: 'Slack（社内）', line: 'LINE（社外）', mail: 'メール' };
+const stChName = (c) => ST_CHNAME[c] || String(c || '');
+const stAtLabel = (ms) => { const d = new Date(ms || Date.now());
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日' + d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2); };
+
+/* 🔴2026-08-23 s44：**失敗の原因を取り違えない**（s43の実害＝敵対監査が偽DOMで採った実物の文字列）。
+ *   api() は「届かなかった」ときも「サーバが理由を言って断った」ときも同じ throw で落ちてくる。
+ *   s43はそれを一括で "🛟 いまは通信できていません（APIエラー: 長すぎます（4000字まで））" と出し、
+ *   さらに**今回と無関係の古い控え**を出来上がり欄に置いていた。松原さんは電波を疑って押し直し続け、
+ *   本当の直し方（文字数を減らす／Geminiキーを保存する）へは一生たどり着かない。
+ *   ＝控えを出してよいのは【通信が届かなかった3系統】だけ。それ以外は**サーバの言い分をそのまま出す**（PC版と同じ）。
+ *
+ *   3系統＝api() が投げる文言の頭：
+ *     '通信できません（オフラインまたはURL不正）: …'  … fetch自体が失敗
+ *     '応答がJSONではありません（…）'                  … クォータ死などでHTMLが返る
+ *     'サーバー応答エラー HTTP 500'                    … HTTPが2xxでない
+ *   これ以外（'APIエラー: …' ＝ ok:false／'合鍵が未設定です'／'この機能はサーバー側が未開通です'）は
+ *   通信は成功している＝控えは出さない・「通信が戻ってから」とも言わない。
+ *   🔴正規表現を使わずに前方一致で見る（配信の過程でエスケープが食われる系の事故を最初から作らない）。 */
+const ST_NETHEAD = ['通信できません', '応答がJSONではありません', 'サーバー応答エラー HTTP'];
+function stIsNet4(msg) {
+  const m = String(msg || '');
+  return ST_NETHEAD.some(h => m.indexOf(h) === 0);
+}
+/* 画面に出すのはサーバが言った理由だけ。'APIエラー: ' はPWA内部の目印なので剥がす＝PC版の "⚠️ "+r.msg と同じ文面になる。 */
+function stReason4(msg) {
+  const m = String(msg || ''), h = 'APIエラー: ';
+  return m.indexOf(h) === 0 ? m.slice(h.length) : m;
+}
+
 let stCh4 = 'slack', stTone4 = 'normal';
+/* 🔴チップの見た目と送信値がズレる事故（PC版 stReset のコメント参照）を防ぐため、
+ *   選択は必ずこの関数を通す＝状態と塗りが同じ1行で動く。番人はこれを直接叩いて payload を検める。 */
+function stCh4Set(v) {
+  stCh4 = (['slack', 'line', 'mail'].indexOf(v) >= 0) ? v : 'slack';
+  const w = $('stChChips');
+  if (w) w.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x.dataset.stch === stCh4));
+}
+function stTone4Set(v) {
+  stTone4 = (['normal', 'polite', 'short'].indexOf(v) >= 0) ? v : 'normal';
+  const w = $('stToneChips');
+  if (w) w.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x.dataset.sttone === stTone4));
+}
+function stEta4() {
+  const e = $('stEta');
+  if (e) e.textContent = '生成はだいたい' + ST_ETA_SEC + '秒かかります（AIに1往復＋手本の読み出し）。手本づくりは毎朝すませてあるので、ここでは書くだけです';
+}
+/* 押した瞬間から「だいたい何秒／いま何秒」を出す＝無反応の時間を作らない。
+ *   戻り値は止める関数。呼んだ側は成功でも失敗でも必ず止める（止め忘れると数字が動き続ける）。 */
+function stWait4(el, sec, label) {
+  if (!el) return () => {};
+  const t0 = Date.now();
+  const paint = () => { el.textContent = label + '（だいたい' + sec + '秒／経過' + Math.round((Date.now() - t0) / 1000) + '秒）'; };
+  paint();
+  const t = setInterval(paint, 1000);
+  return () => clearInterval(t);
+}
+
 async function stWrite4() {
   const v = ($('stIn').value || '').trim();
   const res = $('stResult');
   if (!v) { res.className = 'result ng'; res.textContent = '話した内容を入れてください'; res.classList.remove('hidden'); return; }
   const b = $('btnStWrite');
   b.disabled = true; b.textContent = '整えています…';
-  res.className = 'result'; res.textContent = '✍️ いつもの言い方に整えています…'; res.classList.remove('hidden');
+  res.className = 'result'; res.classList.remove('hidden');
+  const stop = stWait4(res, ST_ETA.write, '✍️ いつもの言い方に整えています…');
+  $('stStale').classList.add('hidden');
   try {
     const r = await api({ api: 'styleWrite', voice: v, ch: stCh4, tone: stTone4, to: ($('stTo').value || '') });
     if (!r.ok) throw new Error(r.msg || '整えられませんでした');
+    stop();
     $('stOut').value = r.text || '';
     $('stOutWrap').classList.remove('hidden');
+    /* 🔴送り先は**サーバが返した r.ch**を出す（手元の選択の写しではない）＝chが効いている証拠を画面に出す。
+     *   万一ズレたら黙って直さずに、ズレたことを言う。 */
+    const srvCh = r.ch || stCh4;
+    $('stOutCh').textContent = stChName(srvCh) + (srvCh !== stCh4 ? '　⚠️選んだのは' + stChName(stCh4) + 'でした' : '');
+    /* 🔴手本の代用申告。サーバが myvoiceNote を載せてくればそれを、無ければ同じ意味の文をこちらで組む＝
+     *   「無言で別チャネルの手本に落ちる」を画面側でも復活させない。 */
+    const fb = $('stFall');
+    if (r.myvoiceFallback) {
+      fb.textContent = '📌 ' + (r.myvoiceNote ||
+        ('「' + srvCh + '」の手本がコーパスに0件のため、「' + (r.myvoiceScene || '') + '」の手本で書いています'));
+      fb.classList.remove('hidden');
+    } else { fb.textContent = ''; fb.classList.add('hidden'); }
     let ft = (r.fixes && r.fixes.length) ? ('🔧 整えた箇所：' + r.fixes.join('／')) : '🔧 整える箇所はありませんでした';
     if (r.warns && r.warns.length) ft += '\n⚠️ ' + r.warns.join('／');
     $('stFix').textContent = ft;
     res.className = 'result ok';
-    res.textContent = '✅ 整えました（型' + (r.pairs || 0) + '件・骨格' + (r.skel || 0) + '件を参照' +
-                      (r.shots ? '＋あなたの文' + r.shots + '件' : '') + '）';
+    let s9 = '✅ 整えました（送り先＝' + stChName(srvCh) + '／実データから作った型' + (r.pairs || 0) +
+             '件・骨格' + (r.skel || 0) + '件を参照' + (r.shots ? '＋あなたの文' + r.shots + '件' : '') + '）';
+    if (!r.taught) s9 += '　💡LINEのトーク履歴を「📚 手本を教える」に貼ると、社外向けの文体がぐっと近づきます';
+    if (r.note) s9 += '　※' + r.note;
+    res.textContent = s9;
+    saveCache(LS.STYLE, { at: Date.now(), ch: srvCh, text: r.text || '' });
   } catch (e) {
-    res.className = 'result ng'; res.textContent = e.message;
+    stop();
+    const net = stIsNet4(e.message), why = stReason4(e.message), sd = $('stStale');
+    if (!net) {
+      /* 🔴サーバが理由を言って断った＝**通信は生きている**。控えは出さない・原因をそのまま出す。
+       *   前回の出来上がりが画面に残っているときは「前回のものだ」と明示する（無言で今回の答えに見せない）。 */
+      if (!$('stOutWrap').classList.contains('hidden')) {
+        const lkg0 = readCache(LS.STYLE);
+        sd.textContent = '📌 上に出ているのは' + (lkg0 && lkg0.at ? stAtLabel(lkg0.at) + '時点の' : '前回の') + '文です（今回は作れていません）';
+        sd.classList.remove('hidden');
+      }
+      res.className = 'result ng';
+      res.textContent = '⚠️ ' + why + '（入力はそのまま残しています）';
+    } else {
+      /* 🛟ここから下は**本当に届かなかった**とき（オフライン／クォータ死／HTTPエラー）だけ。
+       *   白紙や赤エラーだけにしない＝最後に作れた文を「いつ時点か」を添えて出す。
+       *   🔴これは"新しく作れたフリ"ではない（b109の線引き）。控えだと分かる文言を必ず添え、控えが無ければ正直に何も出さない。 */
+      const lkg = readCache(LS.STYLE);
+      if (lkg && lkg.text) {
+        $('stOut').value = lkg.text;
+        $('stOutWrap').classList.remove('hidden');
+        $('stFall').classList.add('hidden');
+        sd.textContent = '🛟 いまは通信できていません（' + why + '）。' +
+                         stAtLabel(lkg.at) + '時点で作った控えを表示しています＝これは今回の内容ではありません';
+        sd.classList.remove('hidden');
+        res.className = 'result ng';
+        res.textContent = '⚠️ 今回は作れませんでした。通信が戻ってからもう一度押してください（入力はそのまま残しています）';
+      } else {
+        res.className = 'result ng';
+        res.textContent = '⚠️ ' + why + '（控えもまだありません。入力はそのまま残しています）';
+      }
+    }
   }
   b.disabled = false; b.textContent = '✍️ いつもの僕の文章にする';
+}
+
+/* 📚 手本を教える＝doPost 'styleTeach'／'styleTeachMulti'。**書く照会なので控えで偽らない**（失敗は失敗と言い、貼り付けは消さない）
+ *
+ * 🔴2026-08-23 s44：PC/PWA唯一の機能差だった「複数欄」をPWAにも入れて差をゼロにした。
+ *   s43時点は doPost に styleTeachMulti の**口が無かった**＝PWAからは物理的に叩けず1欄だった。
+ *   同じ日にサーバ側へ口が生えた（doPost: api === 'styleTeachMulti' → apiStyleTeachMulti(body.items)）ので、
+ *   PC版 stTAdd/stTeach と同じ形（欄ごとに種別／送信は1回）をこちらにも実装した。
+ *   松原指示「文体ラボはスマホアプリ版にも絶対に実装させる」＝PWAだけ劣る状態を残さない。 */
+const ST_TMAX = 10;   // サーバ側 apiStyleTeachMulti の上限と同値。超えたら押す前に止める＝通らない往復を投げない
+let stTMore4 = [];    // 2枚目以降の欄（1枚目は index.html の #stTeachIn / #stTeachCh が固定で担当）
+
+/* ＋ 貼り付け欄を足す。新しいCSSは作らず、既存の .chips / .chip / 素の textarea だけで組む。 */
+function stTAdd4() {
+  const box = $('stTeachMore');
+  if (!box) return;
+  const r9 = $('stTeachRes');
+  if (stTMore4.length + 1 >= ST_TMAX) {
+    if (r9) { r9.classList.remove('hidden'); r9.className = 'result ng';
+      r9.textContent = '⚠️ 貼り付け欄は' + ST_TMAX + '枚までです（分けて送ってください）'; }
+    return;
+  }
+  const row = document.createElement('div');
+  const top = document.createElement('div');
+  top.className = 'chips';
+  const sel = document.createElement('select');
+  [['line', 'LINEのトーク履歴'], ['mail', 'メール'], ['slack', 'Slack']].forEach(o => {
+    const op = document.createElement('option');
+    op.value = o[0]; op.textContent = o[1]; sel.appendChild(op);
+  });
+  sel.value = 'line';   // 🔴既定値は明示して持つ（「先頭が選ばれているはず」に頼らない＝見た目と送信値のズレを作らない）
+  const del = document.createElement('button');
+  del.type = 'button'; del.className = 'chip'; del.textContent = '✕ この欄を消す';
+  const ta = document.createElement('textarea');
+  ta.rows = 5;
+  ta.placeholder = 'ここに貼り付け（この欄は左で選んだ種別として覚えます）';
+  const rec = { sel: sel, ta: ta, row: row };
+  del.addEventListener('click', () => {
+    stTMore4 = stTMore4.filter(x => x !== rec);   // 送信の並びは必ずこの配列の順＝画面の並びと同じ
+    try { row.remove(); } catch (e) {}
+  });
+  top.appendChild(sel); top.appendChild(del);
+  row.appendChild(top); row.appendChild(ta);
+  box.appendChild(row);
+  stTMore4.push(rec);
+  try { ta.focus(); } catch (e) {}
+}
+
+async function stTeach4() {
+  const r9 = $('stTeachRes');
+  r9.classList.remove('hidden');
+  /* 🔴s44：欄を集める。1枚目＝index.htmlの固定欄／2枚目以降＝「＋ 貼り付け欄を足す」で生えた欄。
+   *   空欄は送らない＝サーバが返す「欄◯」の番号と、こちらの欄が1対1で対応する（ズレると別の欄の貼り付けを消す）。 */
+  const items = [], els = [];
+  const t0 = ($('stTeachIn').value || '').trim();
+  if (t0) { items.push({ text: t0, ch: ($('stTeachCh').value || 'line') }); els.push($('stTeachIn')); }
+  stTMore4.forEach(x => {
+    const v = (x.ta.value || '').trim();
+    if (v) { items.push({ text: v, ch: (x.sel.value || 'line') }); els.push(x.ta); }
+  });
+  if (!items.length) { r9.className = 'result ng'; r9.textContent = '貼り付けてから押してください'; return; }
+  if (items.length > ST_TMAX) {   // 押す前に止める＝通らないと分かっている往復を投げない
+    r9.className = 'result ng';
+    r9.textContent = '⚠️ 一度に送れるのは' + ST_TMAX + '欄までです（' + items.length + '欄あります／分けて送ってください）';
+    return;
+  }
+  const b = $('btnStTeach');
+  b.disabled = true; b.textContent = '読み取っています…';
+  r9.className = 'result'; r9.textContent = '📚 読み取っています…（' + items.length + '欄）';
+  try {
+    /* 🔴何欄でも**送信は1回**（憲法⑬）。1欄は従来どおり styleTeach、2欄以上は styleTeachMulti。
+     *   口を2つとも生かしておく＝どちらかが「呼び手の居ない幽霊の口」になったら番人v95が赤くする。 */
+    const r = (items.length === 1)
+      ? await api({ api: 'styleTeach', text: items[0].text, ch: items[0].ch })
+      : await api({ api: 'styleTeachMulti', items: items });
+    if (!r.ok) throw new Error(r.msg || '取り込めませんでした');
+    r9.className = 'result ok';
+    let t2 = r.msg || ('✅ ' + (r.added || 0) + '件を手本に加えました');
+    if (r.rows && r.rows.length) {
+      /* 欄ごとの結果を隠さず出す（どの欄が採れて、どの欄がなぜ駄目だったか）。 */
+      r.rows.forEach(w => {
+        t2 += '\n　欄' + w.n + '：' + (w.ok ? '✅ ' : '⚠️ ') + (w.msg || '');
+        // 🔴消してよいのは保存できた欄だけ（失敗した欄を消すと「分けて出し直して」と言いながら元ネタを奪う）
+        if (w.ok && els[w.n - 1]) els[w.n - 1].value = '';
+      });
+    } else if (r.added) {
+      els[0].value = '';   // 🔴消してよいのは保存できたときだけ（added:0＝重複や1200字超は残す＝分割元を奪わない）
+    }
+    r9.textContent = t2;
+    /* 🔴内訳の取り直しをここで自動で走らせない＝**往復を増やさない**（合計件数はサーバのmsgが既に言っている）。
+     *   次に🗂を開いたときに読み直すよう、初回フラグだけ倒す。 */
+    stStatus4._once = 0;
+  } catch (e) {
+    /* 🔴s44：ここも原因を取り違えない。サーバが理由を言って断ったのに「通信が戻ってから」と言うと、
+     *   直しようのある失敗（1200字超・種別違い）を電波のせいにしてしまう＝押し直すだけの人にする。 */
+    r9.className = 'result ng';
+    r9.textContent = '⚠️ ' + stReason4(e.message) + (stIsNet4(e.message)
+      ? '（貼り付けた内容は消していません。通信が戻ってからもう一度押してください）'
+      : '（貼り付けた内容は消していません。上の理由を直してからもう一度押してください）');
+  }
+  b.disabled = false; b.textContent = '📚 手本に加える';
+}
+
+/* 📥 収穫＝doPost 'styleHarvest'（Slack＋CRM→Obsidian）。書く照会＝控えで偽らない */
+async function stHarvest4() {
+  const st = $('stStat');
+  const b = $('btnStHarvest');
+  b.disabled = true;
+  /* ⏱実測 cold 9.0秒（Slack×8＋GitHub×2＋Notion×1）。3秒には出来ないので黙らずに秒数を言う */
+  const stop = stWait4(st, ST_ETA.harvest, '📥 SlackとCRMから手本を集め直しています…');
+  try {
+    const r = await api({ api: 'styleHarvest' });
+    stop();
+    st.textContent = r.ok ? (r.msg || '✅ 収穫しました') : ('⚠️ ' + (r.msg || '収穫できませんでした'));
+    if (r.ok) stStatus4._once = 0;   // 🔴ここでも自動の取り直しはしない（往復を増やさない）
+    /* 🔴s44：'APIエラー: ' はPWA内部の目印なので剥がしてサーバの言い分だけを出す（PC版と同じ文面）。
+     *   「収穫はしていません」は原因に関わらず真なので、ここは通信/拒否で言い分けない。 */
+  } catch (e) { stop(); st.textContent = '⚠️ ' + stReason4(e.message) + '（収穫はしていません）'; }
+  b.disabled = false;
+}
+
+/* ↻ 取り直し＝doPost 'styleRefresh'（コーパスを取り直して件数を言う）。書く照会＝控えで偽らない */
+async function stRefresh4() {
+  const st = $('stStat');
+  const b = $('btnStRefresh');
+  b.disabled = true;
+  /* ⏱実測 cold 5.7秒（GitHub×1＋Slack×6）。ここも秒数を言う */
+  const stop = stWait4(st, ST_ETA.refresh, '↻ 手本を取り直しています…');
+  try {
+    const r = await api({ api: 'styleRefresh' });
+    stop();
+    st.textContent = r.ok ? ('✅ ' + (r.msg || '')) : ('⚠️ ' + (r.msg || '取り直せませんでした'));
+    /* 🔴s44：同上＝目印を剥がしてサーバの言い分だけを出す */
+  } catch (e) { stop(); st.textContent = '⚠️ ' + stReason4(e.message) + '（取り直しはできていません）'; }
+  b.disabled = false;
+}
+
+/* 🗂 いまの手本の内訳＝doPost 'styleStatus'。**読む照会**なので控えを持つ（オフラインでも白紙にしない）。
+ *   force=false なら控えを即描いてから読みに行く（home/notifと同じ型）。 */
+async function stStatus4(force) {
+  const st = $('stStat');
+  if (!st) return;
+  const cached = readCache(LS.STYLEST);
+  if (cached && !force) st.textContent = stStatText4(cached) + '（' + stAtLabel(cached.at) + '時点の控え）';
+  try {
+    const r = await api({ api: 'styleStatus' });
+    if (!r.ok) throw new Error(r.msg || '読めませんでした');
+    const d = { at: Date.now(), taught: r.taught || 0, byCh: r.byCh || {}, vault: r.vault || 0, slack: r.slack || 0, note: r.note || '' };
+    saveCache(LS.STYLEST, d);
+    st.textContent = stStatText4(d);
+  } catch (e) {
+    /* 🔴s44：読む照会なので控え自体は出してよい。ただし**理由の名札を間違えない**＝
+     *   サーバが理由を言って断ったのに「いまは通信できていません」と書くと、直せる失敗が電波のせいになる。 */
+    const net = stIsNet4(e.message), why = stReason4(e.message);
+    if (cached) st.textContent = stStatText4(cached) + '（🛟' + stAtLabel(cached.at) + '時点の控え／' +
+      (net ? 'いまは通信できていません' : '読み直せません：' + why) + '）';
+    else st.textContent = '⚠️ ' + why;
+  }
+}
+function stStatText4(d) {
+  const b = d.byCh || {};
+  return '教えた手本 ' + (d.taught || 0) + '件（Slack ' + (b.slack || 0) + '／LINE ' + (b.line || 0) + '／メール ' + (b.mail || 0) + '）' +
+         '・Obsidianの蓄積 ' + (d.vault || 0) + '件・Slack直取り ' + (d.slack || 0) + '件' + (d.note ? '　※' + d.note : '');
 }
 
 function wireCal4AndStyle() {
@@ -1888,25 +2191,47 @@ function wireCal4AndStyle() {
     if (e && !e.value) { const d = new Date(); e.value = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   });
 
+  /* ✍️s43：チップは必ず setter を通す（状態と塗りを1本にする＝見た目Slackなのにmailで送る事故の封じ） */
   const cc = $('stChChips');
   if (cc) cc.addEventListener('click', ev => {
     const c = ev.target.closest('button[data-stch]');
-    if (!c) return;
-    stCh4 = c.dataset.stch;
-    cc.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+    if (c) stCh4Set(c.dataset.stch);
   });
   const tc = $('stToneChips');
   if (tc) tc.addEventListener('click', ev => {
     const c = ev.target.closest('button[data-sttone]');
-    if (!c) return;
-    stTone4 = c.dataset.sttone;
-    tc.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c));
+    if (c) stTone4Set(c.dataset.sttone);
   });
   const sw = $('btnStWrite'); if (sw) sw.addEventListener('click', stWrite4);
   const sc = $('btnStCopy');
   if (sc) sc.addEventListener('click', () => { try { navigator.clipboard.writeText($('stOut').value); showOk('コピーしました'); } catch (e) {} });
-  const sp = $('btnStPolite'); if (sp) sp.addEventListener('click', () => { stTone4 = 'polite'; stWrite4(); });
-  const ss = $('btnStShort'); if (ss) ss.addEventListener('click', () => { stTone4 = 'short'; stWrite4(); });
+  const sp = $('btnStPolite'); if (sp) sp.addEventListener('click', () => { stTone4Set('polite'); stWrite4(); });
+  const ss = $('btnStShort'); if (ss) ss.addEventListener('click', () => { stTone4Set('short'); stWrite4(); });
+  const sa = $('btnStAgain'); if (sa) sa.addEventListener('click', stWrite4);
+  /* 📚手本を教える／📥収穫／↻取り直し／🗂いまの手本＝s43で新たに配線した doPost 4口 */
+  const st9 = $('btnStTeach'); if (st9) st9.addEventListener('click', stTeach4);
+  const sta9 = $('btnStTeachAdd'); if (sta9) sta9.addEventListener('click', stTAdd4);   // 🔴s44：＋貼り付け欄（PC同格）
+  const sh9 = $('btnStHarvest'); if (sh9) sh9.addEventListener('click', stHarvest4);
+  const sr9 = $('btnStRefresh'); if (sr9) sr9.addEventListener('click', stRefresh4);
+  const sq9 = $('btnStStatus'); if (sq9) sq9.addEventListener('click', () => stStatus4(true));
+  /* 副次の2枚は既定=閉（レイアウト恒久ルール）。🗂は初めて開いたときだけ読みに行く＝タブ入場の往復を増やさない */
+  const th9 = $('stTeachHead'), ts9 = $('stTeachSec');
+  const stTeachTgl = () => ts9.classList.toggle('cls');
+  if (th9 && ts9) {
+    th9.addEventListener('click', stTeachTgl);
+    th9.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); stTeachTgl(); } });
+  }
+  const kh9 = $('stKeepHead'), ks9 = $('stKeepSec');
+  const stKeepTgl = () => {
+    const opening = ks9.classList.contains('cls');
+    ks9.classList.toggle('cls');
+    if (opening && !stStatus4._once) { stStatus4._once = 1; stStatus4(false); }
+  };
+  if (kh9 && ks9) {
+    kh9.addEventListener('click', stKeepTgl);
+    kh9.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); stKeepTgl(); } });
+  }
+  stEta4();   // ⏱予告は押す前から出す
   calModeShow('free');
 }
 document.addEventListener('DOMContentLoaded', wireCal4AndStyle);
