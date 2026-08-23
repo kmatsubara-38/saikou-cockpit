@@ -350,3 +350,24 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
  *   松原「素晴らしい内容だが、機能していないから」＝カード自体が index.html から消えたので全て孤児CSS。
  *   （記録）.sodoku は `color:var(--fg)` を指していたが、PWAに --fg という変数は存在しない（正は --ink）。
  *     つまり素読の本文色は指定が効いていなかった＝撤廃で自然消滅。同種の誤りを足さないための備忘。 */
+
+/* ===== ✍️2026-08-23 s43 文体ラボ＝報告タブ内の独立1画面（PC版 b131 の独立ページと同格） =====
+ * 🔴新しい色・角丸トークンは1つも足していない（--line / --ink / --sub3 / --warn ＝すべて既存）。
+ * 既存の .accsec を再利用できなかった理由：`.accsec.cls > :not(.sec-title){display:none}` は
+ *   「開閉ヘッダ自身が .sec-title であること」が前提で、.sec-title はタブ見出しの寸法（17〜21px）。
+ *   カードの中の副次見出しにその寸法を使うと階層が逆転するので、同じ思想の小型版を4行だけ足す。
+ *   ▾の回転は既存 .accv をそのまま使う＝アニメの定義は増やしていない。 */
+.stsub{border-top:1px solid var(--line);margin-top:14px;padding-top:8px}
+/* 見出しの器（display:flex / cursor / user-select）は既存の .acch と併用して賄う＝重複定義を作らない。
+   ここで足すのは寸法と色だけ（.sec-title は17〜21pxでカード内の副次見出しには大きすぎるため）。 */
+.stsubh{font-size:13.5px;font-weight:700;color:var(--ink);padding:6px 0}
+.stsub.cls .stsubb{display:none}
+.stsub.cls .accv{transform:rotate(-90deg)}
+/* 📌手本の代用申告／🛟通信できないときの控え＝どちらも「黙って別物を出さない」ための帯。
+ *   --warn(#ff9500) を文字色に載せた実効コントラストは --card(#1c1c1e) 上で 7.7:1（4.5:1 を満たす）。 */
+.stfall{font-size:12.5px;line-height:1.65;color:var(--warn);border-left:3px solid var(--warn);
+  padding:8px 11px;margin:8px 0;border-radius:0 12px 12px 0;
+  background:color-mix(in srgb,var(--warn) 10%,transparent)}
+/* ⏱生成の予告（押す前から「だいたい何秒」を出す＝3秒ルールの正直申告）と、🔧整えた箇所の一覧。
+ *   pre-wrap は必須＝「整えた箇所」と「⚠️警告」を改行で分けて出すため（.muted は pre-wrap を持たず1行に潰れる）。 */
+.steta{font-size:12px;color:var(--sub3);line-height:1.55;margin-top:8px;white-space:pre-wrap}
