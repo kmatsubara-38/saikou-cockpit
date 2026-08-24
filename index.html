@@ -399,6 +399,19 @@
           <button type="button" class="chip" data-v="staff">⑤スタッフ</button>
           <button type="button" class="chip" data-v="pjt">⑥PJT（松原介入）</button>
         </div>
+        <!-- 🔴s46（2026-08-24 松原指示②）：⑤スタッフを選んだときだけ出る下位区分。
+             3つの違いは**Salesforce患者情報の「注意事項」に載る言葉**だけ（■日付　松原 の下に赤字太字）。
+             🔴既定は「パートナー様割引」＝s45までと1文字も変わらない（選び忘れても今までどおり）。
+             🔴PC版（b137）と同じ選択肢・同じ既定＝どちらから登録しても結果が同じになる。 -->
+        <div id="skKindWrap" class="hidden">
+          <label class="field-label">⑧ スタッフ区分（1つ選択）</label>
+          <div class="chips" id="skKind">
+            <button type="button" class="chip on" data-sk="パートナー様割引">パートナー様割引</button>
+            <button type="button" class="chip" data-sk="アンバサダー契約店舗スタッフ">アンバサダー契約店舗スタッフ</button>
+            <button type="button" class="chip" data-sk="アンバサダー">アンバサダー</button>
+          </div>
+          <div class="muted" style="font-size:12px">選んだ言葉が、そのままSalesforceの<b>注意事項</b>へ赤字で載ります</div>
+        </div>
         <label class="field-label" for="skPlaud">Proud URL（任意・複数可）</label>
         <textarea id="skPlaud" rows="2" placeholder="https://web.plaud.ai/share/…&#10;複数ある場合は1行に1つずつ"></textarea>
         <label class="field-label" for="skSonota">その他（CV要因メモ・任意）</label>
