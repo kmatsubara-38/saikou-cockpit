@@ -134,6 +134,99 @@
 
   </section>
 
+  <!-- ✍️ 文体ラボ＝独立タブ（2026-07-29 新設／s43 報告タブ内で独立／s45 で**下段6つ目のタブ**へ）
+       🔴s45（2026-08-24 松原指示）：下段を5つ→6つにして「ホーム／文体ラボ／パイプライン／報告／通知／その他」。
+         きっかけ＝松原「スマホ版に文体ラボが無い（多分実装されていない）」。実測では s44 で実装も配信も
+         済んでいた（画面上部の「· s44」で確認）が、**置き場所が📝報告タブの中**だったので辿り着けなかった。
+         つまり欠けていたのは機能ではなく**入口**。PC版（NAVP＝HOME→文体ラボ→…）と並びを揃えて
+         スマホでも2番目のタブにする＝PC/スマホで探す場所が同じになる。
+       🔴これに伴い app.js の並び替え台帳から view-style を外す（報告タブの中にはもう居ない）。
+         台帳に残したままだと存在しないidを探して黙って何もしない＝b120の「綴り違い」と同じ幽霊になる。 -->
+  <section id="view-style" class="view hidden">
+      <h2 class="sec-title">✍️ 文体ラボ</h2>
+      <section class="card" id="sec-style">
+        <div class="muted">話した内容が、いつもの僕の文章になります。過去の実際のやり取りを手本にして、改行・絵文字・言い回しまで整えます（事実は足しません／不明は【要確認】で残ります）</div>
+
+        <label class="field-label">送り先</label>
+        <div class="chips" id="stChChips">
+          <button type="button" class="chip on" data-stch="slack">Slack</button>
+          <button type="button" class="chip" data-stch="line">LINE</button>
+          <button type="button" class="chip" data-stch="mail">メール</button>
+        </div>
+        <label class="field-label">温度感</label>
+        <div class="chips" id="stToneChips">
+          <button type="button" class="chip on" data-sttone="normal">いつも通り</button>
+          <button type="button" class="chip" data-sttone="polite">丁寧に</button>
+          <button type="button" class="chip" data-sttone="short">短く</button>
+        </div>
+        <label class="field-label" for="stTo">相手（任意）</label>
+        <!-- 🔴s43で同乗修正：type が無いと style.css:189/222 の `input[type=text]` に当たらず、
+             この欄だけダーク配色から外れて素のブラウザ既定で描かれていた（2026-07-29 の新設時からの取りこぼし）。 -->
+        <input type="text" id="stTo" placeholder="山本先生／MAKIRA様 など">
+        <label class="field-label" for="stIn">話した内容</label>
+        <textarea id="stIn" rows="5" placeholder="例）高木さんに、MAKIRA様のパンフ30部お願いしたい、期限は一週間以内で"></textarea>
+        <button class="btn btn-primary" id="btnStWrite">✍️ いつもの僕の文章にする</button>
+        <!-- ⏱3秒ルールの正直申告＝押す前に「だいたい何秒」を出す（実測 cold 6.4秒／予告値はPC版 LSEC の"文体"と同値） -->
+        <div id="stEta" class="steta"></div>
+
+        <div id="stOutWrap" class="hidden">
+          <!-- 🔴送り先はサーバが返した r.ch を出す＝chが本当に効いているかが画面で分かる（手元の選択の写しではない） -->
+          <div class="field-label">できあがり（送り先＝<span id="stOutCh">Slack</span>）</div>
+          <!-- 🔴手本の代用申告（myvoiceFallback）＝無言で別チャネルの手本に落ちない -->
+          <div id="stFall" class="stfall hidden"></div>
+          <!-- 🛟通信できないときの控え（いつ時点かを必ず添える＝新しく作れたフリをしない） -->
+          <div id="stStale" class="stfall hidden"></div>
+          <textarea id="stOut" rows="7"></textarea>
+          <div class="chips">
+            <button type="button" class="chip" id="btnStCopy">📋 コピー</button>
+            <button type="button" class="chip" id="btnStPolite">もっと丁寧に</button>
+            <button type="button" class="chip" id="btnStShort">もっと短く</button>
+            <button type="button" class="chip" id="btnStAgain">言い直す</button>
+          </div>
+          <!-- 🔧整えた箇所＋⚠️警告。改行を含むので pre-wrap を持つ .steta を使う（.muted は持っていない＝1行に潰れる） -->
+          <div id="stFix" class="steta"></div>
+        </div>
+        <div id="stResult" class="result hidden"></div>
+
+        <!-- 📚 手本を教える（既定=閉／PC版 b131 の acc.cls と同じ型） -->
+        <div id="stTeachSec" class="stsub cls">
+          <div class="stsubh acch" id="stTeachHead" role="button" tabindex="0"><span>📚 手本を教える</span><span class="accv">▾</span></div>
+          <div class="stsubb">
+            <div class="muted">LINEの「トーク履歴を送信」で出したテキスト、送ったメール、Slackの投稿。相手の発言は使わず、松原さんの発言だけを手本にします（保存しますが、生成以外には使いません）</div>
+            <label class="field-label" for="stTeachCh">この貼り付けの種別</label>
+            <select id="stTeachCh">
+              <option value="line">LINEのトーク履歴</option>
+              <option value="mail">メール</option>
+              <option value="slack">Slack</option>
+            </select>
+            <textarea id="stTeachIn" rows="5" placeholder="ここに貼り付け（上で選んだ種別として覚えます）"></textarea>
+            <!-- 🔴2026-08-23 s44：PC版と同じ「種別つきの欄を何枚でも、送信は1通信」。
+                 2枚目以降はJSがここへ挿す（既定は0枚＝いままでどおり1欄のまま開く／新しいCSSは足していない） -->
+            <div id="stTeachMore"></div>
+            <div class="chips">
+              <button type="button" class="chip" id="btnStTeachAdd">＋ 貼り付け欄を足す</button>
+            </div>
+            <button type="button" class="btn" id="btnStTeach">📚 手本に加える</button>
+            <div id="stTeachRes" class="result hidden"></div>
+          </div>
+        </div>
+
+        <!-- 🗂 いまの手本／収穫・取り直し（既定=閉） -->
+        <div id="stKeepSec" class="stsub cls">
+          <div class="stsubh acch" id="stKeepHead" role="button" tabindex="0"><span>🗂 いまの手本</span><span class="accv">▾</span></div>
+          <div class="stsubb">
+            <div id="stStat" class="muted">開くと、いまの手本の内訳を読みます</div>
+            <div class="chips">
+              <button type="button" class="chip" id="btnStStatus">🗂 いまの手本を確認する</button>
+              <button type="button" class="chip" id="btnStRefresh">↻ 手本を取り直す</button>
+              <button type="button" class="chip" id="btnStHarvest">📥 Slackから収穫</button>
+            </div>
+            <div class="muted">ダッシュボードが作った定型文とAIの下書きは手本から除いています（自分の型を学び直して痩せないように）</div>
+          </div>
+        </div>
+      </section>
+  </section>
+
   <!-- 🔎 パイプライン＝独立タブ（2026-07-27 松原指示）。一覧はプルダウンで切替 -->
   <section id="view-pipe" class="view hidden">
     <h2 class="sec-title">🔎 パイプライン</h2>
@@ -405,97 +498,6 @@
 
 </div>
 
-    <!-- ✍️ 文体ラボ（2026-07-29 新設／2026-08-23 s43 独立化）
-         🔴s43：それまで #view-cal4（🗓予定を登録）の“中”に間借りしていた＝予定登録の
-           アコーディオンを開かないと辿り着けなかった。PC版が b131 で独立ページ（p=style）に
-           なったのに合わせ、PWAでも **報告タブ内の独立した1画面**（自前の view- セクション）へ。
-           PWAはタブ構造でページURLの概念が無いので、ページを増やさずここで同格にする。
-         並び替え台帳（app.js の 🔥日本一への一手）にも 'view-style' を登録済み＝
-           台帳に無い view- セクションは最下部に取り残される（b120の実バグ）。 -->
-    <div id="view-style">
-      <h2 class="sec-title">✍️ 文体ラボ</h2>
-      <section class="card" id="sec-style">
-        <div class="muted">話した内容が、いつもの僕の文章になります。過去の実際のやり取りを手本にして、改行・絵文字・言い回しまで整えます（事実は足しません／不明は【要確認】で残ります）</div>
-
-        <label class="field-label">送り先</label>
-        <div class="chips" id="stChChips">
-          <button type="button" class="chip on" data-stch="slack">Slack</button>
-          <button type="button" class="chip" data-stch="line">LINE</button>
-          <button type="button" class="chip" data-stch="mail">メール</button>
-        </div>
-        <label class="field-label">温度感</label>
-        <div class="chips" id="stToneChips">
-          <button type="button" class="chip on" data-sttone="normal">いつも通り</button>
-          <button type="button" class="chip" data-sttone="polite">丁寧に</button>
-          <button type="button" class="chip" data-sttone="short">短く</button>
-        </div>
-        <label class="field-label" for="stTo">相手（任意）</label>
-        <!-- 🔴s43で同乗修正：type が無いと style.css:189/222 の `input[type=text]` に当たらず、
-             この欄だけダーク配色から外れて素のブラウザ既定で描かれていた（2026-07-29 の新設時からの取りこぼし）。 -->
-        <input type="text" id="stTo" placeholder="山本先生／MAKIRA様 など">
-        <label class="field-label" for="stIn">話した内容</label>
-        <textarea id="stIn" rows="5" placeholder="例）高木さんに、MAKIRA様のパンフ30部お願いしたい、期限は一週間以内で"></textarea>
-        <button class="btn btn-primary" id="btnStWrite">✍️ いつもの僕の文章にする</button>
-        <!-- ⏱3秒ルールの正直申告＝押す前に「だいたい何秒」を出す（実測 cold 6.4秒／予告値はPC版 LSEC の"文体"と同値） -->
-        <div id="stEta" class="steta"></div>
-
-        <div id="stOutWrap" class="hidden">
-          <!-- 🔴送り先はサーバが返した r.ch を出す＝chが本当に効いているかが画面で分かる（手元の選択の写しではない） -->
-          <div class="field-label">できあがり（送り先＝<span id="stOutCh">Slack</span>）</div>
-          <!-- 🔴手本の代用申告（myvoiceFallback）＝無言で別チャネルの手本に落ちない -->
-          <div id="stFall" class="stfall hidden"></div>
-          <!-- 🛟通信できないときの控え（いつ時点かを必ず添える＝新しく作れたフリをしない） -->
-          <div id="stStale" class="stfall hidden"></div>
-          <textarea id="stOut" rows="7"></textarea>
-          <div class="chips">
-            <button type="button" class="chip" id="btnStCopy">📋 コピー</button>
-            <button type="button" class="chip" id="btnStPolite">もっと丁寧に</button>
-            <button type="button" class="chip" id="btnStShort">もっと短く</button>
-            <button type="button" class="chip" id="btnStAgain">言い直す</button>
-          </div>
-          <!-- 🔧整えた箇所＋⚠️警告。改行を含むので pre-wrap を持つ .steta を使う（.muted は持っていない＝1行に潰れる） -->
-          <div id="stFix" class="steta"></div>
-        </div>
-        <div id="stResult" class="result hidden"></div>
-
-        <!-- 📚 手本を教える（既定=閉／PC版 b131 の acc.cls と同じ型） -->
-        <div id="stTeachSec" class="stsub cls">
-          <div class="stsubh acch" id="stTeachHead" role="button" tabindex="0"><span>📚 手本を教える</span><span class="accv">▾</span></div>
-          <div class="stsubb">
-            <div class="muted">LINEの「トーク履歴を送信」で出したテキスト、送ったメール、Slackの投稿。相手の発言は使わず、松原さんの発言だけを手本にします（保存しますが、生成以外には使いません）</div>
-            <label class="field-label" for="stTeachCh">この貼り付けの種別</label>
-            <select id="stTeachCh">
-              <option value="line">LINEのトーク履歴</option>
-              <option value="mail">メール</option>
-              <option value="slack">Slack</option>
-            </select>
-            <textarea id="stTeachIn" rows="5" placeholder="ここに貼り付け（上で選んだ種別として覚えます）"></textarea>
-            <!-- 🔴2026-08-23 s44：PC版と同じ「種別つきの欄を何枚でも、送信は1通信」。
-                 2枚目以降はJSがここへ挿す（既定は0枚＝いままでどおり1欄のまま開く／新しいCSSは足していない） -->
-            <div id="stTeachMore"></div>
-            <div class="chips">
-              <button type="button" class="chip" id="btnStTeachAdd">＋ 貼り付け欄を足す</button>
-            </div>
-            <button type="button" class="btn" id="btnStTeach">📚 手本に加える</button>
-            <div id="stTeachRes" class="result hidden"></div>
-          </div>
-        </div>
-
-        <!-- 🗂 いまの手本／収穫・取り直し（既定=閉） -->
-        <div id="stKeepSec" class="stsub cls">
-          <div class="stsubh acch" id="stKeepHead" role="button" tabindex="0"><span>🗂 いまの手本</span><span class="accv">▾</span></div>
-          <div class="stsubb">
-            <div id="stStat" class="muted">開くと、いまの手本の内訳を読みます</div>
-            <div class="chips">
-              <button type="button" class="chip" id="btnStStatus">🗂 いまの手本を確認する</button>
-              <button type="button" class="chip" id="btnStRefresh">↻ 手本を取り直す</button>
-              <button type="button" class="chip" id="btnStHarvest">📥 Slackから収穫</button>
-            </div>
-            <div class="muted">ダッシュボードが作った定型文とAIの下書きは手本から除いています（自分の型を学び直して痩せないように）</div>
-          </div>
-        </div>
-      </section>
-    </div>
 
     <div id="view-slotf">
       <h2 class="sec-title">🗓 候補日時ファインダー</h2>
@@ -551,7 +553,10 @@
 </main>
 
 <nav class="tabbar">
+  <!-- 🔴s45：5つ→6つ（松原指示 2026-08-24）。並びはPC版のNAVPと同じ＝HOME→文体ラボ→…
+       ラベルはPC下部タブ（TABN）と違い正式名のまま＝スマホは1枠が広い（6等分でも文字は収まる。style.css で実測済み）。 -->
   <button class="tab active" data-view="home"><span class="tab-ic">⌂</span>ホーム</button>
+  <button class="tab" data-view="style"><span class="tab-ic">✍️</span>文体ラボ</button>
   <button class="tab" data-view="pipe"><span class="tab-ic">🔎</span>パイプライン</button>
   <button class="tab" data-view="report"><span class="tab-ic">📝</span>報告</button>
   <button class="tab" data-view="notif"><span class="tab-ic">🔔</span>通知<span class="badge hidden" id="notifBadge"></span></button>
