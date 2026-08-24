@@ -29,7 +29,10 @@ let APP_VER = '';
     if (m) {
       APP_VER = 's' + m[1].slice(1);
       const u = document.getElementById('updatedAt');
-      if (u && u.textContent && u.textContent.indexOf(' · ') < 0) u.textContent += ' · ' + APP_VER;
+      /* 🔴s45：以前は `u.textContent &&` があったので、**ホームが描けていない間は版が出なかった**。
+         版が知りたいのは、まさに「うまく動かない」ときなので、空でも版だけは必ず出す。
+         （2026-08-24 松原の「スマホに文体ラボが無い」の切り分けが、この1行に懸かっていた） */
+      if (u && u.textContent.indexOf(' · ') < 0) u.textContent = u.textContent ? (u.textContent + ' · ' + APP_VER) : APP_VER;
     }
   }).catch(() => {});
 })();
@@ -167,7 +170,9 @@ function readCache(key) {
   try { const v = JSON.parse(localStorage.getItem(key)); return v && v.data; } catch (e) { return null; }
 }
 
-/* ---- タブ切替（5タブ：ホーム/通知/報告/生成/その他） ---- */
+/* ---- タブ切替（🔴s45＝6タブ：ホーム／文体ラボ／パイプライン／報告／通知／その他）----
+ * 切替は総当たり（data-view と #view-<name> を突き合わせる）＝タブを1つ足すのに
+ * ここは1行も変えなくてよい。足りないのは index.html の <section class="view"> だけ。 */
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
@@ -194,18 +199,21 @@ document.querySelectorAll('.tab').forEach(btn => {
   /* 🔴2026-08-20 b120で発見・同乗修正：'view-cal' は**実在しないid**だった（実体は index.html の `view-cal4`）。
    *   そのため「🗓カレンダー登録」だけ【🔥日本一への一手】に入らず、報告タブの最下部に取り残されていた。
    *   idの綴り違いは `if (s)` に黙って吸われる＝例外も出ない。並び替え台帳は実在idで書くこと。 */
-  /* ✍️2026-08-23 s43：'view-style'（文体ラボ）を🔥の先頭へ。PC版 b131 の NAVP が
-   *   HOMEの次に「文体ラボ」を置いたのと同じ優先順＝1日に数十回叩く道具を最短距離に置く。
-   *   他4本は畳まれた見出し1行ずつなので、押し出される情報量はゼロ。 */
-  ['view-style', 'view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  /* ✍️2026-08-24 s45：'view-style'（文体ラボ）は**この台帳から外した**。
+   *   下段6つ目の独立タブへ昇格＝報告タブの中にはもう居ない（index.html で <section class="view"> に格上げ）。
+   *   🔴外し忘れると getElementById が null を返し `if (s)` に黙って吸われる＝**例外も出ない幽霊**
+   *   （b120の「'view-cal' という実在しないid」と同じ型）。台帳は実在idだけで書くこと。
+   *   s43の経緯＝報告タブ内で🔥の先頭に置いていた。実装も配信も正しく届いていた（実機で「· s44」を確認）が、
+   *   松原が探した場所と違った＝欠けていたのは機能ではなく**入口**だった。 */
+  ['view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   frag.appendChild(cap('🛡 毎日の運用'));
   ['view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   rep.insertBefore(frag, rep.firstChild);
   rep.querySelectorAll(':scope > div[id^="view-"]').forEach(sec => {
-    /* ✍️s43：文体ラボだけは畳まない＝**このタブの主役**（PC版 b131 の独立ページと同格）。
-     *   PC側の決着＝「主役の器は開いたまま・副次（📚手本を教える／🗂いまの手本）だけ .cls で閉じる」。
-     *   ここを外すと『開かないと使えない道具』に静かに退行するので、番人 v95 が機械で固定している。 */
-    if (sec.id === 'view-style') return;
+    /* ✍️s45：s43にあった `if (sec.id === 'view-style') return;`（文体ラボだけ畳まない）は**削除**した。
+     *   文体ラボは報告タブの子ではなくなった＝この querySelectorAll は最初から拾わないので、
+     *   残しても永久に真にならない死んだ条件になる（番人が見張る「効かない指定」を自分で増やさない）。
+     *   「主役の器は開いたまま」の思想は、タブそのものになったことで構造的に満たされている。 */
     const h = sec.querySelector('.sec-title');
     if (!h) return;
     const chev = document.createElement('span');
