@@ -1419,14 +1419,29 @@ $('btnSendReceipt').addEventListener('click', async () => {
 
 /* ==== 🆕紹介登録（ブラウザ版apiShokai(f)と同フィールド：name/apply/type/sex/flag/plaud/sonota/sfp） ==== */
 let skFlag = '';
+/* 🔴s46（松原指示②）：⑤スタッフの下位区分。既定は「パートナー様割引」＝s45までと同じ動き。
+ *   PC版 b137 と**同じ3つ・同じ既定**にしてある（どちらから登録しても結果が変わらない）。 */
+let skKind = 'パートナー様割引';
+function skKindShow() {
+  const w = $('skKindWrap');
+  if (w) w.classList.toggle('hidden', skFlag !== 'staff');
+}
 if ($('skKubun')) $('skKubun').addEventListener('click', ev => {
   const c = ev.target.closest('.chip');
   if (!c) return;
   const v = c.dataset.v;
   document.querySelectorAll('#skKubun .chip').forEach(x => x.classList.remove('on'));
-  if (skFlag === v) { skFlag = ''; return; }   // 再タップで解除（ブラウザ版と同挙動）
-  skFlag = v;
+  /* 🔴s46：早期returnをやめた。returnしていると「スタッフを選び直して外した」ときに
+   *   下位区分の枠が出しっぱなしになる＝画面と送る中身が食い違う。出す/しまうは必ず最後に1回。 */
+  if (skFlag === v) { skFlag = ''; } else { skFlag = v; c.classList.add('on'); }
+  skKindShow();
+});
+if ($('skKind')) $('skKind').addEventListener('click', ev => {
+  const c = ev.target.closest('.chip');
+  if (!c) return;
+  document.querySelectorAll('#skKind .chip').forEach(x => x.classList.remove('on'));
   c.classList.add('on');
+  skKind = c.dataset.sk;
 });
 if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
   const out = $('skResult');
@@ -1438,7 +1453,10 @@ if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
     flag: skFlag,
     plaud: ($('skPlaud') ? $('skPlaud').value.trim() : ''),
     sonota: ($('skSonota') ? $('skSonota').value.trim() : ''),
-    sfp: ($('skSfp') ? $('skSfp').value.trim() : '')
+    sfp: ($('skSfp') ? $('skSfp').value.trim() : ''),
+    /* 🔴s46：スタッフ区分。サーバ側（apiShokai）でも白名簿で照合されるので、
+     *   ここが壊れても患者様のカルテに変な文字は入らない（既定へ落ちる）。 */
+    skind: skKind
   };
   if (!f.name) { out.className = 'result ng'; out.textContent = '①患者様名を入れてください'; return; }
   if (!f.flag) { out.className = 'result ng'; out.textContent = '④⑤⑥の区分を1つ選んでください'; return; }
@@ -1452,6 +1470,10 @@ if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
     ['skName', 'skPlaud', 'skSonota', 'skSfp'].forEach(id => { if ($(id)) $(id).value = ''; });
     document.querySelectorAll('#skKubun .chip').forEach(x => x.classList.remove('on'));
     skFlag = '';
+    /* 🔴s46：下位区分も既定へ戻して枠をしまう（前の登録の選択が次へ持ち越されない） */
+    skKind = 'パートナー様割引';
+    document.querySelectorAll('#skKind .chip').forEach(x => x.classList.toggle('on', x.dataset.sk === skKind));
+    skKindShow();
   } catch (e) {
     out.className = 'result ng';
     out.textContent = e.message;
