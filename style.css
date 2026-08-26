@@ -371,3 +371,14 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 /* ⏱生成の予告（押す前から「だいたい何秒」を出す＝3秒ルールの正直申告）と、🔧整えた箇所の一覧。
  *   pre-wrap は必須＝「整えた箇所」と「⚠️警告」を改行で分けて出すため（.muted は pre-wrap を持たず1行に潰れる）。 */
 .steta{font-size:12px;color:var(--sub3);line-height:1.55;margin-top:8px;white-space:pre-wrap}
+
+/* ===== 📖2026-08-26 s47 読書（PC版b142と同格） =====
+ * 🔴新しい色トークンは足していない（--line / --sub / --accent-fill ＝すべて既存）。
+ * .bk-shot＝写真の大きな押し面（松原指摘「貼り付ける場所が見にくい」への決裁＝<input>の素の見た目をやめる）。
+ * バーの塗りは --accent-fill（塗り専用トークン＝PC版の --acf と同じ思想。文字は載せないが面は面の色で統一）。 */
+.bk-shot{display:block;border:2px dashed var(--line);border-radius:12px;padding:18px 12px;text-align:center;cursor:pointer;margin:4px 0;line-height:1.6}
+.bk-bar{height:6px;border-radius:99px;background:var(--line);margin:8px 0;overflow:hidden}
+.bk-bar i{display:block;height:100%;border-radius:99px;background:var(--accent-fill)}
+.bk-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.bk-row input[type="number"]{width:90px;margin:0}
+.bk-done{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
