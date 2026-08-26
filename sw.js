@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v49';   /* 2026-08-26 s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
+const CACHE = 'cp-shell-v50';   /* 2026-08-27 s50＝📚読書の写真を**何枚でもまとめて**（1冊ずつ自動登録・期限と進捗は一覧で）。s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
 /* 🔴版を上げた理由（app.js / index.html / style.css のどれかを変えたら必ず上げる）：
  *   キャッシュ名が同じままだと、端末に焼かれた**旧app.js・旧index.html**が cache-first でそのまま返り続ける＝直したものが届かない。
  *   ASSETSは1つのキャッシュ名で丸ごと管理しているので、版を上げるだけで全部入れ替わる。
@@ -16,7 +16,8 @@ const CACHE = 'cp-shell-v49';   /* 2026-08-26 s49＝配信の入口を直した�
  *     🔴同時に**レシート(rcFile)**の capture も外した＝前から同じ状態で、ラベルは「撮影 / 画像を選択」と言っていた。
  *     PC版のレシート(fi_rcpt)は元から capture 無し＝スマホだけが食い違っていた（parity違反の解消）。
  *   v49=2026-08-26 🔴**版を上げても届かないことがある**穴を塞いだ＝install の addAll に cache:'reload'。
- *     あわせて裏の更新を ev.waitUntil で最後まで走らせ、オフラインで控えも無いときに undefined を返さないようにした。 */
+ *     あわせて裏の更新を ev.waitUntil で最後まで走らせ、オフラインで控えも無いときに undefined を返さないようにした。
+ *   v50=2026-08-27 📚読書＝写真の複数添付→1冊ずつ自動登録／一覧の各行で期限を入れられるように（PC版b144と同格）。 */
 const ASSETS = [
   './',
   './index.html',
