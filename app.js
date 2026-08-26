@@ -1642,6 +1642,8 @@ function renderBooks() {
       (b.pages ? '<div class="bk-bar"><i style="width:' + (b.pct || 0) + '%"></i></div>' : '') +
       '<div class="bk-row">' +
       '<input type="number" min="0" value="' + (parseInt(b.read, 10) || 0) + '" id="bkR_' + escAttr(b.ts) + '">' +
+      /* 📅b144（松原指示③）：期限は**登録のあと**にここで入れる。選んだ瞬間に保存＝押すボタンを増やさない */
+      '<input type="date" value="' + escAttr(b.due || '') + '" id="bkD_' + escAttr(b.ts) + '" title="読み切る期限" data-bk="due" data-ts="' + escAttr(b.ts) + '">' +
       '<button class="btn btn-small" data-bk="go" data-ts="' + escAttr(b.ts) + '">ここまで読んだ</button>' +
       '<button class="btn btn-small" data-bk="fin" data-ts="' + escAttr(b.ts) + '">📗 読了にする</button>' +
       '<button class="btn btn-small" data-bk="del" data-ts="' + escAttr(b.ts) + '">🗑 リセット</button>' +
@@ -1689,6 +1691,16 @@ async function loadBooks() {
 }
 if ($('btnBookReload')) $('btnBookReload').addEventListener('click', loadBooks);
 
+/* 📅b144：期限は change で拾う（クリックの委譲では日付の確定を拾えない） */
+if ($('bookList')) $('bookList').addEventListener('change', async ev => {
+  const el = ev.target;
+  if (!el || el.dataset.bk !== 'due') return;
+  try {
+    const r = await api({ api: 'bookSave', p: { ts: el.dataset.ts, due: el.value } });
+    showOk(r.msg || '期限を入れました');
+    bkPut(r.book); renderBooks();
+  } catch (e) { showErr(e.message); }
+});
 if ($('bookList')) $('bookList').addEventListener('click', async ev => {
   const btn = ev.target.closest('button[data-bk]');
   if (!btn) return;
@@ -1733,24 +1745,48 @@ if ($('bookList')) $('bookList').addEventListener('click', async ev => {
 });
 
 /* 📷 写真1枚 → 書名・著者（＋写っていれば総ページ）。読めなかったら枠は触らない（打ちかけを消さない） */
+/* 📚b144（2026-08-26 松原指示③）＝**何枚でもまとめて**。1枚ずつ順に読み取り、読めたものはその場で登録する。
+ * 🔴同時に投げない＝どれが失敗したか分からなくなるうえ、Geminiが詰まる。1冊ずつ順に、終わった本から一覧へ足す。
+ * 🔴1枚あたり実測5.2〜9.0秒。枚数ぶんかかるので「N冊目／全M冊・経過N秒」を必ず出す（3秒ルールの正直申告）。
+ * 🔴読めなかった写真は**登録しない**（作り話を台帳に入れない）。理由は最後にまとめて見せる。
+ * 🔴期限と進捗は登録の**あと**に一覧の各行で入れる（松原指示）。PC版 b144 と同じ作法。 */
 if ($('bkPhoto')) $('bkPhoto').addEventListener('change', async ev => {
-  const f = ev.target.files && ev.target.files[0];
-  if (!f) return;
+  const fs = Array.prototype.slice.call(ev.target.files || []);
+  if (!fs.length) return;
   const n = $('bkScanNote');
   const t0 = Date.now();
-  const say = () => { if (n) n.textContent = '📷 読み取っています…（だいたい9秒／経過' + Math.round((Date.now() - t0) / 1000) + '秒）'; };
+  let cur = 0, done = 0;
+  const ng = [];
+  const say = () => { if (n) n.textContent = '📷 ' + (cur + 1) + '冊目／全' + fs.length + '冊を読み取っています…（1冊だいたい9秒／経過' + Math.round((Date.now() - t0) / 1000) + '秒）'; };
   say();
   const tm = setInterval(say, 1000);
   try {
-    const { b64 } = await shrinkImage(f, 1600, 0.8);
-    const r = await api({ api: 'bookScan', b64 });
-    if (r.title) $('bkTitle').value = r.title;
-    if (r.author) $('bkAuthor').value = r.author;
-    if (r.pages) $('bkPages').value = r.pages;
-    if (n) n.textContent = r.msg || '📷 読み取りました';
-  } catch (e) {
-    if (n) n.textContent = '⚠️ ' + e.message;
-  } finally { clearInterval(tm); ev.target.value = ''; }
+    for (cur = 0; cur < fs.length; cur++) {
+      say();
+      let r;
+      try {
+        const { b64 } = await shrinkImage(fs[cur], 1600, 0.8);
+        r = await api({ api: 'bookScan', b64 });
+      } catch (e) { ng.push(e.message); continue; }
+      if (!r || !r.title) { ng.push((r && r.msg) || '読み取れませんでした'); continue; }
+      /* 🔴1枚だけのときは枠にも入れる＝読めた内容を目で確かめてから直せる（従来の使い方を残す） */
+      if (fs.length === 1) {
+        $('bkTitle').value = r.title || '';
+        if (r.author) $('bkAuthor').value = r.author;
+        if (r.pages) $('bkPages').value = r.pages;
+      }
+      try {
+        const sv = await api({ api: 'bookSave', p: { title: r.title, author: r.author, pages: r.pages, status: '読書中' } });
+        if (sv && sv.book) { done++; bkPut(sv.book); renderBooks(); }
+        else ng.push((sv && sv.msg) || '登録できませんでした');
+      } catch (e) { ng.push(e.message); }
+    }
+  } finally {
+    clearInterval(tm);
+    ev.target.value = '';
+    if (n) n.textContent = (done ? ('📗 ' + done + '冊を登録しました。期限と進捗は上の一覧で入れられます') : '⚠️ 1冊も登録できませんでした')
+      + (ng.length ? ('　／読めなかった写真 ' + ng.length + '枚：' + ng.join(' ／ ')) : '');
+  }
 });
 
 if ($('bkStChips')) $('bkStChips').addEventListener('click', ev => {
