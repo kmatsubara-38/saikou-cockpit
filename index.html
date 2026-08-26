@@ -366,7 +366,7 @@
           <button class="seg-btn" data-v="card">カード</button>
         </div>
         <label class="file-drop" for="rcFile">
-          <input type="file" id="rcFile" accept="image/*" capture="environment" hidden>
+          <input type="file" id="rcFile" accept="image/*" hidden>
           <span id="rcFileLabel">📷 撮影 / 画像を選択</span>
         </label>
         <img id="rcPreview" class="rc-preview hidden" alt="">
@@ -555,10 +555,10 @@
 
     <div class="card">
       <div class="field-label" style="margin-top:0">➕ 本を追加する（写真を撮るだけ。入れるのは期限と、いま何ページまで）</div>
-      <label class="bk-shot" for="bkPhoto"><b>📷 ① 本の表紙を撮る／写真を選ぶ</b><br>
+      <label class="bk-shot" for="bkPhoto"><b>📷 ① 本の表紙を撮る／🖼 写真から選ぶ</b><br>
         <span class="muted" style="font-size:12px">書名・著者は自動で入ります（写真は保存しません）</span></label>
-      <input type="file" id="bkPhoto" accept="image/*" capture="environment" class="hidden">
-      <div class="muted" id="bkScanNote" style="font-size:12px;margin:4px 0 0">撮ると、ここに読み取り結果が出ます</div>
+      <input type="file" id="bkPhoto" accept="image/*" class="hidden">
+      <div class="muted" id="bkScanNote" style="font-size:12px;margin:4px 0 0">写真を入れると、ここに読み取り結果が出ます</div>
       <label class="field-label" for="bkTitle">書籍名（必須）</label>
       <input id="bkTitle" placeholder="写真から自動で入ります">
       <label class="field-label" for="bkAuthor">著者</label>
