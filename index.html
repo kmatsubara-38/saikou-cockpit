@@ -541,8 +541,49 @@
 
   </section>
 
-  <!-- ⋯その他（学び＋設定）＝2026-07-27 松原指示で第二の脳・アーカイブ・給与明細を撤去 -->
+  <!-- ⋯その他（読書＋学び＋設定）＝2026-07-27 松原指示で第二の脳・アーカイブ・給与明細を撤去 -->
   <section id="view-more" class="view hidden">
+
+    <!-- 📖s47（2026-08-26 松原指示）：スマホにもProgressの読書を。**写真はスマホで撮るのがいちばん自然**＝ここが主役。
+         PC版b142と同じ実体（コックピットDBのbooksシート）を doPost の5口（books/bookSave/bookRead/bookScan/bookDelete）で触る。
+         🎨追加欄は常に開く（松原決裁2026-08-26「読書だけ常に開く」＝入力系既定閉ルールの唯一の例外）。 -->
+    <div class="row-between">
+      <h2 class="sec-title">📖 読書</h2>
+      <button class="btn btn-small" id="btnBookReload">更新</button>
+    </div>
+    <div id="bookList"><div class="muted pad">読み込み中…</div></div>
+
+    <div class="card">
+      <div class="field-label" style="margin-top:0">➕ 本を追加する（写真を撮るだけ。入れるのは期限と、いま何ページまで）</div>
+      <label class="bk-shot" for="bkPhoto"><b>📷 ① 本の表紙を撮る／写真を選ぶ</b><br>
+        <span class="muted" style="font-size:12px">書名・著者は自動で入ります（写真は保存しません）</span></label>
+      <input type="file" id="bkPhoto" accept="image/*" capture="environment" class="hidden">
+      <div class="muted" id="bkScanNote" style="font-size:12px;margin:4px 0 0">撮ると、ここに読み取り結果が出ます</div>
+      <label class="field-label" for="bkTitle">書籍名（必須）</label>
+      <input id="bkTitle" placeholder="写真から自動で入ります">
+      <label class="field-label" for="bkAuthor">著者</label>
+      <input id="bkAuthor" placeholder="写真から自動で入ります">
+      <label class="field-label" for="bkPages">総ページ（分かれば）</label>
+      <input id="bkPages" type="number" min="1" max="99999" placeholder="写真に無ければ空のまま">
+      <label class="field-label" for="bkDue">② 読み切る期限</label>
+      <input id="bkDue" type="date">
+      <label class="field-label" for="bkRead">③ いま何ページまで</label>
+      <input id="bkRead" type="number" min="0" max="99999" placeholder="0">
+      <label class="field-label" for="bkNote">ひとこと（任意）</label>
+      <input id="bkNote" placeholder="なぜ読むか・どこで知ったか">
+      <!-- 過去に読んだ本の後追い＝PC版と同じ2択・同じ既定（片方だけだと登録経路で記録が変わる） -->
+      <div class="chips" id="bkStChips" style="margin-top:8px">
+        <button type="button" class="chip on" data-bkst="読書中">いま読む</button>
+        <button type="button" class="chip" data-bkst="読了">過去に読んだ（後から追加）</button>
+      </div>
+      <div id="bkFinWrap" class="hidden">
+        <label class="field-label" for="bkFinD">読了日</label>
+        <input id="bkFinD" type="date">
+      </div>
+      <button class="btn btn-primary" id="bkAddBtn" style="margin-top:10px">この本を登録する</button>
+      <div class="result" id="bkAddNote"></div>
+      <div class="muted" style="font-size:11px;margin-top:6px">📷 写真から読むのは写っている文字だけ（写っていない情報は補いません）。写真は保存しません。押すたびにObsidian（読書ログ）へ1行ずつ記憶します（書けない時は正直にお知らせします）</div>
+    </div>
 
     <div class="row-between">
       <h2 class="sec-title">📚 学びのアーカイブ</h2>
