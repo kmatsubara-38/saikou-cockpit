@@ -1775,7 +1775,7 @@ if ($('bkAddBtn')) $('bkAddBtn').addEventListener('click', async () => {
     bkPut(r.book); renderBooks();
     /* 🔴登録できたら入力は消す（b137の線引き＝送って用が済んだ器は残さない）。案内文も最初の姿へ */
     ['bkTitle', 'bkAuthor', 'bkPages', 'bkDue', 'bkRead', 'bkNote', 'bkFinD', 'bkPhoto'].forEach(id => { const e = $(id); if (e) e.value = ''; });
-    const sn = $('bkScanNote'); if (sn) sn.textContent = '撮ると、ここに読み取り結果が出ます';
+    const sn = $('bkScanNote'); if (sn) sn.textContent = '写真を入れると、ここに読み取り結果が出ます';
   } catch (e) {
     if (out) { out.className = 'result ng'; out.textContent = e.message; }
   } finally { btn.disabled = false; btn.textContent = 'この本を登録する'; }
