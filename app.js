@@ -183,6 +183,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (btn.dataset.view === 'notif') loadNotifs();
     if (btn.dataset.view === 'home') loadHomeMonth();
     if (btn.dataset.view === 'pipe') plKindShow();   // 🔎入場時に選択中の一覧を読み込む
+    if (btn.dataset.view === 'more') loadBooks();    // 📖s47：入場＝読書を読み込む（主役を「更新」待ちにしない）
   });
 });
 
@@ -1605,6 +1606,180 @@ if ($('btnSlotFind')) $('btnSlotFind').addEventListener('click', async () => {
 });
 if ($('btnSfCopy')) $('btnSfCopy').addEventListener('click', () =>
   copyText($('sfMsg') ? $('sfMsg').value : '', $('btnSfCopy')));
+
+/* ==== 📖s47 読書（2026-08-26 松原指示＝スマホにもProgress。PC版b142と同じ実体） ====
+ * doPostの5口（books/bookSave/bookRead/bookScan/bookDelete）だけを使う。
+ * 🔴書名は必ず esc()/textContent で入れる（PC版と同じ約束＝書名に何が入っても崩れない）。
+ * 🔴削除・読了は押す前に confirm で書名を出す（PC版 bkDel/bkFinish と同じ文言・同じ厳しさ）。 */
+let bkBooks = { now: [], done: [] };
+let bkStV = '読書中';
+
+function bkPut(b) {
+  if (!b) return;
+  const f = a => (a || []).filter(x => String(x.ts) !== String(b.ts));
+  bkBooks.now = f(bkBooks.now); bkBooks.done = f(bkBooks.done);
+  if (b.status === '読了') bkBooks.done = [b].concat(bkBooks.done || []);
+  else bkBooks.now = (bkBooks.now || []).concat([b]);
+  (bkBooks.now || []).sort((x, y) => String(x.due || '9999').localeCompare(String(y.due || '9999')));
+}
+
+function renderBooks() {
+  const box = $('bookList');
+  if (!box) return;
+  box.innerHTML = '';
+  const ns = bkBooks.now || [];
+  if (!ns.length) box.innerHTML = '<div class="muted pad">いま読んでいる本はまだありません。下の「➕ 本を追加する」から登録してください</div>';
+  ns.forEach(b => {
+    const div = document.createElement('div');
+    div.className = 'card';
+    let due = '';
+    if (b.due) due = '｜期限 ' + esc(b.due) + (b.over ? '（超過）' : (b.days != null ? ('（あと' + b.days + '日' + (b.perDay ? '・1日' + b.perDay + 'p' : '') + '）') : ''));
+    div.innerHTML =
+      '<div><b>' + esc(b.title) + '</b>' + (b.author ? ' <span class="muted" style="font-size:12px">' + esc(b.author) + '</span>' : '') + '</div>' +
+      '<div class="muted" style="font-size:12px">' + (b.pages ? (b.read + ' / ' + b.pages + 'p（残り' + b.remain + 'p）') : (b.read + 'p まで')) + due + '</div>' +
+      (b.pages ? '<div class="bk-bar"><i style="width:' + (b.pct || 0) + '%"></i></div>' : '') +
+      '<div class="bk-row">' +
+      '<input type="number" min="0" value="' + (parseInt(b.read, 10) || 0) + '" id="bkR_' + escAttr(b.ts) + '">' +
+      '<button class="btn btn-small" data-bk="go" data-ts="' + escAttr(b.ts) + '">ここまで読んだ</button>' +
+      '<button class="btn btn-small" data-bk="fin" data-ts="' + escAttr(b.ts) + '">📗 読了にする</button>' +
+      '<button class="btn btn-small" data-bk="del" data-ts="' + escAttr(b.ts) + '">🗑 リセット</button>' +
+      '</div>';
+    box.appendChild(div);
+  });
+  const ds = bkBooks.done || [];
+  if (ds.length) {
+    const det = document.createElement('details');
+    const sm = document.createElement('summary');
+    sm.className = 'muted';
+    sm.textContent = '📚 読み終えた本（' + ds.length + '冊）';
+    det.appendChild(sm);
+    ds.forEach(b => {
+      const r = document.createElement('div');
+      r.className = 'bk-done';
+      const l = document.createElement('span');
+      l.textContent = b.title + (b.author ? '／' + b.author : '') + (b.pages ? '（' + b.pages + 'p）' : '');
+      const rt = document.createElement('span');
+      rt.className = 'muted';
+      rt.textContent = b.finished || '';
+      const xb = document.createElement('button');
+      xb.className = 'btn btn-small';
+      xb.textContent = '🗑';
+      xb.dataset.bk = 'del'; xb.dataset.ts = b.ts;
+      r.appendChild(l); r.appendChild(rt); r.appendChild(xb);
+      det.appendChild(r);
+    });
+    box.appendChild(det);
+  }
+}
+
+async function loadBooks() {
+  const box = $('bookList');
+  if (!box) return;
+  box.innerHTML = '<div class="muted pad">読み込み中…</div>';
+  try {
+    const d = await api({ api: 'books' });
+    bkBooks = { now: d.now || [], done: d.done || [] };
+    renderBooks();
+  } catch (e) {
+    box.innerHTML = '<div class="muted pad">取得失敗</div>';
+    showErr(e.message);
+  }
+}
+if ($('btnBookReload')) $('btnBookReload').addEventListener('click', loadBooks);
+
+if ($('bookList')) $('bookList').addEventListener('click', async ev => {
+  const btn = ev.target.closest('button[data-bk]');
+  if (!btn) return;
+  const ts = btn.dataset.ts;
+  const b = (bkBooks.now || []).concat(bkBooks.done || []).find(x => String(x.ts) === String(ts));
+  if (!b) return;
+  if (btn.dataset.bk === 'go') {
+    const e = $('bkR_' + ts);
+    if (!e) return;
+    btn.disabled = true;
+    try {
+      const r = await api({ api: 'bookRead', ts, read: e.value });
+      showOk(r.msg || '完了'); bkPut(r.book); renderBooks();
+    } catch (er) { showErr(er.message); }
+    btn.disabled = false;
+    return;
+  }
+  if (btn.dataset.bk === 'fin') {
+    /* 🔴読了は戻す口が無い＝押す前に書名を出して1回だけ確かめる（PC版 bkFinish と同じ文言） */
+    if (!confirm(b.title + '　を「読了」にします。\n\n読み終えた本の一覧へ移り、進捗は総ページまで進みます。よろしいですか？')) return;
+    btn.disabled = true;
+    try {
+      const r = await api({ api: 'bookSave', p: { ts, status: '読了' } });
+      showOk(r.msg || '完了'); bkPut(r.book); renderBooks();
+    } catch (er) { showErr(er.message); }
+    btn.disabled = false;
+    return;
+  }
+  if (btn.dataset.bk === 'del') {
+    /* 🗑b142（2026-08-26 松原決裁「リセット＝行ごと削除」）：サーバ側でも書名を照合してから消す */
+    if (!confirm(b.title + '　を削除します。\n\n行ごと消え、元に戻す口はありません（Obsidianの読書ログには「削除」の記録が1行残ります）。よろしいですか？')) return;
+    btn.disabled = true;
+    try {
+      const r = await api({ api: 'bookDelete', ts, title: b.title });
+      showOk(r.msg || '削除しました');
+      const f = a => (a || []).filter(x => String(x.ts) !== String(ts));
+      bkBooks.now = f(bkBooks.now); bkBooks.done = f(bkBooks.done);
+      renderBooks();
+    } catch (er) { showErr(er.message); btn.disabled = false; }
+    return;
+  }
+});
+
+/* 📷 写真1枚 → 書名・著者（＋写っていれば総ページ）。読めなかったら枠は触らない（打ちかけを消さない） */
+if ($('bkPhoto')) $('bkPhoto').addEventListener('change', async ev => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const n = $('bkScanNote');
+  const t0 = Date.now();
+  const say = () => { if (n) n.textContent = '📷 読み取っています…（だいたい9秒／経過' + Math.round((Date.now() - t0) / 1000) + '秒）'; };
+  say();
+  const tm = setInterval(say, 1000);
+  try {
+    const { b64 } = await shrinkImage(f, 1600, 0.8);
+    const r = await api({ api: 'bookScan', b64 });
+    if (r.title) $('bkTitle').value = r.title;
+    if (r.author) $('bkAuthor').value = r.author;
+    if (r.pages) $('bkPages').value = r.pages;
+    if (n) n.textContent = r.msg || '📷 読み取りました';
+  } catch (e) {
+    if (n) n.textContent = '⚠️ ' + e.message;
+  } finally { clearInterval(tm); ev.target.value = ''; }
+});
+
+if ($('bkStChips')) $('bkStChips').addEventListener('click', ev => {
+  const c = ev.target.closest('.chip');
+  if (!c) return;
+  bkStV = c.dataset.bkst || '読書中';
+  document.querySelectorAll('#bkStChips .chip').forEach(x => x.classList.toggle('on', x === c));
+  if ($('bkFinWrap')) $('bkFinWrap').classList.toggle('hidden', bkStV !== '読了');
+});
+
+if ($('bkAddBtn')) $('bkAddBtn').addEventListener('click', async () => {
+  const t = ($('bkTitle').value || '').trim();
+  const out = $('bkAddNote');
+  if (!t) { showErr('書籍名を入れてください'); return; }
+  const p = { title: t, author: $('bkAuthor').value, pages: $('bkPages').value, due: $('bkDue').value,
+              read: $('bkRead').value, note: $('bkNote').value, status: bkStV };
+  if (bkStV === '読了') p.finished = $('bkFinD').value;
+  const btn = $('bkAddBtn');
+  btn.disabled = true; btn.textContent = '登録中…';
+  if (out) { out.className = 'result'; out.textContent = ''; }
+  try {
+    const r = await api({ api: 'bookSave', p });
+    if (out) { out.className = 'result ok'; out.textContent = r.msg || '登録しました'; }
+    bkPut(r.book); renderBooks();
+    /* 🔴登録できたら入力は消す（b137の線引き＝送って用が済んだ器は残さない）。案内文も最初の姿へ */
+    ['bkTitle', 'bkAuthor', 'bkPages', 'bkDue', 'bkRead', 'bkNote', 'bkFinD', 'bkPhoto'].forEach(id => { const e = $(id); if (e) e.value = ''; });
+    const sn = $('bkScanNote'); if (sn) sn.textContent = '撮ると、ここに読み取り結果が出ます';
+  } catch (e) {
+    if (out) { out.className = 'result ng'; out.textContent = e.message; }
+  } finally { btn.disabled = false; btn.textContent = 'この本を登録する'; }
+});
 
 /* ==== 🆕学びのアーカイブ（{api:'intel'}一覧＋未読/閲覧済/導入済チップ＋{api:'intelStatus'}） ==== */
 let intelItems = [], intelFilterV = 'all';
