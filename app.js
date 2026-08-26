@@ -1392,6 +1392,8 @@ function shrinkImage(file, maxPx, quality) {
       resolve({ b64: dataUrl.split(',')[1], w, h });
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像を読み込めません')); };
+    /* 🔴デコードが返らない日に、経過秒だけが回り続けるのを止める（15秒で正直に諦める） */
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} reject(new Error('画像の読み込みに時間がかかりすぎました（別の写真でお試しください）')); }, 15000);
     img.src = url;
   });
 }
