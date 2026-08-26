@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v48';   /* 2026-08-26 s48＝📷写真の入口を直した。capture="environment" を外し、撮影済みの写真も選べるように（松原の実機報告）。読書とレシートの両方＝PC版と同じ作法へ */
+const CACHE = 'cp-shell-v49';   /* 2026-08-26 s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
 /* 🔴版を上げた理由（app.js / index.html / style.css のどれかを変えたら必ず上げる）：
  *   キャッシュ名が同じままだと、端末に焼かれた**旧app.js・旧index.html**が cache-first でそのまま返り続ける＝直したものが届かない。
  *   ASSETSは1つのキャッシュ名で丸ごと管理しているので、版を上げるだけで全部入れ替わる。
@@ -14,7 +14,9 @@ const CACHE = 'cp-shell-v48';   /* 2026-08-26 s48＝📷写真の入口を直し
  *   v47=2026-08-26 📖読書を「⋯その他」タブへ（PC版b142と同格・doPost5口）。
  *   v48=2026-08-26 📷その写真の入口の不具合を修理＝capture を外した（カメラ直行で、撮り溜めた写真を選べなかった）。
  *     🔴同時に**レシート(rcFile)**の capture も外した＝前から同じ状態で、ラベルは「撮影 / 画像を選択」と言っていた。
- *     PC版のレシート(fi_rcpt)は元から capture 無し＝スマホだけが食い違っていた（parity違反の解消）。 */
+ *     PC版のレシート(fi_rcpt)は元から capture 無し＝スマホだけが食い違っていた（parity違反の解消）。
+ *   v49=2026-08-26 🔴**版を上げても届かないことがある**穴を塞いだ＝install の addAll に cache:'reload'。
+ *     あわせて裏の更新を ev.waitUntil で最後まで走らせ、オフラインで控えも無いときに undefined を返さないようにした。 */
 const ASSETS = [
   './',
   './index.html',
@@ -26,7 +28,16 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', ev => {
-  ev.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  /* 🔴2026-08-26 s49：`c.addAll(ASSETS)` は**既定でHTTPキャッシュを見に行く**。
+   *   GitHub Pages は `Cache-Control: max-age=600` を返す（実測・Age 525 を確認）ので、
+   *   直前10分以内に一度開いていると、**新品のキャッシュに古い index.html / app.js が焼き込まれる**。
+   *   版だけ上げても直したものが届かない＝「更新したのに変わらない」の正体のひとつ。
+   *   → `cache: 'reload'` で毎回ネットワークから取り直す（配信の入口だけは絶対に妥協しない）。 */
+  ev.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', ev => {
@@ -46,12 +57,13 @@ self.addEventListener('fetch', ev => {
   ev.respondWith(
     caches.match(req).then(hit => {
       const refetch = fetch(req).then(res => {
-        if (res && res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(req, copy));
-        }
-        return res;
-      }).catch(() => hit);           // オフライン時はキャッシュ
+        if (!res || !res.ok) return res;
+        const copy = res.clone();
+        /* 🔴書き込みを待つ形にする＝SWが止められても控えが消えない（put は誰にも待たれていなかった） */
+        return caches.open(CACHE).then(c => c.put(req, copy)).then(() => res);
+      }).catch(() => hit || Response.error());   // 🔴オフラインで控えも無いときに undefined を返さない
+      /* 裏の更新も最後まで走らせる。呼べない状況（既に解決済み等）でも本流を止めない */
+      try { ev.waitUntil(refetch); } catch (e) {}
       return hit || refetch;          // キャッシュ即返し＋裏で更新（stale-while-revalidate）
     })
   );
