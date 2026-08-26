@@ -556,8 +556,8 @@
     <div class="card">
       <div class="field-label" style="margin-top:0">➕ 本を追加する（写真を撮るだけ。入れるのは期限と、いま何ページまで）</div>
       <label class="bk-shot" for="bkPhoto"><b>📷 ① 本の表紙を撮る／🖼 写真から選ぶ</b><br>
-        <span class="muted" style="font-size:12px">書名・著者は自動で入ります（写真は保存しません）</span></label>
-      <input type="file" id="bkPhoto" accept="image/*" class="hidden">
+        <span class="muted" style="font-size:12px">何枚でもまとめて選べます。読み取った本は自動で登録され、期限と進捗は上の一覧で入れられます（写真は保存しません）</span></label>
+      <input type="file" id="bkPhoto" accept="image/*" multiple class="hidden">
       <div class="muted" id="bkScanNote" style="font-size:12px;margin:4px 0 0">写真を入れると、ここに読み取り結果が出ます</div>
       <label class="field-label" for="bkTitle">書籍名（必須）</label>
       <input id="bkTitle" placeholder="写真から自動で入ります">
