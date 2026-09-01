@@ -382,3 +382,14 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
 .bk-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .bk-row input[type="number"]{width:90px;margin:0}
 .bk-done{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+
+/* ===== 🧭2026-09-01 s51 Missionの掲示（PC版 b146 の .hmis と同格） =====
+ * 松原「常に自分の欲求に振り切りたいから」＝**燃料として置く**。自戒でもチェックでもない。
+ * 🔴新しい色トークンは足していない（--accent-fill / --ink ＝すべて既存）。
+ *   PC版は --acf / --fg、PWAは --accent-fill / --ink ＝**名前は違うが同じ役割の同じ値**。
+ *   ここを --acf / --fg と書くと未定義になって線も文字色も効かない（PWAにその名前は無い）。
+ * 🔴入力要素ではないので、押し面（cursor / border-radius / 破線）を一切持たせない。
+ *   b120で撤去された3枚（素読・6ニーズ・1問）と見た目で必ず区別が付く状態にする。
+ * 左右の余白は main（padding:8px 16px）が持つので、ここでは持たない。 */
+.hmis{max-width:800px;margin:0 0 16px;padding:0 0 0 12px;border-left:2px solid var(--accent-fill);
+  font-size:16px;font-weight:600;line-height:1.72;color:var(--ink);opacity:.92}

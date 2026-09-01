@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v50';   /* 2026-08-27 s50＝📚読書の写真を**何枚でもまとめて**（1冊ずつ自動登録・期限と進捗は一覧で）。s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
+const CACHE = 'cp-shell-v51';   /* 2026-09-01 s51＝🧭Missionをホーム最初の行に掲示（PC版b146と同格・松原「常に自分の欲求に振り切りたいから」）。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。ファイルは増えていない（ASSETS 7件のまま）。s50＝📚読書の写真を**何枚でもまとめて**（1冊ずつ自動登録・期限と進捗は一覧で）。s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
 /* 🔴版を上げた理由（app.js / index.html / style.css のどれかを変えたら必ず上げる）：
  *   キャッシュ名が同じままだと、端末に焼かれた**旧app.js・旧index.html**が cache-first でそのまま返り続ける＝直したものが届かない。
  *   ASSETSは1つのキャッシュ名で丸ごと管理しているので、版を上げるだけで全部入れ替わる。
