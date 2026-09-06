@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v51';   /* 2026-09-01 s51＝🧭Missionをホーム最初の行に掲示（PC版b146と同格・松原「常に自分の欲求に振り切りたいから」）。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。ファイルは増えていない（ASSETS 7件のまま）。s50＝📚読書の写真を**何枚でもまとめて**（1冊ずつ自動登録・期限と進捗は一覧で）。s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
+const CACHE = 'cp-shell-v53';   /* 2026-09-06 s53＝🏞背景を松原のCodex画像「ラピュタ遺跡」に（＋🧭MVVの箱を中身の幅で中央へ＝PC版b149と同格・style.css のみ）（PC版b148と同格・bg.jpg 76KB＋縦持ち用 bg_p.jpg 127KB を ASSETS に追加＝9件・style.css の body::before/::after だけ・app.js は無改修）。s52＝🧭MVVの4行（私は／Mission／Vision／Value・正本R7 §11）をホーム最初の行に掲示（PC版b147と同格）。Missionの文言もR6→R7へ追従。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。s51＝🧭Missionをホーム最初の行に掲示（PC版b146と同格・松原「常に自分の欲求に振り切りたいから」）。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。ファイルは増えていない（ASSETS 7件のまま）。s50＝📚読書の写真を**何枚でもまとめて**（1冊ずつ自動登録・期限と進捗は一覧で）。s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
 /* 🔴版を上げた理由（app.js / index.html / style.css のどれかを変えたら必ず上げる）：
  *   キャッシュ名が同じままだと、端末に焼かれた**旧app.js・旧index.html**が cache-first でそのまま返り続ける＝直したものが届かない。
  *   ASSETSは1つのキャッシュ名で丸ごと管理しているので、版を上げるだけで全部入れ替わる。
@@ -17,7 +17,9 @@ const CACHE = 'cp-shell-v51';   /* 2026-09-01 s51＝🧭Missionをホーム最�
  *     PC版のレシート(fi_rcpt)は元から capture 無し＝スマホだけが食い違っていた（parity違反の解消）。
  *   v49=2026-08-26 🔴**版を上げても届かないことがある**穴を塞いだ＝install の addAll に cache:'reload'。
  *     あわせて裏の更新を ev.waitUntil で最後まで走らせ、オフラインで控えも無いときに undefined を返さないようにした。
- *   v50=2026-08-27 📚読書＝写真の複数添付→1冊ずつ自動登録／一覧の各行で期限を入れられるように（PC版b144と同格）。 */
+ *   v50=2026-08-27 📚読書＝写真の複数添付→1冊ずつ自動登録／一覧の各行で期限を入れられるように（PC版b144と同格）。
+ *   v51=2026-09-01 🧭Missionをホーム最初の行に掲示（PC版b146と同格）。変更＝index.html と style.css。
+ *   v52=2026-09-06 🧭MVVの4行へ（正本R7 §11・PC版b147と同格）。変更＝index.html と style.css（app.js は不変）。 */
 const ASSETS = [
   './',
   './index.html',
@@ -25,7 +27,9 @@ const ASSETS = [
   './app.js',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './bg.jpg',           /* 🏞s53：背景・横（76KB・オフラインでも出す＝殻の一部） */
+  './bg_p.jpg'          /* 🏞s53：背景・縦持ち用（127KB・原本の中央〜右のアーチを9:16で切り出し。横900pxを縦に引き伸ばすとぼけるため） */
 ];
 
 self.addEventListener('install', ev => {

@@ -33,6 +33,26 @@
 
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+/* ===== 🏞2026-09-06 s53 背景＝松原のCodex画像「ラピュタ遺跡」（PC版 b148 の .vbg::before と同じ絵・同じ暗さ） =====
+ * 🔴PWAには未来の絵（写真の球）が元から無い＝背景1枚だけを同格にする。app.js は1行も触らない（静的CSSだけ）。
+ * 🔴画像は 900x507・明るさ0.65・彩度0.82・q70（実測 平均L 0.0297・最大 0.376）＝白より暗い。
+ *   その上に帳（上50%／中22%／下58%の黒）を固定で重ねる＝上部の見出しと下部のタブバーの読みやすさを先に守る。
+ * 🔴body の背景を透明にしないと、body 自身の黒が ::before（z-index:-1）の**上**に描かれて絵が消える
+ *   （ルートの重なり順＝ html の地 → 負のz-index → ブロックの背景）。html の --bg は残す＝画像が来るまでの地。
+ * 🔴カード（.card）は不透過のまま＝文字はカードの上・絵はカードの隙間にだけ見える。 */
+body{background:transparent}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:url(bg.jpg) center/cover no-repeat}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.50) 0%,rgba(0,0,0,.22) 34%,rgba(0,0,0,.22) 66%,rgba(0,0,0,.58) 100%)}
+/* 🔴縦持ち（スマホの常態）は縦用の切り出し（bg_p.jpg・720x1280）＝横900pxを cover で5倍に引き伸ばさない（DPR3でぼける＋大樹の幹しか映らない） */
+@media(orientation:portrait){body::before{background-image:url(bg_p.jpg)}}
+/* 🔴カードの外に居る「素の文字」（掲示・節見出し・注記・設定文）に自分の面を配る＝PC版のプレートと同じ思想。
+ *   敵対検証（2026-09-06）の実測：面が無いと --sub（注記）が絵の明るい所で 4.5:1 を割る。--card を78%で敷けば全域で届く。
+ *   .card と .tabbar は元から不透過。.err-box は 12% の赤だけだったので --card を土台に敷き直す。.btn の --line は薄い線色＝
+ *   絵の上では透けるので --card を混ぜて面にする（色相は変えない）。 */
+.hmis,.sec-title,main>.muted,.setup-desc{background:color-mix(in srgb,var(--card) 78%,transparent);border-radius:10px;padding:6px 10px}
+.sec-title{margin:20px 0 10px}
+.err-box{background:color-mix(in srgb,var(--bad) 16%,var(--card))}
+.btn{background:color-mix(in srgb,var(--line) 55%,var(--card))}
 body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 .hidden{display:none!important}
 .muted{color:var(--sub);font-size:14px}
@@ -391,5 +411,11 @@ select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line)
  * 🔴入力要素ではないので、押し面（cursor / border-radius / 破線）を一切持たせない。
  *   b120で撤去された3枚（素読・6ニーズ・1問）と見た目で必ず区別が付く状態にする。
  * 左右の余白は main（padding:8px 16px）が持つので、ここでは持たない。 */
-.hmis{max-width:800px;margin:0 0 16px;padding:0 0 0 12px;border-left:2px solid var(--accent-fill);
+/* 🧭b149/s53（2026-09-06 松原「左揃えのまま中央に」）＝箱を中身の幅に縮めて中央へ（PC版と同じ width:fit-content＋margin auto） */
+.hmis{max-width:800px;width:fit-content;margin:0 auto 16px;padding:0 0 0 12px;border-left:2px solid var(--accent-fill);
   font-size:16px;font-weight:600;line-height:1.72;color:var(--ink);opacity:.92}
+/* 🧭2026-09-06 s52 MVVの4行（PC版 b147 の .hmr と同格）。ラベルは <i>（クラス無し）＝小さく薄く等幅の列。
+ *   色は --sub（PC版と同じ名前・同じ役割の既存トークン）。新しいトークンは足していない。 */
+.hmr{display:flex;gap:9px;align-items:baseline}
+.hmr+.hmr{margin-top:5px}
+.hmr i{flex:none;width:4.2em;font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.1em;color:var(--sub)}
