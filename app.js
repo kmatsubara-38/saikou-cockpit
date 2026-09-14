@@ -1,3 +1,4 @@
+/* b157 R4_pwa Codex gpt-6-astra */
 /* ===== 個人コックピット PWA app.js（依存ゼロ・PCブラウザ版パリティ 2026-07-23） ===== */
 'use strict';
 
@@ -20,6 +21,8 @@ const LS = {
 
 const $ = (id) => document.getElementById(id);
 const gasUrl = () => localStorage.getItem(LS.URL) || CONFIG.GAS_URL;
+/* b157/s56 R4_pwa ③ 直近に🔎で開いた提携先＝FABの会話取り込みに渡す文脈。表示に使わない・保存しない（localStorage に書かない） */
+const CTX = { kanri: '', name: '' };
 
 /* 画面に出す版数＝配信されているsw.jsのCACHE名から読む（手書きだと更新し忘れてずれる） */
 let APP_VER = '';
@@ -179,6 +182,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     const v = $('view-' + btn.dataset.view);
     if (v) v.classList.remove('hidden');
+    rvBind();
     try { metView('pwa' + btn.dataset.view, 0) } catch (e) {}   // 📊タブ入場＝回数だけ（切替は即時なのでmsは0）
     if (btn.dataset.view === 'notif') loadNotifs();
     if (btn.dataset.view === 'home') loadHomeMonth();
@@ -312,7 +316,7 @@ const LS_SCHED = 'cp_sched_open';
 let lastSched = [];
 
 function schedOpen() {
-  try { return localStorage.getItem(LS_SCHED) !== '0'; } catch (e) { return true; }
+  try { return localStorage.getItem(LS_SCHED) === '1'; } catch (e) { return false; }   /* b157/s56：既定閉（PC と同じ・保存が '1' のときだけ開く） */
 }
 function schedNextTxt() {
   const now = new Date();
@@ -1048,6 +1052,7 @@ async function pipeStep(id, kind, btn, lbl) {
 }
 
 function pipePartner(vv) {
+  CTX.kanri = String(vv.kanri || ''); CTX.name = String(vv.name || '');
   const c = pnd('div', 'pcard');
   const h = pnd('h4');
   h.appendChild(document.createTextNode(vv.name));
@@ -1295,6 +1300,7 @@ async function plLoad(kind) {
     const c9 = $('pl' + kind + 'Cnt');
     if (c9) c9.textContent = (r.total ? '全' + r.total + '件' : '') +
       ((r.items && r.total > r.items.length) ? '／表示' + r.items.length : '');
+    if (r.atx) host.appendChild(pnd('div', 'muted', r.atx));
     if (r.fbErr) host.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + r.fbErr));
     if (!r.items || !r.items.length) { host.appendChild(pnd('div', 'muted', '該当がありません')); return; }
     r.items.forEach(it => host.appendChild(kind === 'Partner' ? plPartnerRow(it) : plPatientRow(it)));
@@ -1940,6 +1946,92 @@ function esc(s) {
 function escAttr(s) { return esc(s); }
 
 
+/* ==== b157/s56 R4_pwa ①現れ（.rv）＝PC版と同じ意図：IntersectionObserver 1本・.rdy→.in の二段・stagger --rv-i（60ms×n・上限8）
+ *   対象＝#main の .card／.notif／.pcard。描画で増えた要素は MutationObserver（childList のみ・rAF で1回にまとめる）が拾う。
+ *   scroll イベントは使わない。reduced-motion／IO 非対応なら jsok を外して全部見せる。 ==== */
+const RV_SEL = '#main .card, #main .notif, #main .pcard';
+let rvIO = null, rvMO = null, rvTick = 0;
+function rvBind() {
+  const h = document.documentElement;
+  if (!('IntersectionObserver' in window) || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+    h.classList.remove('jsok'); h.setAttribute('data-rvok', '1'); return;
+  }
+  if (!rvIO) {
+    rvIO = new IntersectionObserver(es => {
+      let n = 0;
+      es.forEach(e => {
+        if (!e.isIntersecting) return;
+        /* 背の高いカード（通知40件など）は比率が .1 に届かない＝viewport の半分を超える物は最初の1pxで出す */
+        if (e.intersectionRatio < .1 && e.boundingClientRect.height <= (window.innerHeight || 0) * .5) return;
+        const el = e.target;
+        el.style.setProperty('--rv-i', String(Math.min(n++, 8)));
+        el.classList.add('in');
+        if (el.parentElement) el.parentElement.dataset.rvdone = '1';   /* この器はもう出た＝描き直しは静かに */
+        const end = ev => { if (ev.target === el && ev.propertyName === 'opacity') { el.classList.remove('rdy'); el.style.removeProperty('--rv-i'); el.removeEventListener('transitionend', end); } };
+        el.addEventListener('transitionend', end);
+        setTimeout(() => { el.classList.remove('rdy'); el.style.removeProperty('--rv-i'); el.removeEventListener('transitionend', end); }, 1500);
+        rvIO.unobserve(el);
+      });
+    }, { threshold: [0, .1], rootMargin: '0px 0px -5% 0px' });
+  }
+  const fresh = [];
+  document.querySelectorAll(RV_SEL).forEach(el => {
+    if (el.classList.contains('rv')) return;
+    /* 控え→本番の描き直し（renderNotifs 等は innerHTML='' で作り直す）＝一度出た器の中は静かに出す（PC 版の cpSilent と同じ意図） */
+    if (el.parentElement && el.parentElement.dataset.rvdone === '1') { el.classList.add('rv', 'in'); return; }
+    el.classList.add('rv'); fresh.push(el);
+  });
+  h.setAttribute('data-rvok', '1');
+  if (!fresh.length) return;
+  requestAnimationFrame(() => fresh.forEach(el => { el.classList.add('rdy'); rvIO.observe(el); }));
+  /* 🔴保険（PC版と同じ）：1.2秒たっても .rdy が付いていない物だけ出す（通常ここに1件も入らない） */
+  setTimeout(() => {
+    document.querySelectorAll('#main .rv:not(.rdy):not(.in)').forEach(el => el.classList.add('in'));
+  }, 1200);
+}
+function rvWatch() {
+  const m = $('main');
+  if (!m || rvMO || !('MutationObserver' in window)) return;
+  rvMO = new MutationObserver(() => {
+    if (rvTick) return;
+    rvTick = requestAnimationFrame(() => { rvTick = 0; rvBind(); });
+  });
+  rvMO.observe(m, { childList: true, subtree: true });
+}
+
+/* ==== b157/s56 R4_pwa ③FAB＝右下の💬 → 下から出るシート → 既存の api() で {api:'chatPull', kanri, name}
+ *   成功＝r.html（サーバ apiChatPull がマスク済で組んだHTML）を innerHTML に入れる（この1箇所だけ・ユーザ入力は入れない・殻側で本文を加工しない）
+ *   失敗＝api() が投げた e.message（'この機能はサーバー側が未開通です…' も含む）を textContent に出す。 ==== */
+function sheetOpen() {
+  const s = $('chatSheet'); if (!s) return;
+  s.classList.remove('hidden');
+  requestAnimationFrame(() => s.classList.add('on'));
+  const f = $('fabChat'); if (f) f.setAttribute('aria-expanded', 'true');
+  const x = $('chatSheetClose'); if (x) x.focus();
+}
+function sheetClose() {
+  const s = $('chatSheet'); if (!s) return;
+  s.classList.remove('on'); s.classList.add('hidden');
+  const f = $('fabChat'); if (f) { f.setAttribute('aria-expanded', 'false'); f.focus(); }
+}
+async function chatPull() {
+  const box = $('chatSheetBody'); if (!box) return;
+  sheetOpen();
+  if (!CTX.kanri && !CTX.name) { box.textContent = '担当サロン様（🔎パイプライン）で提携先を開くと、その相手の Slack／LINE を引きます'; return; }
+  box.textContent = '読込中…';
+  try {
+    const r = await api({ api: 'chatPull', kanri: CTX.kanri, name: CTX.name });
+    if (r.html) box.innerHTML = r.html; else box.textContent = r.msg || '';
+  } catch (e) { box.textContent = e.message; }
+}
+if ($('fabChat')) $('fabChat').addEventListener('click', chatPull);
+if ($('chatSheetClose')) $('chatSheetClose').addEventListener('click', sheetClose);
+if ($('chatSheetBd')) $('chatSheetBd').addEventListener('click', sheetClose);
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape') return;
+  const s = $('chatSheet'); if (s && !s.classList.contains('hidden')) sheetClose();
+});
+
 /* ==== 起動 ==== */
 if ('serviceWorker' in navigator) {
   // 起動毎に更新チェック＋新版が制御を取ったら1回だけ自動リロード＝「開き直し2回」問題の根絶
@@ -1969,6 +2061,7 @@ try {
 } catch (e) {}
 if (!localStorage.getItem(LS.KEY)) showSetup();
 else loadHome();
+rvWatch(); rvBind();
 
 
 /* ==== 🗓 予定を登録（4モード・2026-07-29）＝ブラウザ版と同じ決定論ロジック ====
@@ -3020,7 +3113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (wy) wy.hidden = !open;
     if (wb) wb.textContent = open ? '閉じる' : 'なぜ？';
   };
-  let wOpen = true;
+  let wOpen = false;   /* b157/s56：既定閉（PC と同じ） */
   try { const g = localStorage.getItem('cpTkWhy'); if (g !== null) wOpen = g === '1'; } catch (e) {}
   wSet(wOpen);
   on('tkWhyB', () => { wOpen = !wOpen; wSet(wOpen);
@@ -3033,7 +3126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (c) c.style.transform = open ? '' : 'rotate(-90deg)';
     try { localStorage.setItem('cp_tk_open', open ? '1' : '0'); } catch (e) {}
   });
-  try { if (localStorage.getItem('cp_tk_open') === '0') { $('tkBody').style.display = 'none';
+  try { if (localStorage.getItem('cp_tk_open') !== '1') { $('tkBody').style.display = 'none';   /* b157/s56：既定閉（松原指示「開閉式は全て既定閉」） */
     const c = $('tkChev'); if (c) c.style.transform = 'rotate(-90deg)'; } } catch (e) {}
   tkLoad4(false);
 });
