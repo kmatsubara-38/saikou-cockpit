@@ -1,6 +1,6 @@
 /* ===== Service Worker: シェル即時起動（cache-first）＋バージョン掃除 ===== */
 'use strict';
-const CACHE = 'cp-shell-v53';   /* 2026-09-06 s53＝🏞背景を松原のCodex画像「ラピュタ遺跡」に（＋🧭MVVの箱を中身の幅で中央へ＝PC版b149と同格・style.css のみ）（PC版b148と同格・bg.jpg 76KB＋縦持ち用 bg_p.jpg 127KB を ASSETS に追加＝9件・style.css の body::before/::after だけ・app.js は無改修）。s52＝🧭MVVの4行（私は／Mission／Vision／Value・正本R7 §11）をホーム最初の行に掲示（PC版b147と同格）。Missionの文言もR6→R7へ追従。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。s51＝🧭Missionをホーム最初の行に掲示（PC版b146と同格・松原「常に自分の欲求に振り切りたいから」）。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。ファイルは増えていない（ASSETS 7件のまま）。s50＝📚読書の写真を**何枚でもまとめて**（1冊ずつ自動登録・期限と進捗は一覧で）。s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
+const CACHE = 'cp-shell-v56';   /* 2026-09-13 s56＝💫b157 メジャーアップデートを PWA へ同格化（Codex gpt-6-astra R4）＝①現れ＝#main の .card/.notif/.pcard に PC版と同じ .rv（IntersectionObserver 1本・.rdy→.in・段差 --rv-i 60ms×n 上限8・reduced-motion で停止・MutationObserver で描画後の要素も拾う）②フィードバック実施の誤申告＝patientList の r.atx（ミラー案内）を fbErr（本物の失敗）と分けて表示（サーバ b157 と対）③💬右下 FAB＝直近に🔎で開いた提携先（CTX）の Slack／LINE を {api:'chatPull'} で1往復して下からのシートに出す（サーバでマスク済 HTML）。index.html／app.js／style.css の3本・ASSETS 9件のまま（新ファイル無し）。 s55＝🏰b151 の仕上げを PWA へ同格化＝①金の面・赤の面の白文字を地色へ（.sched .mt 1.6:1→11.4:1／.badge 3.0:1→5.65:1）②「選ぶ」は金14%の洗い＋金文字（.chip.on／.seg-btn.active＝塗り潰しをやめる）③形は「操作＝角丸4px・状態＝ピル」（.btn／.chip を角丸4pxへ）と指で押せる44px。style.css のみ・app.js 無改修・ASSETS 9件のまま。 s54＝🏰ver.5 案A（Codex gpt-6-astra/ultra 設計）の値を PWA へ＝地#0d0d10・インク#f2f1ee・金#e4c38b・意味色3・角丸4px＋ピル・影なし（PC版 b150 と同格・style.css のみ・ASSETS 9件のまま・app.js 無改修）。s53＝🏞背景を松原のCodex画像「ラピュタ遺跡」に（＋🧭MVVの箱を中身の幅で中央へ＝PC版b149と同格・style.css のみ）（PC版b148と同格・bg.jpg 76KB＋縦持ち用 bg_p.jpg 127KB を ASSETS に追加＝9件・style.css の body::before/::after だけ・app.js は無改修）。s52＝🧭MVVの4行（私は／Mission／Vision／Value・正本R7 §11）をホーム最初の行に掲示（PC版b147と同格）。Missionの文言もR6→R7へ追従。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。s51＝🧭Missionをホーム最初の行に掲示（PC版b146と同格・松原「常に自分の欲求に振り切りたいから」）。読むだけ・入力ゼロ・API往復ゼロ＝index.htmlとstyle.cssだけの変更でapp.jsは無改修。ファイルは増えていない（ASSETS 7件のまま）。s50＝📚読書の写真を**何枚でもまとめて**（1冊ずつ自動登録・期限と進捗は一覧で）。s49＝配信の入口を直した。install の addAll が HTTPキャッシュ（Pagesは10分）を見ていたため、新品のキャッシュに古いHTMLが焼き込まれることがあった＝cache:'reload' を明示 */
 /* 🔴版を上げた理由（app.js / index.html / style.css のどれかを変えたら必ず上げる）：
  *   キャッシュ名が同じままだと、端末に焼かれた**旧app.js・旧index.html**が cache-first でそのまま返り続ける＝直したものが届かない。
  *   ASSETSは1つのキャッシュ名で丸ごと管理しているので、版を上げるだけで全部入れ替わる。
@@ -17,9 +17,13 @@ const CACHE = 'cp-shell-v53';   /* 2026-09-06 s53＝🏞背景を松原のCodex�
  *     PC版のレシート(fi_rcpt)は元から capture 無し＝スマホだけが食い違っていた（parity違反の解消）。
  *   v49=2026-08-26 🔴**版を上げても届かないことがある**穴を塞いだ＝install の addAll に cache:'reload'。
  *     あわせて裏の更新を ev.waitUntil で最後まで走らせ、オフラインで控えも無いときに undefined を返さないようにした。
+ *   v55=2026-09-07 🏰b151 の仕上げの同格化（金の面・赤の面の白文字を地色へ／選ぶ＝金14%の洗い／操作は角丸4px・44px）。style.css のみ。v50〜v54 の要旨は CACHE 行の末尾。
+ *   v56=2026-09-13 💫b157 メジャーアップデート同格化（現れ／atx／💬FAB）。変更＝index.html・app.js・style.css（sw.js は版のみ）。
  *   v50=2026-08-27 📚読書＝写真の複数添付→1冊ずつ自動登録／一覧の各行で期限を入れられるように（PC版b144と同格）。
  *   v51=2026-09-01 🧭Missionをホーム最初の行に掲示（PC版b146と同格）。変更＝index.html と style.css。
- *   v52=2026-09-06 🧭MVVの4行へ（正本R7 §11・PC版b147と同格）。変更＝index.html と style.css（app.js は不変）。 */
+ *   v52=2026-09-06 🧭MVVの4行へ（正本R7 §11・PC版b147と同格）。変更＝index.html と style.css（app.js は不変）。
+ *   v53=2026-09-06 🏞背景 bg.jpg／bg_p.jpg（殻9件）＋帳＋素の文字の面＋MVV中央（PC版b148/b149と同格）。変更＝index.html・style.css・sw.js。
+ *   v54=2026-09-07 🏰ver.5 案A（Codex gpt-6-astra/ultra）の値＝地#0d0d10・インク#f2f1ee・金#e4c38b・意味色3・角丸4px＋ピル・影なし（PC版b150と同格）。変更＝style.css のみ。 */
 const ASSETS = [
   './',
   './index.html',
