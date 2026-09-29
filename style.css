@@ -441,6 +441,7 @@ html.jsok .rv.in{opacity:1;transform:none}
 .sheet-title{font-size:17px;font-weight:700;color:var(--ink);line-height:1.5}
 .sheet-x{min-height:44px;min-width:44px;padding:8px 12px}
 .sheet-body{overflow:auto;min-height:44px;font-size:17px;line-height:1.6;color:var(--ink);word-break:break-word}
+.sheet-body table.robin{width:100%;border-collapse:collapse;font-size:15px}.sheet-body table.robin td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}.sheet-body table.robin td.at{white-space:nowrap;font-weight:700}.sheet-body table.robin td.sub{color:var(--sub)}.sheet-body .robinBtn{width:100%;margin:10px 0 6px}
 .sheet-body .cpull-t{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0}.sheet-body .cpull-l{margin:0;padding-left:1.2em}.sheet-body .cpull-h{font-weight:700;margin:8px 0 4px}.sheet-body .cpull-e{color:var(--sub)}
 main{padding-bottom:88px}
 @media(prefers-reduced-motion:reduce){

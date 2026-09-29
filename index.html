@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- b157 R4_pwa Codex gpt-6-astra -->
+<!-- b162 R3_pwa Codex gpt-6-astra -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -135,17 +135,11 @@
       <select id="hmSel" class="ms-select" aria-label="表示する月"></select>
     </div>
     <div class="cards">
-      <div class="card" id="cardPjt">
+      <div class="card card-wide" id="cardPjt">
         <div class="card-label">PJT紹介</div>
         <div class="card-num"><span id="pjtN">–</span><span class="card-goal">/ <span id="pjtGoal">20</span></span></div>
         <div class="bar"><div class="bar-fill" id="pjtBar"></div></div>
         <div class="card-detail" id="pjtDetail"></div>
-      </div>
-      <div class="card" id="cardMtg">
-        <div class="card-label">定期MTG</div>
-        <div class="card-num"><span id="mtgN">–</span><span class="card-goal">/ <span id="mtgGoal">–</span></span></div>
-        <div class="bar"><div class="bar-fill" id="mtgBar"></div></div>
-        <div class="card-detail" id="mtgDetail"></div>
       </div>
       <div class="card card-wide" id="cardUri">
         <div class="card-label">売上報酬</div>
@@ -405,20 +399,11 @@
     <div id="view-shokai">
       <h2 class="sec-title">🤝 紹介実績を登録</h2>
       <div class="card">
-        <label class="field-label" for="skName">①患者様名（必須）</label>
-        <input type="text" id="skName" placeholder="山田 太郎" autocomplete="off">
-        <label class="field-label" for="skApply">②予約申込日</label>
-        <input type="date" id="skApply">
-        <div class="two-col">
-          <div>
-            <label class="field-label" for="skType">③種別</label>
-            <select id="skType"><option>AGA</option><option>FAGA</option><option>MD</option></select>
-          </div>
-          <div>
-            <label class="field-label" for="skSex">⑦性別</label>
-            <select id="skSex"><option>男性</option><option>女性</option></select>
-          </div>
-        </div>
+        <label class="field-label" for="skSfp">SF患者リンク（必須）</label>
+        <input type="url" id="skSfp" placeholder="https://…lightning.force.com/…" required>
+        <div id="skSfpView" class="muted" role="status"></div>
+        <label class="field-label" for="skType">③種別</label>
+        <select id="skType"><option>AGA</option><option>FAGA</option><option>MD</option></select>
         <label class="field-label">④⑤⑥ 区分（1つ選択・必須）</label>
         <div class="chips" id="skKubun">
           <button type="button" class="chip" data-v="shizen">④自然</button>
@@ -442,8 +427,6 @@
         <textarea id="skPlaud" rows="2" placeholder="https://web.plaud.ai/share/…&#10;複数ある場合は1行に1つずつ"></textarea>
         <label class="field-label" for="skSonota">その他（CV要因メモ・任意）</label>
         <textarea id="skSonota" rows="2" placeholder="決め手や介入の内容（CRM整理の核）"></textarea>
-        <label class="field-label" for="skSfp">SF患者リンク（任意）</label>
-        <input type="url" id="skSfp" placeholder="https://…lightning.force.com/…">
         <button class="btn btn-primary" id="btnShokai">この1件を登録する</button>
         <div class="result" id="skResult"></div>
       </div>
@@ -644,12 +627,12 @@
 </nav>
 
 <!-- 💬b157/s56 R4_pwa ③FAB＝右下固定（tabbar の上）。押すと下からシートが出て {api:'chatPull'} の結果（サーバでマスク済のHTML）を出す。文脈＝🔎で直近に開いた提携先（app.js の CTX） -->
-<button type="button" class="fab" id="fabChat" aria-label="最近のやり取り" aria-controls="chatSheet" aria-expanded="false">💬</button>
+<button type="button" class="fab" id="fabChat" aria-label="ロビン（第二の脳）の鮮度と同期" aria-controls="chatSheet" aria-expanded="false">🧠</button>
 <div id="chatSheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="chatSheetTitle">
   <div class="sheet-bd" id="chatSheetBd"></div>
   <div class="sheet-pn">
     <div class="sheet-hd">
-      <span class="sheet-title" id="chatSheetTitle">💬 最近のやり取り</span>
+      <span class="sheet-title" id="chatSheetTitle">🧠 ロビン（第二の脳）</span>
       <button type="button" class="btn sheet-x" id="chatSheetClose" aria-label="閉じる">✕</button>
     </div>
     <div class="sheet-body" id="chatSheetBody"></div>
