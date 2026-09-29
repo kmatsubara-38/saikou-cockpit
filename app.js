@@ -1,4 +1,4 @@
-/* b157 R4_pwa Codex gpt-6-astra */
+/* b162 R3_pwa Codex gpt-6-astra */
 /* ===== 個人コックピット PWA app.js（依存ゼロ・PCブラウザ版パリティ 2026-07-23） ===== */
 'use strict';
 
@@ -252,7 +252,7 @@ const yen = n => (n == null ? '–' : '¥' + Number(n).toLocaleString('ja-JP'));
 let hmYm = ymNow();   // ホームの表示月
 
 function setSkeleton(on) {
-  ['pjtN', 'mtgN', 'uriShoshin', 'uriSaishin', 'uriGokei'].forEach(id => {
+  ['pjtN', 'uriShoshin', 'uriSaishin', 'uriGokei'].forEach(id => {
     const e = $(id);
     if (e) e.classList.toggle('skel', !!on);
   });
@@ -267,14 +267,6 @@ function renderGauges(d) {
   $('pjtDetail').textContent = r.err
     ? '読取エラー: ' + r.err
     : `総数${r.total ?? '–'}｜自然${r.shizen ?? '–'}・スタッフ${r.staff ?? '–'}・巻き込み${r.maki ?? '–'}%`;
-  // 定期MTG
-  const m = d.mtg || {};
-  $('mtgN').textContent = m.n != null ? m.n : '–';
-  $('mtgGoal').textContent = m.goal != null ? m.goal : 20;   // homeMonth応答（cpMtg_生値）はgoal無し＝当月契約と同じ20で補完
-  $('mtgBar').style.width = Math.min(100, (m.n || 0) / (m.goal || 20) * 100) + '%';
-  $('mtgDetail').textContent = m.err ? '読取エラー: ' + m.err
-    : m.pre ? '計測ルールは2026年7月開始＝この月は対象外'
-    : `実施済 ${m.done ?? '–'}`;
   // 売上報酬
   const u = d.uri || {};
   $('uriShoshin').textContent = yen(u.shoshin);
@@ -935,6 +927,123 @@ function pipePatient(p) {
       const lb = (s.bodyLabel || '内容') + 'を開く';
       pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
     }
+    if (s.isReg && s.reg) {
+      const reg = s.reg;
+      /* 🔴b162 監査 critical-1／major-2：登録済み・受付済みの行はサーバが reg を渡さない（送り直すとエンジンで SF 注意事項・申し送りが二重になる）＝「更新」の文言は出さない */
+      const toggle = pnd('button', 'pmini', '📝 分析シートに登録');
+      toggle.type = 'button';
+      toggle.style.fontSize = '17px';
+      toggle.style.lineHeight = '1.5';
+      toggle.setAttribute('aria-expanded', 'false');
+      const box = pnd('div');
+      box.style.display = 'none';
+      box.style.lineHeight = '1.5';
+      let built = false;
+      toggle.addEventListener('click', () => {
+        const open = box.style.display === 'none';
+        if (open && !built) {
+          built = true;
+          box.appendChild(pnd('div', 'muted', 'SFから：' + (reg.name || '') + '（予約申込日 ' + String(reg.apply || '').replace(/-/g, '/') + '）'));
+          const field = (text, control) => {
+            const label = pnd('label', 'field-label', text);
+            label.style.fontSize = '13px';
+            label.style.lineHeight = '1.5';
+            control.style.fontSize = '17px';
+            control.style.lineHeight = '1.5';
+            label.appendChild(control);
+            box.appendChild(label);
+            return control;
+          };
+          const typeInput = pnd('select');
+          ['AGA', 'FAGA', 'MD'].forEach(value => {
+            const option = pnd('option', '', value);
+            option.value = value;
+            typeInput.appendChild(option);
+          });
+          field('種別', typeInput);
+          let flag = ({ '自然': 'shizen', 'スタッフ': 'staff', 'PJT': 'pjt' })[reg.kubun] || (['shizen', 'staff', 'pjt'].includes(reg.kubun) ? reg.kubun : '');
+          let skind = 'パートナー様割引';
+          const heading = text => {
+            const label = pnd('div', 'field-label', text);
+            label.style.fontSize = '13px';
+            label.style.lineHeight = '1.5';
+            return label;
+          };
+          const chips = (options, selected, choose) => {
+            const group = pnd('div', 'chips');
+            options.forEach(([value, text]) => {
+              const chip = pnd('button', 'chip' + (value === selected ? ' on' : ''), text);
+              chip.type = 'button';
+              chip.dataset.v = value;
+              chip.style.fontSize = '17px';
+              chip.style.lineHeight = '1.5';
+              chip.setAttribute('aria-pressed', String(value === selected));
+              chip.addEventListener('click', () => {
+                group.querySelectorAll('.chip').forEach(item => {
+                  const on = item === chip;
+                  item.classList.toggle('on', on);
+                  item.setAttribute('aria-pressed', String(on));
+                });
+                choose(value);
+              });
+              group.appendChild(chip);
+            });
+            return group;
+          };
+          const kindWrap = pnd('div');
+          kindWrap.classList.toggle('hidden', flag !== 'staff');
+          box.appendChild(heading('区分'));
+          box.appendChild(chips([['shizen', '自然'], ['staff', 'スタッフ'], ['pjt', 'PJT']], flag, value => {
+            flag = value;
+            kindWrap.classList.toggle('hidden', flag !== 'staff');
+          }));
+          kindWrap.appendChild(heading('スタッフ区分'));
+          kindWrap.appendChild(chips(['パートナー様割引', 'アンバサダー契約店舗スタッフ', 'アンバサダー'].map(value => [value, value]), skind, value => { skind = value; }));
+          box.appendChild(kindWrap);
+          const plaudInput = pnd('textarea');
+          plaudInput.rows = 2;
+          field('Plaud URL', plaudInput);
+          const sonotaInput = pnd('textarea');
+          sonotaInput.rows = 2;
+          field('その他', sonotaInput);
+          const send = pnd('button', 'btn btn-primary', '分析シートに登録する');
+          send.type = 'button';
+          send.style.fontSize = '17px';
+          send.style.lineHeight = '1.5';
+          const result = pnd('div', 'result');
+          result.setAttribute('role', 'status');
+          send.addEventListener('click', async () => {
+            if (send.disabled) return;
+            if (!flag) {
+              result.className = 'result ng';
+              result.textContent = '④⑤⑥の区分を1つ選んでください';
+              return;
+            }
+            send.disabled = true;
+            result.className = 'result';
+            result.textContent = '送信中…';
+            const type = typeInput.value;
+            const plaud = plaudInput.value.trim();
+            const sonota = sonotaInput.value.trim();
+            try {
+              const response = await api({ api:'shokai', name:reg.name, apply:reg.apply, type, sex:'', flag, skind, plaud, sonota, sfp:reg.sfp });
+              if (!response.ok) throw new Error(response.msg || '');
+              box.replaceChildren(pnd('div', 'muted', '受け付けました（1分以内に分析シートへ・結果は🔔通知センター）'));
+            } catch (e) {
+              result.className = 'result ng';
+              result.textContent = e.message;
+              send.disabled = false;
+            }
+          });
+          box.appendChild(send);
+          box.appendChild(result);
+        }
+        box.style.display = open ? '' : 'none';
+        toggle.setAttribute('aria-expanded', String(open));
+      });
+      t.appendChild(toggle);
+      t.appendChild(box);
+    }
     if (s.act2 === 'fblock') {
       const lk = pnd('button', 'pmini', '✉️ 受診後フィードバックメッセージを生成');
       lk.disabled = true;
@@ -1304,6 +1413,15 @@ async function plLoad(kind) {
     if (r.fbErr) host.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + r.fbErr));
     if (!r.items || !r.items.length) { host.appendChild(pnd('div', 'muted', '該当がありません')); return; }
     r.items.forEach(it => host.appendChild(kind === 'Partner' ? plPartnerRow(it) : plPatientRow(it)));
+    /* 🆕b163（PC と同格）：②の索引が無い・古い＝裏で作らせ、できたら一覧を描き直す（1回だけ＝作れなくても繰り返さない） */
+    if (kind !== 'Partner' && r.regIdxNeed && !window._riW) {
+      window._riW = 1;
+      const rn = pnd('div', 'muted', '📝 ② 分析シート登録の索引を作っています（10秒ほど）…');
+      host.insertBefore(rn, host.firstChild);
+      api({ api: 'regIdxWarm' })
+        .then(x => { if (x && x.ok) plLoad(kind); else rn.textContent = '⚠️ ' + ((x && x.msg) || '索引を作れませんでした'); })
+        .catch(e => { rn.textContent = '⚠️ 索引を作れませんでした：' + e.message; });
+    }
   } catch (e) {
     // 🔴host自身にエラーを書くと「中身がある」と判定され、以後ずっと再読込されなくなる
     host.innerHTML = '';
@@ -1452,22 +1570,52 @@ if ($('skKind')) $('skKind').addEventListener('click', ev => {
   c.classList.add('on');
   skKind = c.dataset.sk;
 });
+let skPeek = null;
+let skPeekTimer = null;
+let skPeekVersion = 0;
+function skPeekReset() {
+  clearTimeout(skPeekTimer);
+  skPeekVersion++;
+  skPeek = null;
+  if ($('skSfpView')) $('skSfpView').textContent = '';
+}
+if ($('skSfp')) $('skSfp').addEventListener('input', () => {
+  skPeekReset();
+  const url = $('skSfp').value.trim();
+  if (!url) return;
+  const version = skPeekVersion;
+  skPeekTimer = setTimeout(async () => {
+    try {
+      const d = await api({ api: 'cvPeek', url });
+      if (version !== skPeekVersion || $('skSfp').value.trim() !== url) return;
+      if (!d.ok) throw new Error(d.msg || '');
+      skPeek = { url, name: d.name || '', apply: d.apply || '', sex: d.sex || '' };
+      $('skSfpView').textContent = '✅ SFから：' + skPeek.name + '（予約申込日 ' + skPeek.apply.replace(/-/g, '/') + '・性別 ' + (skPeek.sex || 'SF未設定') + (d.partner ? '・紹介元 ' + d.partner : '') + '）';
+    } catch (e) {
+      if (version !== skPeekVersion || $('skSfp').value.trim() !== url) return;
+      skPeek = null;
+      $('skSfpView').textContent = '⚠️ ' + e.message.replace(/^APIエラー: /, '');
+    }
+  }, 400);
+});
 if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
   const out = $('skResult');
+  const sfp = $('skSfp') ? $('skSfp').value.trim() : '';
+  const peek = skPeek && skPeek.url === sfp ? skPeek : {};
   const f = {
-    name: ($('skName') ? $('skName').value.trim() : ''),
-    apply: ($('skApply') ? $('skApply').value : ''),
+    name: peek.name || '',
+    apply: peek.apply || '',
     type: ($('skType') ? $('skType').value : 'AGA'),
-    sex: ($('skSex') ? $('skSex').value : ''),
+    sex: peek.sex || '',
     flag: skFlag,
     plaud: ($('skPlaud') ? $('skPlaud').value.trim() : ''),
     sonota: ($('skSonota') ? $('skSonota').value.trim() : ''),
-    sfp: ($('skSfp') ? $('skSfp').value.trim() : ''),
+    sfp,
     /* 🔴s46：スタッフ区分。サーバ側（apiShokai）でも白名簿で照合されるので、
      *   ここが壊れても患者様のカルテに変な文字は入らない（既定へ落ちる）。 */
     skind: skKind
   };
-  if (!f.name) { out.className = 'result ng'; out.textContent = '①患者様名を入れてください'; return; }
+  if (!f.sfp) { out.className = 'result ng'; out.textContent = 'SF患者リンクを貼ってください（患者様名・予約申込日・性別はSFから読みます）'; return; }
   if (!f.flag) { out.className = 'result ng'; out.textContent = '④⑤⑥の区分を1つ選んでください'; return; }
   out.className = 'result';
   out.textContent = '送信中…';
@@ -1476,7 +1624,8 @@ if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
     const d = await api(Object.assign({ api: 'shokai' }, f));   // 🔴doPost契約=トップレベル{name,apply,type,sex,flag,plaud,sonota,sfp}（f入れ子は読まれない）
     out.className = 'result ok';
     out.textContent = '✅ ' + (d.msg || '登録しました');
-    ['skName', 'skPlaud', 'skSonota', 'skSfp'].forEach(id => { if ($(id)) $(id).value = ''; });
+    ['skPlaud', 'skSonota', 'skSfp'].forEach(id => { if ($(id)) $(id).value = ''; });
+    skPeekReset();
     document.querySelectorAll('#skKubun .chip').forEach(x => x.classList.remove('on'));
     skFlag = '';
     /* 🔴s46：下位区分も既定へ戻して枠をしまう（前の登録の選択が次へ持ち越されない） */
@@ -2014,15 +2163,89 @@ function sheetClose() {
   s.classList.remove('on'); s.classList.add('hidden');
   const f = $('fabChat'); if (f) { f.setAttribute('aria-expanded', 'false'); f.focus(); }
 }
+/* ==== s57 🧠ロビン（第二の脳＝Obsidian Vault）の鮮度と LINE 取込（PC 版 b158 と同格・2026-09-26 b159：②は松原の判断待ちで止める＝r.hold・説明はサーバの文）
+ *   Slack→ロビン＝PC が 3時間ごとに自動（鏡・伏字つき）。LINE は API が無い＝書き出しを Drive に置いた分をボタンで即取込。
+ *   提携先を🔎で開いていれば、その相手の最近のやり取り（chatPull）も1タップで見られる。 ==== */
 async function chatPull() {
   const box = $('chatSheetBody'); if (!box) return;
   sheetOpen();
-  if (!CTX.kanri && !CTX.name) { box.textContent = '担当サロン様（🔎パイプライン）で提携先を開くと、その相手の Slack／LINE を引きます'; return; }
   box.textContent = '読込中…';
   try {
-    const r = await api({ api: 'chatPull', kanri: CTX.kanri, name: CTX.name });
-    if (r.html) box.innerHTML = r.html; else box.textContent = r.msg || '';
+    const r = await api({ api: 'robinStatus' });
+    robinRender(box, r);
   } catch (e) { box.textContent = e.message; }
+}
+function robinRender(box, r) {
+  box.textContent = '';
+  if (!r || !r.ok) { box.textContent = (r && r.msg) || '取得できませんでした'; return; }
+  const tb = document.createElement('table'); tb.className = 'robin';
+  (r.rows || []).forEach(x => {
+    const tr = document.createElement('tr');
+    const a = document.createElement('td'); a.textContent = x.label;
+    const b = document.createElement('td'); b.className = 'at'; b.textContent = (x.last && x.last.at) ? x.last.at : ((x.last && x.last.err) ? ('読めず：' + x.last.err) : '—');
+    const c = document.createElement('td'); c.className = 'sub'; c.textContent = x.how;
+    tr.appendChild(a); tr.appendChild(b); tr.appendChild(c); tb.appendChild(tr);
+  });
+  box.appendChild(tb);
+  const pd = r.pending || {};
+  const wait = Math.max(0, (pd.n || 0) - (pd.stay || 0));
+  const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'btn robinBtn'; bt.id = 'robinPeekBtn';
+  bt.textContent = '① LINE の書き出しに何が入るか見る（待ち ' + wait + ' 本' + (pd.stay ? ('・除外して置いたまま ' + pd.stay + ' 本') : '') + '）';
+  bt.addEventListener('click', () => robinPeek(box, bt));
+  box.appendChild(bt);
+  box.appendChild(pnd('div', 'muted', r.note || 'LINE は API が無いため、LINE アプリで書き出したトーク履歴（TXT／HTML）を Drive「レイリー_トーク履歴」に置くと、①で中身を見てから②でロビンへ入ります（話者名は伏字・メール／電話は伏字・患者情報の疑いは入れない）。Slack は PC が 3時間ごとに自動で鏡にします。レイリーはロビンを読むので、ロビンが最新ならレイリーも最新です。'));
+  if (pd.err) box.appendChild(pnd('div', 'muted', 'Drive を読めません：' + pd.err));
+  if (CTX.kanri || CTX.name) {
+    const b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn robinBtn';
+    b2.textContent = 'この提携先の最近のやり取りを見る（' + (CTX.name || ('【' + CTX.kanri + '】')) + '）';
+    b2.addEventListener('click', () => partnerPull(box, b2));
+    box.appendChild(b2);
+  }
+}
+/* ① 下見＝PUT もゴミ箱もしない一覧（名前・字数・除外／切れの印・伏字後の先頭）→ ② 取り込む */
+async function robinPeek(box, bt) {
+  if (bt) { bt.disabled = true; bt.textContent = '見ています…'; }
+  const o = $('robinPeekOut') || document.createElement('div'); o.id = 'robinPeekOut'; o.textContent = ''; box.appendChild(o);
+  try {
+    const r = await api({ api: 'robinSyncLine', dry: true });
+    if (bt) { bt.disabled = false; bt.textContent = '① もう一度見る'; }
+    if (!r || !r.ok) { o.appendChild(pnd('div', 'muted', (r && r.msg) || '見られませんでした')); return; }
+    const L = r.list || [];
+    if (!L.length) { o.appendChild(pnd('div', 'muted', r.empty || 'Drive「レイリー_トーク履歴」に書き出しがありません。LINE アプリでトーク履歴を書き出して置いてください。')); return; }
+    let ok = 0;
+    L.forEach(x => {
+      const d = document.createElement('div'); d.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--line)';
+      const h = document.createElement('div'); h.style.fontWeight = '700';
+      h.textContent = (x.guard ? '🚫 ' : (x.cut ? '⚠️ ' : '✅ ')) + x.name + '（' + Number(x.chars).toLocaleString() + ' 字）' + (x.guard ? '＝患者情報の疑い＝入れずに Drive に残します' : (x.cut ? '＝18万字超＝先頭だけ入り、元は残します' : ''));
+      d.appendChild(h);
+      if (x.head) { const p = document.createElement('div'); p.className = 'muted'; p.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere'; p.textContent = x.head; d.appendChild(p); }
+      if (!x.guard) ok++;
+      o.appendChild(d);
+    });
+    if (r.total > L.length) o.appendChild(pnd('div', 'muted', '（' + r.total + ' 本のうち先頭 ' + L.length + ' 本を表示）'));
+    const b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn robinBtn'; b2.textContent = r.hold || ('② 取り込む（' + Math.min(ok, 8) + ' 本／1回8本まで）');
+    b2.disabled = !ok || !!r.hold; b2.addEventListener('click', () => robinSync(box, b2)); o.appendChild(b2);
+  } catch (e) { o.appendChild(pnd('div', 'muted', e.message)); if (bt) { bt.disabled = false; bt.textContent = '① もう一度'; } }
+}
+async function robinSync(box, bt) {
+  if (bt) { bt.disabled = true; bt.textContent = '取り込み中…'; }
+  const o = $('robinOut') || pnd('div', 'muted', ''); o.id = 'robinOut'; box.appendChild(o);
+  try {
+    const r = await api({ api: 'robinSyncLine', dry: false });
+    if (!r || !r.ok) o.textContent = (r && r.msg) || '取り込めませんでした';
+    else o.textContent = '✅ ' + r.at + '：取込 ' + r.made + ' 本／スキップ ' + r.skip + ' 本' + ((r.guarded && r.guarded.length) ? ('／患者情報の疑いで除外 ' + r.guarded.length + ' 本（Drive に残しています）') : '') + ((r.cut && r.cut.length) ? ('／18万字超で先頭だけ入れた ' + r.cut.length + ' 本（元は Drive に残しています）') : '') + (r.remain ? ('／残り ' + r.remain + ' 本＝①からもう一度') : '');
+    if (bt) { bt.disabled = true; bt.textContent = (r && r.hold) || '② 取り込みました（続きは①から）'; }
+  } catch (e) { o.textContent = e.message; if (bt) { bt.disabled = false; bt.textContent = '② もう一度'; } }
+}
+async function partnerPull(box, bt) {
+  if (bt) bt.disabled = true;
+  const o = $('partnerOut') || pnd('div', 'muted', ''); o.id = 'partnerOut'; o.textContent = '読込中…'; box.appendChild(o);
+  try {
+    const r = await api({ api: 'chatPull', kanri: CTX.kanri, name: CTX.name });
+    o.textContent = '';
+    if (r.html) o.innerHTML = r.html; else o.textContent = r.msg || '';
+  } catch (e) { o.textContent = e.message; }
+  if (bt) bt.disabled = false;
 }
 if ($('fabChat')) $('fabChat').addEventListener('click', chatPull);
 if ($('chatSheetClose')) $('chatSheetClose').addEventListener('click', sheetClose);
