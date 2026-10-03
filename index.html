@@ -286,7 +286,7 @@
             <select id="plPatientO"><option value="apply">予約申込日（新しい順）</option><option value="visit">受診日時順</option></select>
             <span class="plc" id="plPatientCnt"></span>
           </div>
-          <div id="plPatientR"></div>
+          <div class="plctl" style="flex-wrap:wrap"><input id="plRegUrl" type="text" placeholder="一覧に無い方：SF患者リンクを貼る" aria-label="一覧に無い方：SF患者リンクを貼る" style="min-width:0;flex:1;font-size:17px;line-height:1.5"><button id="plRegBtn" type="button" class="btn" style="max-width:100%;white-space:normal;font-size:17px;line-height:1.5">📝 分析シートに登録</button></div><div id="plRegHost" role="status"></div><div id="plPatientR"></div>
         </div>
       </div>
       <div class="muted" style="margin-top:8px;font-size:12px">担当サロン様（PR担当=松原）からのご紹介のみを表示。進捗はSalesforceの活動記録に残ります</div>
@@ -306,6 +306,37 @@
   <section id="view-report" class="view hidden">
 
     <!-- 🆕2026-07-24 出勤時間報告（フレックス）＝日付+時刻→テンプレ承認→Slack C054KRTSF8T へ@channel（本人名義・本文はサーバ再構築） -->
+    <div id="view-nippo">
+      <h2 class="sec-title">📔 日報</h2>
+      <div class="card">
+        <div class="edit-note">ここで書く→「今日の日報」シートへ直接反映</div>
+        <div class="edit-actions">
+          <button type="button" class="btn" id="npLoadBtn">📥 今日のシートを読み込む</button>
+          <span id="npSheetLink"></span>
+        </div>
+        <div id="npStat" class="result" role="status" style="display:none"></div>
+        <div id="npForm" style="display:none">
+          <div id="npHint" class="edit-note" style="display:none"></div>
+          <label class="field-label" id="npL1" for="npQ1">Q1</label>
+          <textarea id="npQ1" rows="3" aria-describedby="npQ1N"></textarea>
+          <div id="npQ1N" class="edit-note"></div>
+          <label class="field-label" id="npL2" for="npQ2">Q2</label>
+          <textarea id="npQ2" rows="3" aria-describedby="npQ2N"></textarea>
+          <div id="npQ2N" class="edit-note"></div>
+          <label class="field-label" id="npL3" for="npQ3">Q3</label>
+          <textarea id="npQ3" rows="3" aria-describedby="npQ3N"></textarea>
+          <div id="npQ3N" class="edit-note"></div>
+          <label class="field-label" id="npL4" for="npQ4">Q4</label>
+          <textarea id="npQ4" rows="3" aria-describedby="npQ4N"></textarea>
+          <div id="npQ4N" class="edit-note"></div>
+          <label class="edit-check"><input type="checkbox" id="npForce"> 既に書かれている欄も上書きする</label>
+          <button type="button" class="btn btn-primary" id="npSaveBtn" disabled>今日の日報シートへ書く</button>
+          <div id="npRes" class="result" role="status" style="display:none"></div>
+        </div>
+        <div class="edit-note">書くのは<b>松原の行のC〜F列（Q1〜Q4）だけ</b>です。G列（名前）も、他の方の行も触りません。行番号は固定せず<b>毎回B列から松原の行を探して</b>から書きます（名簿の曜日指定で並び順が変わるため）。既に書かれている欄は上書きせずスキップします（上の印を入れたときだけ上書き）。書いた直後に<b>もう一度読み直して一致を確かめて</b>から「完了」と出します。</div>
+      </div>
+    </div>
+
     <div id="view-shukkin">
       <h2 class="sec-title">🌅 出勤時間報告</h2>
       <div class="card">
@@ -392,44 +423,6 @@
         <img id="rcPreview" class="rc-preview hidden" alt="">
         <button class="btn btn-primary" id="btnSendReceipt" disabled>送信</button>
         <div class="result" id="rcResult"></div>
-      </div>
-    </div>
-
-    <!-- 🆕紹介登録（ブラウザ版と同フォーム→{api:'shokai'}） -->
-    <div id="view-shokai">
-      <h2 class="sec-title">🤝 紹介実績を登録</h2>
-      <div class="card">
-        <label class="field-label" for="skSfp">SF患者リンク（必須）</label>
-        <input type="url" id="skSfp" placeholder="https://…lightning.force.com/…" required>
-        <div id="skSfpView" class="muted" role="status"></div>
-        <div id="skSexPick" style="display:none"><label>性別（SFに未登録＝選ぶとSFへ書き込みます）</label><div class="chips"><button type="button" class="chip" data-sx="男性" aria-pressed="false">男性</button><button type="button" class="chip" data-sx="女性" aria-pressed="false">女性</button><button type="button" class="chip" data-sx="不明" aria-pressed="false">不明</button></div></div>
-        <label class="field-label" for="skType">③種別</label>
-        <select id="skType"><option>AGA</option><option>FAGA</option><option>MD</option></select>
-        <label class="field-label">④⑤⑥ 区分（1つ選択・必須）</label>
-        <div class="chips" id="skKubun">
-          <button type="button" class="chip" data-v="shizen">④自然</button>
-          <button type="button" class="chip" data-v="staff">⑤スタッフ</button>
-          <button type="button" class="chip" data-v="pjt">⑥PJT（松原介入）</button>
-        </div>
-        <!-- 🔴s46（2026-08-24 松原指示②）：⑤スタッフを選んだときだけ出る下位区分。
-             3つの違いは**Salesforce患者情報の「注意事項」に載る言葉**だけ（■日付　松原 の下に赤字太字）。
-             🔴既定は「パートナー様割引」＝s45までと1文字も変わらない（選び忘れても今までどおり）。
-             🔴PC版（b137）と同じ選択肢・同じ既定＝どちらから登録しても結果が同じになる。 -->
-        <div id="skKindWrap" class="hidden">
-          <label class="field-label">⑧ スタッフ区分（1つ選択）</label>
-          <div class="chips" id="skKind">
-            <button type="button" class="chip on" data-sk="パートナー様割引">パートナー様割引</button>
-            <button type="button" class="chip" data-sk="アンバサダー契約店舗スタッフ">アンバサダー契約店舗スタッフ</button>
-            <button type="button" class="chip" data-sk="アンバサダー">アンバサダー</button>
-          </div>
-          <div class="muted" style="font-size:12px">選んだ言葉が、そのままSalesforceの<b>注意事項</b>へ赤字で載ります</div>
-        </div>
-        <label class="field-label" for="skPlaud">Proud URL（任意・複数可）</label>
-        <textarea id="skPlaud" rows="2" placeholder="https://web.plaud.ai/share/…&#10;複数ある場合は1行に1つずつ"></textarea>
-        <label class="field-label" for="skSonota">その他（CV要因メモ・任意）</label>
-        <textarea id="skSonota" rows="2" placeholder="決め手や介入の内容（CRM整理の核）"></textarea>
-        <button class="btn btn-primary" id="btnShokai">この1件を登録する</button>
-        <div class="result" id="skResult"></div>
       </div>
     </div>
 

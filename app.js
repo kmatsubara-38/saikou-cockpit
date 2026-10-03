@@ -1,3 +1,4 @@
+/* b157 R7_pwa Codex gpt-6-astra */
 /* b157 R4_sex Codex gpt-6-astra */
 /* b162 R3_pwa Codex gpt-6-astra */
 /* ===== 個人コックピット PWA app.js（依存ゼロ・PCブラウザ版パリティ 2026-07-23） ===== */
@@ -106,7 +107,9 @@ async function api(payload) {
     if (j.error === 'unknown_api') {
       throw new Error('この機能はサーバー側が未開通です（GAS貼り替え＝doPost拡張の反映待ち）');
     }
-    throw new Error('APIエラー: ' + (j.error || j.msg || '不明'));   // コックピットapi*は失敗時 msg で理由を返す＝黙殺しない
+    const err = new Error('APIエラー: ' + (j.error || j.msg || '不明'));   // コックピットapi*は失敗時 msg で理由を返す＝黙殺しない
+    err.data = j;   // 🆕s60（b165）：失敗の返事そのもの（日報の staleDate・url など）を呼び手が読めるように載せる＝今の呼び手は message だけ見るので変わらない
+    throw err;
   }
   if (M9 && !(j.met && j.met.ok)) metBack(M9);   // 📊本体okでも計測だけ受け取れなかったなら控えは消さない
   return j;
@@ -211,9 +214,9 @@ document.querySelectorAll('.tab').forEach(btn => {
    *   （b120の「'view-cal' という実在しないid」と同じ型）。台帳は実在idだけで書くこと。
    *   s43の経緯＝報告タブ内で🔥の先頭に置いていた。実装も配信も正しく届いていた（実機で「· s44」を確認）が、
    *   松原が探した場所と違った＝欠けていたのは機能ではなく**入口**だった。 */
-  ['view-shokai', 'view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  ['view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   frag.appendChild(cap('🛡 毎日の運用'));
-  ['view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  ['view-nippo', 'view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   rep.insertBefore(frag, rep.firstChild);
   rep.querySelectorAll(':scope > div[id^="view-"]').forEach(sec => {
     /* ✍️s45：s43にあった `if (sec.id === 'view-style') return;`（文体ラボだけ畳まない）は**削除**した。
@@ -876,24 +879,124 @@ async function brLoadBoard() {
 
 /* ==== 🔎2026-07-26 v6.0 パイプライン（患者CV × 提携先ライフサイクル）＝PC版と同一契約 ====
  * 表示は全てDOMノード+textContent（エスケープ事故ゼロ）。書込はSF活動記録のみ */
+/* b157 R7_pwa: Notion CRM drafts */
+function regDraftControls(reg) {
+  const root = pnd('div', 'edit-form');
+  root.appendChild(pnd('h3', '', 'Notion CRM からつくる'));
+  [
+    ['adv', '🧑 受診アドバイザー対応のフィードバックをつくる'],
+    ['moushi', '🩺 申し送りのドラフトをつくる']
+  ].forEach(([kind, title]) => {
+    const part = pnd('div');
+    const generate = pnd('button', 'btn', title);
+    generate.type = 'button';
+    const editor = pnd('div');
+    editor.style.display = 'none';
+    const body = pnd('textarea');
+    body.rows = 8;
+    body.setAttribute('aria-label', title);
+    const source = pnd('div', 'edit-note');
+    const actions = pnd('div', 'edit-actions');
+    const result = pnd('div', 'result');
+    result.setAttribute('role', 'status');
+    let busy = false, saved = false;
+    let savedButton = null;
+    const controls = [generate];
+    const lock = on => {
+      busy = on;
+      controls.forEach(button => { button.disabled = on || (saved && button === savedButton); });
+      body.readOnly = on;
+    };
+    const status = (text, failed) => {
+      result.className = 'result' + (failed ? ' ng' : '');
+      result.textContent = text;
+    };
+    generate.addEventListener('click', async () => {
+      if (busy) return;
+      lock(true);
+      status('生成中…', false);
+      try {
+        const r = await api({ api: 'regDraft', kind, name: reg.name });
+        if (!r || !r.ok) {
+          status((r && r.msg) || (r && r.pending ? '生成中…' : '応答なし'), !(r && r.pending));
+          return;
+        }
+        if (r.pending) { status(r.msg || '生成中…', false); return; }
+        if (typeof r.text !== 'string' || !r.text.trim()) { status(r.msg || '応答なし', true); return; }
+        body.value = r.text;
+        source.textContent = r.src == null ? '' : String(r.src);
+        editor.style.display = '';
+        status(r.msg || '', false);
+      } catch (e) {
+        status(e.message, true);
+      } finally {
+        lock(false);
+      }
+    });
+    if (kind === 'adv') {
+      const save = pnd('button', 'btn btn-primary', 'Salesforce に保存');
+      save.type = 'button';
+      savedButton = save;
+      controls.push(save);
+      save.addEventListener('click', async () => {
+        if (busy || saved) return;
+        const text = body.value.trim();
+        if (!text) { body.focus(); return; }
+        lock(true);
+        status('送信中…', false);
+        try {
+          const r = await api({ api: 'advSave', p: { name: reg.name, text, sfp: reg.sfp } });
+          if (!r || !r.ok) { status((r && r.msg) || '応答なし', true); return; }
+          saved = true;
+          save.textContent = '保存しました';
+          status(r.msg || '保存しました', false);
+        } catch (e) {
+          status(e.message, true);
+        } finally {
+          lock(false);
+        }
+      });
+      actions.appendChild(save);
+    }
+    const copy = pnd('button', 'btn', '📋 コピー');
+    copy.type = 'button';
+    controls.push(copy);
+    copy.addEventListener('click', async () => {
+      if (busy) return;
+      lock(true);
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(body.value);
+        } else {
+          body.focus();
+          body.select();
+          if (!document.execCommand('copy')) throw new Error('コピーに失敗');
+        }
+        status('コピーしました', false);
+      } catch (e) {
+        status('コピーに失敗: ' + e.message, true);
+      } finally {
+        lock(false);
+      }
+    });
+    actions.appendChild(copy);
+    editor.appendChild(body);
+    editor.appendChild(source);
+    editor.appendChild(actions);
+    if (kind === 'moushi') editor.appendChild(pnd('div', 'edit-note', 'コピーして、今の申し送りの承認の流れへ'));
+    part.appendChild(generate);
+    part.appendChild(editor);
+    part.appendChild(result);
+    root.appendChild(part);
+  });
+  return root;
+}
+
 function pnd(t, c, x) {
   const e = document.createElement(t);
   if (c) e.className = c;
   if (x != null) e.textContent = x;
   return e;
-}
-
-function futBox(f) {
-  const w = pnd('div', 'fut');
-  [['go', '✨ 実行したら訪れる未来', f.go], ['ng', '⚠️ 実行しなかった場合の未来', f.ng]].forEach(p9 => {
-    const b = pnd('div', 'futb ' + p9[0]);
-    b.appendChild(pnd('b', null, p9[1]));
-    const ol = document.createElement('ol');
-    (p9[2] || []).forEach(x => ol.appendChild(pnd('li', null, x)));
-    b.appendChild(ol);
-    w.appendChild(b);
-  });
-  return w;
 }
 
 function pipeOpen(host, btn, label, text) {
@@ -908,28 +1011,8 @@ function pipeOpen(host, btn, label, text) {
   host.appendChild(d);
 }
 
-function pipePatient(p) {
-  const c = pnd('div', 'pcard');
-  const h = pnd('h4');
-  h.appendChild(document.createTextNode(p.name));
-  if (p.status) h.appendChild(pnd('span', 'ppill ok', p.status));
-  c.appendChild(h);
-  let m = p.partnerName ? ('紹介元 ' + p.partnerName + (p.kanri ? '（#' + p.kanri + '）' : '')) : '紹介元 —';
-  if (p.source) m += '　/　' + p.source;
-  if (p.nextVisit) m += '　/　次回来院 ' + p.nextVisit;
-  c.appendChild(pnd('div', 'pmeta', m));
-  (p.steps || []).forEach((s, i) => {
-    const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
-    row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
-    const t = pnd('div', 'ptx');
-    t.appendChild(pnd('div', 'pnm', s.n));
-    if (s.sub) t.appendChild(pnd('div', 'psub', s.sub));
-    if (s.body) {
-      const lb = (s.bodyLabel || '内容') + 'を開く';
-      pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
-    }
-    if (s.isReg && s.reg) {
-      const reg = s.reg;
+function regBox(reg) {
+  const t = document.createDocumentFragment();
       /* 🔴b162 監査 critical-1／major-2：登録済み・受付済みの行はサーバが reg を渡さない（送り直すとエンジンで SF 注意事項・申し送りが二重になる）＝「更新」の文言は出さない */
       const toggle = pnd('button', 'pmini', '📝 分析シートに登録');
       toggle.type = 'button';
@@ -939,6 +1022,8 @@ function pipePatient(p) {
       const box = pnd('div');
       box.style.display = 'none';
       box.style.lineHeight = '1.5';
+      const drafts = pnd('div');
+      drafts.style.display = 'none';
       let built = false;
       toggle.addEventListener('click', () => {
         const open = box.style.display === 'none';
@@ -1068,12 +1153,40 @@ function pipePatient(p) {
           });
           box.appendChild(send);
           box.appendChild(result);
+          drafts.appendChild(regDraftControls(reg));
         }
         box.style.display = open ? '' : 'none';
+        drafts.style.display = open ? '' : 'none';
         toggle.setAttribute('aria-expanded', String(open));
       });
       t.appendChild(toggle);
       t.appendChild(box);
+      t.appendChild(drafts);
+  return t;
+}
+
+function pipePatient(p) {
+  const c = pnd('div', 'pcard');
+  const h = pnd('h4');
+  h.appendChild(document.createTextNode(p.name));
+  if (p.status) h.appendChild(pnd('span', 'ppill ok', p.status));
+  c.appendChild(h);
+  let m = p.partnerName ? ('紹介元 ' + p.partnerName + (p.kanri ? '（#' + p.kanri + '）' : '')) : '紹介元 —';
+  if (p.source) m += '　/　' + p.source;
+  if (p.nextVisit) m += '　/　次回来院 ' + p.nextVisit;
+  c.appendChild(pnd('div', 'pmeta', m));
+  (p.steps || []).forEach((s, i) => {
+    const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
+    row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
+    const t = pnd('div', 'ptx');
+    t.appendChild(pnd('div', 'pnm', s.n));
+    if (s.sub) t.appendChild(pnd('div', 'psub', s.sub));
+    if (s.body) {
+      const lb = (s.bodyLabel || '内容') + 'を開く';
+      pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
+    }
+    if (s.isReg && s.reg) {
+      t.appendChild(regBox(s.reg));
     }
     if (s.act2 === 'fblock') {
       const lk = pnd('button', 'pmini', '✉️ 受診後フィードバックメッセージを生成');
@@ -1117,7 +1230,6 @@ function pipePatient(p) {
       fdr.addEventListener('click', () => { done = false; gen(true); });
       t.appendChild(fd); t.appendChild(fdr); t.appendChild(fdb);
     }
-    if (s.fut) t.appendChild(futBox(s.fut));
     if (s.isFb) {
       const lw = document.createElement('label');
       lw.className = 'pchk';
@@ -1219,7 +1331,6 @@ function pipePartner(vv) {
       gb.addEventListener('click', () => pipeStep(vv.id, 'give', gb, '✅ 提供済みにする'));
       t.appendChild(gb);
     }
-    if (s.fut) t.appendChild(futBox(s.fut));
     row.appendChild(t);
     if (s.at) row.appendChild(pnd('span', 'pat', s.at));
     ls.appendChild(row);
@@ -1472,6 +1583,24 @@ async function plLoad(kind) {
 }
 
 /* 一覧の切替＝プルダウン（2026-07-27 松原指示。タブ入場時と切替時に、空なら読み込む） */
+async function plRegOpen() {
+  const input = $('plRegUrl'), button = $('plRegBtn'), host = $('plRegHost');
+  if (!input || !button || !host || button.disabled) return;
+  const url = input.value.trim();
+  if (!url) { host.textContent = 'SF患者リンクを貼ってください'; return; }
+  button.disabled = true;
+  try {
+    const r = await api({ api: 'cvPeek', url });
+    const box = regBox({ sfp: r.sfp, name: r.name, apply: r.apply, kubun: '', done: false });
+    host.replaceChildren(box);
+  } catch (e) {
+    host.textContent = (e.data && e.data.msg) || e.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+if ($('plRegBtn')) $('plRegBtn').addEventListener('click', plRegOpen);
+
 function plKindShow() {
   const sel = $('plKind');
   if (!sel) return;
@@ -1585,136 +1714,136 @@ $('btnSendReceipt').addEventListener('click', async () => {
   }
 });
 
-/* ==== 🆕紹介登録（ブラウザ版apiShokai(f)と同フィールド：name/apply/type/sex/flag/plaud/sonota/sfp） ==== */
-let skFlag = '';
-/* 🔴s46（松原指示②）：⑤スタッフの下位区分。既定は「パートナー様割引」＝s45までと同じ動き。
- *   PC版 b137 と**同じ3つ・同じ既定**にしてある（どちらから登録しても結果が変わらない）。 */
-let skKind = 'パートナー様割引';
-function skKindShow() {
-  const w = $('skKindWrap');
-  if (w) w.classList.toggle('hidden', skFlag !== 'staff');
+/* b157 R7_pwa: daily report */
+let _npState = null, _npStale = false, _npBusy = false, _npOpened = false;
+
+function npMessage(id, text) {
+  const node = $(id);
+  node.style.display = '';
+  node.textContent = text;
+  return node;
 }
-if ($('skKubun')) $('skKubun').addEventListener('click', ev => {
-  const c = ev.target.closest('.chip');
-  if (!c) return;
-  const v = c.dataset.v;
-  document.querySelectorAll('#skKubun .chip').forEach(x => x.classList.remove('on'));
-  /* 🔴s46：早期returnをやめた。returnしていると「スタッフを選び直して外した」ときに
-   *   下位区分の枠が出しっぱなしになる＝画面と送る中身が食い違う。出す/しまうは必ず最後に1回。 */
-  if (skFlag === v) { skFlag = ''; } else { skFlag = v; c.classList.add('on'); }
-  skKindShow();
-});
-if ($('skKind')) $('skKind').addEventListener('click', ev => {
-  const c = ev.target.closest('.chip');
-  if (!c) return;
-  document.querySelectorAll('#skKind .chip').forEach(x => x.classList.remove('on'));
-  c.classList.add('on');
-  skKind = c.dataset.sk;
-});
-let skPeek = null;
-/* b157 R4c_sex_pwa Codex gpt-6-astra */
-let skSexSelected = null;
-function skSexReset() {
-  skSexSelected = null;
-  const pick = $('skSexPick');
-  if (!pick) return;
-  pick.style.display = 'none';
-  pick.querySelectorAll('button.chip[data-sx]').forEach(chip => {
-    chip.classList.remove('on');
-    chip.setAttribute('aria-pressed', 'false');
-  });
-}
-if ($('skSexPick')) $('skSexPick').addEventListener('click', event => {
-  const pick = $('skSexPick');
-  const chip = event.target.closest('button.chip[data-sx]');
-  if (!chip || !pick.contains(chip) || pick.style.display === 'none') return;
-  const value = chip.dataset.sx;
-  if (!['男性', '女性', '不明'].includes(value)) return;
-  skSexSelected = value === '不明' ? '' : value;
-  pick.querySelectorAll('button.chip[data-sx]').forEach(item => {
-    const selected = item === chip;
-    item.classList.toggle('on', selected);
-    item.setAttribute('aria-pressed', String(selected));
-  });
-});
-let skPeekTimer = null;
-let skPeekVersion = 0;
-function skPeekReset() {
-  clearTimeout(skPeekTimer);
-  skPeekVersion++;
-  skPeek = null;
-  skSexReset();
-  if ($('skSfpView')) $('skSfpView').textContent = '';
-}
-if ($('skSfp')) $('skSfp').addEventListener('input', () => {
-  skPeekReset();
-  const url = $('skSfp').value.trim();
+function npLink(node, url, text) {
   if (!url) return;
-  const version = skPeekVersion;
-  skPeekTimer = setTimeout(async () => {
-    try {
-      const d = await api({ api: 'cvPeek', url });
-      if (version !== skPeekVersion || $('skSfp').value.trim() !== url) return;
-      if (!d.ok) throw new Error(d.msg || '');
-      skPeek = { url, name: d.name || '', apply: d.apply || '', sex: d.sex || '' };
-      skSexReset();
-      if (!skPeek.sex && $('skSexPick')) $('skSexPick').style.display = '';
-      $('skSfpView').textContent = '✅ SFから：' + skPeek.name + '（予約申込日 ' + skPeek.apply.replace(/-/g, '/') + '・性別 ' + (skPeek.sex || 'SF未設定') + (d.partner ? '・紹介元 ' + d.partner : '') + '）';
-    } catch (e) {
-      if (version !== skPeekVersion || $('skSfp').value.trim() !== url) return;
-      skPeek = null;
-      skSexReset();
-      $('skSfpView').textContent = '⚠️ ' + e.message.replace(/^APIエラー: /, '');
+  try {
+    const target = new URL(url);
+    if (target.protocol !== 'https:') return;
+    const link = pnd('a', '', text);
+    link.href = target.href;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    node.appendChild(link);
+  } catch (e) {}
+}
+function npLock(on) {
+  _npBusy = on;
+  $('npLoadBtn').disabled = on;
+  $('npSaveBtn').disabled = on || !(_npState && _npState.row);
+  ['npQ1', 'npQ2', 'npQ3', 'npQ4'].forEach(id => { $(id).readOnly = on; });
+  $('npForce').disabled = on;
+}
+async function npLoad() {
+  if (_npBusy) return;
+  npLock(true);
+  npMessage('npStat', '今日のシートを読み込み中…');
+  try {
+    const r = await api({ api: 'nippoSheetLoad' });
+    if (!r || !r.ok || !r.row) {
+      _npState = null;
+      const st = npMessage('npStat', '⚠️ ' + ((r && r.msg) || '読み込めませんでした'));
+      npLink(st, r && r.url, ' シートを開く →');
+      return;
     }
-  }, 400);
-});
-if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
-  const out = $('skResult');
-  const sfp = $('skSfp') ? $('skSfp').value.trim() : '';
-  const peek = skPeek && skPeek.url === sfp ? skPeek : {};
-  const sexPickVisible = $('skSexPick') && $('skSexPick').style.display !== 'none';
-  if (sexPickVisible && skSexSelected === null) {
-    out.className = 'result ng';
-    out.textContent = '性別を選んでください（SFに未登録のため、選んだ性別をSFへ書き込みます）';
+    _npState = r;
+    const sd = String(r.sheetDate || '').replace(/-/g, '/');
+    const st = npMessage('npStat', '✅ シートの対象日 ' + (r.sheetDate || '?') + '／あなたの行＝' + r.row + '行目' +
+      ((sd && r.today && sd !== r.today) ? ('　⚠️ シートの日付が今日(' + r.today + ')と違います。シートの更新前かもしれません') : ''));
+    npLink(st, r.url, ' シートで開く →');
+    const linkBox = $('npSheetLink');
+    linkBox.replaceChildren();
+    npLink(linkBox, r.url, 'シートを開く');
+    const hint = $('npHint');
+    hint.style.display = r.hint && String(r.hint).trim() ? '' : 'none';
+    hint.textContent = r.hint ? '📌 参考：前回書いた「今日の一点」＝ ' + r.hint : '';
+    const labels = r.labels || [], values = r.values || [];
+    for (let i = 0; i < 4; i++) {
+      $('npL' + (i + 1)).textContent = labels[i] || ('Q' + (i + 1));
+      $('npQ' + (i + 1)).value = values[i] || '';
+      const cap = $('npQ' + (i + 1) + 'N'), value = values[i];
+      if (value && String(value).trim() && r.mine && r.mine[i]) {
+        cap.textContent = '✅ この画面から書き込み済み＝直すなら書き換えて押すだけ（印は要りません）';
+        cap.style.color = 'var(--ok)';
+      } else if (value && String(value).trim()) {
+        cap.textContent = '⚠️ 他で書かれた値があります＝このままだと触りません（上書きするなら下の印を入れてください）';
+        cap.style.color = 'var(--warn)';
+      } else {
+        cap.textContent = '未記入＝ここに書けば ' + r.row + '行目に入ります';
+        cap.style.color = 'var(--sub)';
+      }
+    }
+    $('npForce').checked = false;
+    _npStale = false;
+    $('npRes').style.display = 'none';
+    $('npForm').style.display = '';
+  } catch (e) {
+    _npState = null;
+    /* 🆕s60：ok:false の理由と、シートを開くリンク（url）は e.data に載っている＝PC と同じく出す */
+    const d = e && e.data;
+    const st = npMessage('npStat', d && d.msg ? d.msg : '通信エラー：' + e.message);
+    if (d && d.url) npLink(st, d.url, ' シートを開く →');
+  } finally {
+    npLock(false);
+  }
+}
+async function npSave() {
+  if (_npBusy) return;
+  if (!_npState || !_npState.row) {
+    npMessage('npStat', '先に「📥 今日のシートを読み込む」を押してください');
     return;
   }
-  const f = {
-    name: peek.name || '',
-    apply: peek.apply || '',
-    type: ($('skType') ? $('skType').value : 'AGA'),
-    sex: sexPickVisible ? skSexSelected : (peek.sex || ''),
-    flag: skFlag,
-    plaud: ($('skPlaud') ? $('skPlaud').value.trim() : ''),
-    sonota: ($('skSonota') ? $('skSonota').value.trim() : ''),
-    sfp,
-    /* 🔴s46：スタッフ区分。サーバ側（apiShokai）でも白名簿で照合されるので、
-     *   ここが壊れても患者様のカルテに変な文字は入らない（既定へ落ちる）。 */
-    skind: skKind
-  };
-  if (!f.sfp) { out.className = 'result ng'; out.textContent = 'SF患者リンクを貼ってください（患者様名・予約申込日・性別はSFから読みます）'; return; }
-  if (!f.flag) { out.className = 'result ng'; out.textContent = '④⑤⑥の区分を1つ選んでください'; return; }
-  out.className = 'result';
-  out.textContent = '送信中…';
-  $('btnShokai').disabled = true;
-  try {
-    const d = await api(Object.assign({ api: 'shokai' }, f));   // 🔴doPost契約=トップレベル{name,apply,type,sex,flag,plaud,sonota,sfp}（f入れ子は読まれない）
-    out.className = 'result ok';
-    out.textContent = '✅ ' + (d.msg || '登録しました');
-    ['skPlaud', 'skSonota', 'skSfp'].forEach(id => { if ($(id)) $(id).value = ''; });
-    skPeekReset();
-    document.querySelectorAll('#skKubun .chip').forEach(x => x.classList.remove('on'));
-    skFlag = '';
-    /* 🔴s46：下位区分も既定へ戻して枠をしまう（前の登録の選択が次へ持ち越されない） */
-    skKind = 'パートナー様割引';
-    document.querySelectorAll('#skKind .chip').forEach(x => x.classList.toggle('on', x.dataset.sk === skKind));
-    skKindShow();
-  } catch (e) {
-    out.className = 'result ng';
-    out.textContent = e.message;
-  } finally {
-    $('btnShokai').disabled = false;
+  const base = _npState.base || ['', '', '', ''];
+  const payload = { base, force: !!$('npForce').checked, allowStaleDate: !!_npStale };
+  let changed = 0;
+  for (let i = 0; i < 4; i++) {
+    const value = String($('npQ' + (i + 1)).value || '').trim();
+    payload['q' + (i + 1)] = value !== String(base[i] || '').trim() ? value : null;
+    if (payload['q' + (i + 1)] !== null) changed++;
   }
-});
+  if (!changed) { npMessage('npRes', '直した欄がありません'); return; }
+  npLock(true);
+  $('npSaveBtn').textContent = '書き込み中…';
+  let reload = false;
+  try {
+    const r = await api({ api: 'nippoSheetSave', payload });
+    _npStale = !!(r && r.staleDate);
+    const res = npMessage('npRes', (r && r.msg) || '応答なし');
+    npLink(res, r && r.url, ' シートで確認する →');
+    if (!r || !r.ok) return;
+    reload = !!(r.done && r.done.length);
+  } catch (e) {
+    /* 🆕s60：サーバが ok:false で返した理由（日付が違う＝staleDate・シートの url）は e.data に載っている＝PC と同じ2段階の確認を続ける */
+    const d = e && e.data;
+    _npStale = !!(d && d.staleDate);
+    const res = npMessage('npRes', d && d.msg ? d.msg : '通信エラー：' + e.message);
+    if (d && d.url) npLink(res, d.url, ' シートで確認する →');
+  } finally {
+    $('npSaveBtn').textContent = '今日の日報シートへ書く';
+    npLock(false);
+  }
+  if (reload) await npLoad();
+}
+if ($('view-nippo')) {
+  const section = $('view-nippo');
+  section.classList.add('edit-form');
+  section.querySelector('.sec-title').addEventListener('click', () => {
+    if (!section.classList.contains('cls') && !_npOpened) {
+      _npOpened = true;
+      npLoad();
+    }
+  });
+  $('npLoadBtn').addEventListener('click', npLoad);
+  $('npSaveBtn').addEventListener('click', npSave);
+}
 
 /* ==== 🆕カレンダー登録（calParse→下書きカード→承認→calCreate。Meet URL表示＋コピー） ==== */
 let calDraftData = null;
@@ -2898,7 +3027,7 @@ function scYmd4() {
 function scCalLink4() {
   const a = $('scCal'); if (!a) return;
   const p = scYmd4().split('-');
-  if (p.length === 3) a.href = 'https://calendar.google.com/calendar/u/0/r/day/' + p[0] + '/' + (+p[1]) + '/' + (+p[2]);
+  if (p.length === 3) a.href = 'https://calendar.google.com/calendar/u/0/r/month/' + p[0] + '/' + (+p[1]) + '/' + (+p[2]);
 }
 /* 📆b67：日⇄週セグメント（ブラウザ版b63と同格）。‹›は週表示で±7日・読み直しは表示中の方だけ */
 let _scv4 = 'day';
