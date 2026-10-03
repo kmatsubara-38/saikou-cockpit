@@ -182,9 +182,9 @@
         <label class="field-label" for="stTo">相手（任意）</label>
         <!-- 🔴s43で同乗修正：type が無いと style.css:189/222 の `input[type=text]` に当たらず、
              この欄だけダーク配色から外れて素のブラウザ既定で描かれていた（2026-07-29 の新設時からの取りこぼし）。 -->
-        <input type="text" id="stTo" placeholder="山本先生／MAKIRA様 など">
+        <input type="text" id="stTo" placeholder="例）院長／提携サロンのご担当者様">
         <label class="field-label" for="stIn">話した内容</label>
-        <textarea id="stIn" rows="5" placeholder="例）高木さんに、MAKIRA様のパンフ30部お願いしたい、期限は一週間以内で"></textarea>
+        <textarea id="stIn" rows="5" placeholder="例）提携サロン様からご紹介の件です。来週の無料相談の日程を調整させてください"></textarea>
         <button class="btn btn-primary" id="btnStWrite">✍️ いつもの僕の文章にする</button>
         <!-- ⏱3秒ルールの正直申告＝押す前に「だいたい何秒」を出す（実測 cold 6.4秒／予告値はPC版 LSEC の"文体"と同値） -->
         <div id="stEta" class="steta"></div>
@@ -477,7 +477,7 @@
           <label>サロン名（番号から自動で入ります）</label>
           <input id="cmSalon" placeholder="自動入力">
           <label>担当者名</label>
-          <input id="cmTanto" placeholder="例）志田">
+          <input id="cmTanto" placeholder="例）山田">
           <label>日付</label>
           <input id="cmDate" type="date">
           <label>開始時刻</label>
@@ -490,9 +490,9 @@
           <label>手段</label>
           <select id="cvHow"><option>オンライン</option><option>オフライン</option><option>電話</option></select>
           <label>お客様名</label>
-          <input id="cvName" placeholder="例）浜村 拓志">
+          <input id="cvName" placeholder="例）山田 太郎">
           <label>紹介元の管理番号</label>
-          <input id="cvKanri" inputmode="numeric" placeholder="例）1152">
+          <input id="cvKanri" inputmode="numeric" placeholder="例）1000">
           <label>紹介元サロン名（自動）</label>
           <input id="cvSalon" placeholder="自動入力">
           <label>日付</label>
