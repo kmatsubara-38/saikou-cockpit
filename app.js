@@ -1,3 +1,4 @@
+/* b157 R4_sex Codex gpt-6-astra */
 /* b162 R3_pwa Codex gpt-6-astra */
 /* ===== 個人コックピット PWA app.js（依存ゼロ・PCブラウザ版パリティ 2026-07-23） ===== */
 'use strict';
@@ -944,6 +945,31 @@ function pipePatient(p) {
         if (open && !built) {
           built = true;
           box.appendChild(pnd('div', 'muted', 'SFから：' + (reg.name || '') + '（予約申込日 ' + String(reg.apply || '').replace(/-/g, '/') + '）'));
+          let sex = '', sexPicked = false;
+          const sexPick = pnd('div');
+          sexPick.style.display = 'none';
+          sexPick.appendChild(pnd('label', 'field-label', '性別（SFに未登録＝選ぶとSFへ書き込みます）'));
+          const sexChips = pnd('div', 'chips');
+          sexPick.appendChild(sexChips);
+          ['男性', '女性', '不明'].forEach(value => {
+            const chip = pnd('button', 'chip', value);
+            chip.type = 'button';
+            chip.dataset.sx = value;
+            chip.setAttribute('aria-pressed', 'false');
+            chip.addEventListener('click', () => {
+              sexPick.querySelectorAll('.chip').forEach(item => {
+                item.classList.toggle('on', item === chip);
+                item.setAttribute('aria-pressed', String(item === chip));
+              });
+              sex = value === '不明' ? '' : value;
+              sexPicked = true;
+            });
+            sexChips.appendChild(chip);
+          });
+          box.appendChild(sexPick);
+          api({ api:'cvPeek', url: reg.sfp }).then(r => {
+            if (r && r.ok && !r.sex) sexPick.style.display = '';
+          }).catch(() => {});
           const field = (text, control) => {
             const label = pnd('label', 'field-label', text);
             label.style.fontSize = '13px';
@@ -1014,6 +1040,11 @@ function pipePatient(p) {
           result.setAttribute('role', 'status');
           send.addEventListener('click', async () => {
             if (send.disabled) return;
+            if (sexPick.style.display !== 'none' && !sexPicked) {
+              result.className = 'result ng';
+              result.textContent = '性別を選んでください（SFに未登録のため、選んだ性別をSFへ書き込みます）';
+              return;
+            }
             if (!flag) {
               result.className = 'result ng';
               result.textContent = '④⑤⑥の区分を1つ選んでください';
@@ -1026,7 +1057,7 @@ function pipePatient(p) {
             const plaud = plaudInput.value.trim();
             const sonota = sonotaInput.value.trim();
             try {
-              const response = await api({ api:'shokai', name:reg.name, apply:reg.apply, type, sex:'', flag, skind, plaud, sonota, sfp:reg.sfp });
+              const response = await api({ api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp });
               if (!response.ok) throw new Error(response.msg || '');
               box.replaceChildren(pnd('div', 'muted', '受け付けました（1分以内に分析シートへ・結果は🔔通知センター）'));
             } catch (e) {
@@ -1419,7 +1450,17 @@ async function plLoad(kind) {
       const rn = pnd('div', 'muted', '📝 ② 分析シート登録の索引を作っています（10秒ほど）…');
       host.insertBefore(rn, host.firstChild);
       api({ api: 'regIdxWarm' })
-        .then(x => { if (x && x.ok) plLoad(kind); else rn.textContent = '⚠️ ' + ((x && x.msg) || '索引を作れませんでした'); })
+        .then(x => {
+          if (!(x && x.ok)) { rn.textContent = '⚠️ ' + ((x && x.msg) || '索引を作れませんでした'); return; }
+          /* 🆕b164（監査 b163 minor-1）：開いている進捗（「閉じる」ボタン）があれば描き直さず、押せば更新するボタンを出す＝書きかけを消さない */
+          if ([...host.querySelectorAll('button.pmini')].some(b => b.textContent === '閉じる')) {
+            rn.textContent = '';
+            const ub = pnd('button', 'pmini', '↻ 一覧を更新（②の登録の有無が分かりました）');
+            ub.type = 'button';
+            ub.addEventListener('click', () => plLoad(kind));
+            rn.appendChild(ub);
+          } else plLoad(kind);
+        })
         .catch(e => { rn.textContent = '⚠️ 索引を作れませんでした：' + e.message; });
     }
   } catch (e) {
@@ -1571,12 +1612,38 @@ if ($('skKind')) $('skKind').addEventListener('click', ev => {
   skKind = c.dataset.sk;
 });
 let skPeek = null;
+/* b157 R4c_sex_pwa Codex gpt-6-astra */
+let skSexSelected = null;
+function skSexReset() {
+  skSexSelected = null;
+  const pick = $('skSexPick');
+  if (!pick) return;
+  pick.style.display = 'none';
+  pick.querySelectorAll('button.chip[data-sx]').forEach(chip => {
+    chip.classList.remove('on');
+    chip.setAttribute('aria-pressed', 'false');
+  });
+}
+if ($('skSexPick')) $('skSexPick').addEventListener('click', event => {
+  const pick = $('skSexPick');
+  const chip = event.target.closest('button.chip[data-sx]');
+  if (!chip || !pick.contains(chip) || pick.style.display === 'none') return;
+  const value = chip.dataset.sx;
+  if (!['男性', '女性', '不明'].includes(value)) return;
+  skSexSelected = value === '不明' ? '' : value;
+  pick.querySelectorAll('button.chip[data-sx]').forEach(item => {
+    const selected = item === chip;
+    item.classList.toggle('on', selected);
+    item.setAttribute('aria-pressed', String(selected));
+  });
+});
 let skPeekTimer = null;
 let skPeekVersion = 0;
 function skPeekReset() {
   clearTimeout(skPeekTimer);
   skPeekVersion++;
   skPeek = null;
+  skSexReset();
   if ($('skSfpView')) $('skSfpView').textContent = '';
 }
 if ($('skSfp')) $('skSfp').addEventListener('input', () => {
@@ -1590,10 +1657,13 @@ if ($('skSfp')) $('skSfp').addEventListener('input', () => {
       if (version !== skPeekVersion || $('skSfp').value.trim() !== url) return;
       if (!d.ok) throw new Error(d.msg || '');
       skPeek = { url, name: d.name || '', apply: d.apply || '', sex: d.sex || '' };
+      skSexReset();
+      if (!skPeek.sex && $('skSexPick')) $('skSexPick').style.display = '';
       $('skSfpView').textContent = '✅ SFから：' + skPeek.name + '（予約申込日 ' + skPeek.apply.replace(/-/g, '/') + '・性別 ' + (skPeek.sex || 'SF未設定') + (d.partner ? '・紹介元 ' + d.partner : '') + '）';
     } catch (e) {
       if (version !== skPeekVersion || $('skSfp').value.trim() !== url) return;
       skPeek = null;
+      skSexReset();
       $('skSfpView').textContent = '⚠️ ' + e.message.replace(/^APIエラー: /, '');
     }
   }, 400);
@@ -1602,11 +1672,17 @@ if ($('btnShokai')) $('btnShokai').addEventListener('click', async () => {
   const out = $('skResult');
   const sfp = $('skSfp') ? $('skSfp').value.trim() : '';
   const peek = skPeek && skPeek.url === sfp ? skPeek : {};
+  const sexPickVisible = $('skSexPick') && $('skSexPick').style.display !== 'none';
+  if (sexPickVisible && skSexSelected === null) {
+    out.className = 'result ng';
+    out.textContent = '性別を選んでください（SFに未登録のため、選んだ性別をSFへ書き込みます）';
+    return;
+  }
   const f = {
     name: peek.name || '',
     apply: peek.apply || '',
     type: ($('skType') ? $('skType').value : 'AGA'),
-    sex: peek.sex || '',
+    sex: sexPickVisible ? skSexSelected : (peek.sex || ''),
     flag: skFlag,
     plaud: ($('skPlaud') ? $('skPlaud').value.trim() : ''),
     sonota: ($('skSonota') ? $('skSonota').value.trim() : ''),
