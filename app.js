@@ -29,7 +29,7 @@ const CTX = { kanri: '', name: '' };
 /* 画面に出す版数＝配信されているsw.jsのCACHE名から読む（手書きだと更新し忘れてずれる） */
 let APP_VER = '';
 (function readVer() {
-  fetch('sw.js?v=' + Date.now()).then(r => r.text()).then(t => {
+  fetch('sw.js?v=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(t => {
     const m = t.match(/cp-shell-(v\d+)/);
     if (m) {
       APP_VER = 's' + m[1].slice(1);
@@ -84,30 +84,38 @@ async function api(payload) {
   metClick(String(payload && payload.api || ''));   // 📊操作＝api名だけを数える（中身は見ない）
   const M9 = (payload && payload.api === 'home') ? metTake() : null;   // 📊homeの便にだけ同乗＝往復ゼロ増
   let res;
+  /* 🆕s62（2026-10-04 監査 M-3）：返事が来ないと「…中」のまま固まっていた＝90秒で打ち切って理由を出す。
+   *   書き込み系はサーバ側で処理が続いている可能性がある＝押し直す前に結果を確かめる、と文に入れる */
+  const ac9 = (typeof AbortController === 'function') ? new AbortController() : null;
+  const tm9 = ac9 ? setTimeout(() => { try { ac9.abort(); } catch (eA) {} }, 90000) : null;
   try {
     res = await fetch(gasUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(Object.assign({ k }, payload, M9 ? { met: M9 } : {})),
-      redirect: 'follow'
+      redirect: 'follow',
+      signal: ac9 ? ac9.signal : undefined
     });
   } catch (e) {
+    if (tm9) clearTimeout(tm9);
     metBack(M9);   // 📊届かなかった控えは戻す＝次のhomeで再同乗
+    if (e && e.name === 'AbortError') throw new Error('時間切れ（90秒）でした。サーバ側で処理が続いている可能性があります＝保存や登録は、押し直す前に結果を確かめてください');
     setOffline(true);
     throw new Error('通信できません（オフラインまたはURL不正）: ' + e.message);
   }
   setOffline(!navigator.onLine);
-  if (!res.ok) { metBack(M9); throw new Error('サーバー応答エラー HTTP ' + res.status); }
+  if (!res.ok) { if (tm9) clearTimeout(tm9); metBack(M9); throw new Error('サーバー応答エラー HTTP ' + res.status); }
   let j;
   try { j = await res.json(); }
-  catch (e) { metBack(M9); throw new Error('応答がJSONではありません（URL/デプロイ設定を確認）'); }
+  catch (e) { if (tm9) clearTimeout(tm9); metBack(M9); if (e && e.name === 'AbortError') throw new Error('時間切れ（90秒）でした。サーバ側で処理が続いている可能性があります＝保存や登録は、押し直す前に結果を確かめてください'); throw new Error('応答がJSONではありません（URL/デプロイ設定を確認）'); }
+  if (tm9) clearTimeout(tm9);   // 🆕監査 minor-3：本文を読み終えるまでを90秒に含める
   if (!j.ok) {
     metBack(M9);
     if (j.error === 'auth') { showSetup('合鍵が一致しません。再入力してください。'); }
     if (j.error === 'unknown_api') {
       throw new Error('この機能はサーバー側が未開通です（GAS貼り替え＝doPost拡張の反映待ち）');
     }
-    const err = new Error('APIエラー: ' + (j.error || j.msg || '不明'));   // コックピットapi*は失敗時 msg で理由を返す＝黙殺しない
+    const err = new Error(j.msg ? String(j.msg) : ('APIエラー: ' + (j.error || '不明')));   // 🆕s62 監査 m-5：人向けの理由（msg）は前置きを付けずに出す   // コックピットapi*は失敗時 msg で理由を返す＝黙殺しない
     err.data = j;   // 🆕s60（b165）：失敗の返事そのもの（日報の staleDate・url など）を呼び手が読めるように載せる＝今の呼び手は message だけ見るので変わらない
     throw err;
   }
@@ -983,7 +991,7 @@ function regDraftControls(reg) {
     editor.appendChild(body);
     editor.appendChild(source);
     editor.appendChild(actions);
-    if (kind === 'moushi') editor.appendChild(pnd('div', 'edit-note', 'コピーして、今の申し送りの承認の流れへ'));
+    if (kind === 'moushi') editor.appendChild(pnd('div', 'edit-note', 'コピーして、PC の Reports「📝 申し送りドラフト」に貼って承認してください（スマホには貼る場所がありません）'));   // 🆕s62 監査 M-5：行き先を正直に
     part.appendChild(generate);
     part.appendChild(editor);
     part.appendChild(result);
@@ -2463,10 +2471,36 @@ document.addEventListener('keydown', ev => {
 /* ==== 起動 ==== */
 if ('serviceWorker' in navigator) {
   // 起動毎に更新チェック＋新版が制御を取ったら1回だけ自動リロード＝「開き直し2回」問題の根絶
-  navigator.serviceWorker.register('sw.js').then(reg => { try { reg.update(); } catch (e) {} }).catch(() => {});
+  navigator.serviceWorker.register('sw.js').then(reg => { try { reg.update().catch(() => {}); } catch (e) {} }).catch(() => {});   // 🆕s62 m-3：オフラインの失敗を握る
   let _swReloaded = false;
+  /* 🆕s62（2026-10-04 監査 M-2）：新しい版が入った瞬間に無条件で読み直していた＝書きかけの日報・登録が消えた。
+   *   入力欄に文字がある／処理中のボタンがある間は読み直さず、裏に回ったときか、帯を押したときに読み直す */
+  /* 🆕s62 監査 major-1：見えていないタブの書きかけも数える（offsetParent を見ない）。処理中＝押せなくなっていて「…」が付いたボタン */
+  const swDirty = () => {
+    try {
+      const bs = document.querySelectorAll('button:disabled');
+      for (let i = 0; i < bs.length; i++) { if (/…/.test(bs[i].textContent || '')) return true; }
+      const f = document.querySelectorAll('textarea, input[type="text"], input[type="url"], input:not([type])');
+      for (let i = 0; i < f.length; i++) { if (f[i].id !== 'setupKey' && f[i].value && f[i].value.trim() && f[i].value !== f[i].defaultValue) return true; }
+    } catch (e) {}
+    return false;
+  };
+  const swReload = () => { if (_swReloaded) return; _swReloaded = true; location.reload(); };
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_swReloaded) return; _swReloaded = true; location.reload();
+    if (_swReloaded) return;
+    if (!swDirty()) { swReload(); return; }
+    /* 🆕s62 監査 major-1：裏に回った瞬間に読み直すと、別アプリへ切り替えただけで書きかけが消えた＝読み直すのは「戻ってきた時に書きかけが無ければ」だけ */
+    if (!window._swVisBound) { window._swVisBound = true; document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !swDirty()) swReload(); }); }
+    try {
+      if (!document.getElementById('swUpd')) {
+        const b = document.createElement('button');
+        b.id = 'swUpd'; b.type = 'button'; b.className = 'btn';
+        b.textContent = '新しい版があります（書きかけを保存したら押して更新）';
+        b.style.cssText = 'position:fixed;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));z-index:9999;width:auto;background:#0071e3;color:#fff;border:0';   /* 🆕監査 minor-1：透明で💬を覆っていた＝上に置き、地を塗る */
+        b.onclick = swReload;
+        document.body.appendChild(b);
+      }
+    } catch (e) {}
   });
 }
 setOffline(!navigator.onLine);
