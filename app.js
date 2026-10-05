@@ -956,7 +956,7 @@ function regDraftControls(reg) {
           const r = await api({ api: 'advSave', p: { name: reg.name, text, sfp: reg.sfp } });
           if (!r || !r.ok) { status((r && r.msg) || '応答なし', true); return; }
           saved = true;
-          save.textContent = '保存しました';
+          save.textContent = r.already ? '保存済み（今日）' : '保存しました';
           status(r.msg || '保存しました', false);
         } catch (e) {
           status(e.message, true);
@@ -1019,7 +1019,7 @@ function pipeOpen(host, btn, label, text) {
   host.appendChild(d);
 }
 
-function regBox(reg) {
+function regBox(reg, opt) {
   const t = document.createDocumentFragment();
       /* 🔴b162 監査 critical-1／major-2：登録済み・受付済みの行はサーバが reg を渡さない（送り直すとエンジンで SF 注意事項・申し送りが二重になる）＝「更新」の文言は出さない */
       const toggle = pnd('button', 'pmini', '📝 分析シートに登録');
@@ -1161,7 +1161,7 @@ function regBox(reg) {
           });
           box.appendChild(send);
           box.appendChild(result);
-          drafts.appendChild(regDraftControls(reg));
+          if (!(opt && opt.noDraft)) drafts.appendChild(regDraftControls(reg));
         }
         box.style.display = open ? '' : 'none';
         drafts.style.display = open ? '' : 'none';
@@ -1194,7 +1194,28 @@ function pipePatient(p) {
       pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
     }
     if (s.isReg && s.reg) {
-      t.appendChild(regBox(s.reg));
+      t.appendChild(regBox(s.reg, { noDraft: true }));
+    }
+    if (s.crmd) {
+      const toggle = pnd('button', 'pmini', '🧾 Notion CRM からつくる');
+      toggle.type = 'button';
+      toggle.style.fontSize = '17px';
+      toggle.style.lineHeight = '1.5';
+      toggle.setAttribute('aria-expanded', 'false');
+      const box = pnd('div');
+      box.style.display = 'none';
+      let built = false;
+      toggle.addEventListener('click', () => {
+        const open = box.style.display === 'none';
+        if (open && !built) {
+          box.appendChild(regDraftControls(s.crmd));
+          built = true;
+        }
+        box.style.display = open ? '' : 'none';
+        toggle.setAttribute('aria-expanded', String(open));
+      });
+      t.appendChild(toggle);
+      t.appendChild(box);
     }
     if (s.act2 === 'fblock') {
       const lk = pnd('button', 'pmini', '✉️ 受診後フィードバックメッセージを生成');
