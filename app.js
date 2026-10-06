@@ -3614,20 +3614,23 @@ document.addEventListener('DOMContentLoaded', () => {
   tkLoad4(false);
 });
 
+/* b157 R14_slack_pwa Codex gpt-6-astra */
 /* R12_slack_pwa: page-local DOM and state; existing API and views are unchanged. */
 (function () {
-  const host = $('view-slack');
+  const view = $('view-slack');
+  let host;
   const tab = document.querySelector('.tab[data-view="slack"]');
-  if (!host || !tab) return;
+  if (!view || !tab) return;
   const EM = {thumbsup:'👍', '+1':'👍', pray:'🙏', tada:'🎉', eyes:'👀',
     white_check_mark:'✅', heavy_check_mark:'✔️', joy:'😂', heart:'❤️', bow:'🙇',
     ok_hand:'👌', clap:'👏', smile:'😄', sweat_smile:'😅', fire:'🔥', '100':'💯',
     raised_hands:'🙌', muscle:'💪', sparkles:'✨', warning:'⚠️', x:'❌',
     question:'❓', exclamation:'❗', memo:'📝', calendar:'📅', star:'⭐',
     sob:'😭', thinking_face:'🤔', relaxed:'☺️'};
-  const QUICK = ['thumbsup','pray','tada','eyes','white_check_mark','joy','heart','bow'];
+  const QUICK = ['+1','pray','tada','eyes','white_check_mark','joy','heart','bow'];
   const S = {home:null, loading:null, users:null, usersJob:null, names:new Map(),
-    drafts:new Map(), seq:0, urls:new Set(), channel:null, mode:'home'};
+    drafts:new Map(), seq:0, urls:new Set(), channel:null, mode:'home',
+    emojiJob:null, emojiLabels:new Map(), sheet:null, muting:new Set()};
   const BASE = {boxSizing:'border-box', minWidth:'0', maxWidth:'100%', color:'var(--ink)',
     fontSize:'17px', lineHeight:'1.5', overflowWrap:'anywhere', textTransform:'none',
     animation:'none', transition:'none', transform:'none', opacity:'1'};
@@ -3695,10 +3698,136 @@ document.addEventListener('DOMContentLoaded', () => {
     parent.appendChild(document.createTextNode(decode(text.slice(pos))));
   }
   function body(text) { const d = el('div', null, {whiteSpace:'pre-wrap'}); rich(d, text); return d; }
+  function readLocal(key, fallback) {
+    try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; }
+    catch (_) { return fallback; }
+  }
+  function saveLocal(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); }
+    catch (e) { report(e); }
+  }
+  function validEmoji(value) {
+    return value && value.ok !== false && value.ver != null && Array.isArray(value.cats) &&
+      value.cats.every(c => c && typeof c.id === 'string' && typeof c.label === 'string' &&
+        Array.isArray(c.list) && c.list.every(p => Array.isArray(p) && p.length >= 2 &&
+          typeof p[0] === 'string' && /^[A-Za-z0-9_+-]+$/.test(p[0]) && typeof p[1] === 'string'));
+  }
+  let emojiData = readLocal('cpSkEmoji', null);
+  if (!validEmoji(emojiData)) emojiData = null;
+  const emojiNames = new Map();
+  function learnEmoji() {
+    emojiNames.clear();
+    if (emojiData) emojiData.cats.forEach(c => c.list.forEach(p => emojiNames.set(p[0],p[1])));
+    S.emojiLabels.forEach((v,n) => {
+      if (n.isConnected) n.textContent = emoji(v.name)+' '+v.count;
+      else S.emojiLabels.delete(n);
+    });
+  }
+  function emoji(name) { return emojiNames.get(name) || (Object.prototype.hasOwnProperty.call(EM,name) && EM[name]) || ':'+name+':'; }
+  learnEmoji();
+  function loadEmoji() {
+    if (!S.emojiJob) S.emojiJob = (async () => {
+      try {
+        const r = await api({api:'slackEmoji'});
+        if (validEmoji(r)) {
+          emojiData = {ver:r.ver,cats:r.cats};
+          learnEmoji();
+          saveLocal('cpSkEmoji',emojiData);
+        }
+      } catch (_) { /* Keep the cached catalog or the built-in fallback. */ }
+      return emojiData;
+    })();
+    return S.emojiJob;
+  }
+  function recentEmoji() {
+    const value = readLocal('cpSkEmoRecent',[]);
+    return Array.isArray(value) ? Array.from(new Set(value.filter(n => typeof n === 'string' && /^[A-Za-z0-9_+-]+$/.test(n)))).slice(0,16) : [];
+  }
+  function rememberEmoji(name) {
+    saveLocal('cpSkEmoRecent',[name].concat(recentEmoji().filter(n => n !== name)).slice(0,16));
+  }
+  function closeEmoji() { if (S.sheet) S.sheet(); }
+  function emojiPicker(select, trigger) {
+    closeEmoji();
+    const sheet = el('dialog',null,{position:'fixed',inset:'auto 0 0',margin:'0',
+      width:'100%',height:'60vh',maxHeight:'60dvh',padding:'12px',
+      display:'flex',flexDirection:'column',gap:'8px',overflow:'hidden',
+      background:'var(--card)',border:'1px solid var(--line)'});
+    sheet.setAttribute('aria-label','リアクション');
+    const top = row(), search = input('search','検索');
+    search.placeholder = '検索'; search.style.flex = '1 1 0'; search.style.width = '0';
+    const list = el('div',null,{overflowY:'auto',minHeight:'0',flex:'1 1 auto',overscrollBehavior:'contain'});
+    let closed = false;
+    function close() {
+      if (closed) return;
+      closed = true;
+      if (sheet.open && typeof sheet.close === 'function') sheet.close();
+      sheet.remove();
+      if (S.sheet === close) S.sheet = null;
+      trigger.setAttribute('aria-expanded','false');
+      if (trigger.isConnected) trigger.focus();
+    }
+    function choose(name) { close(); select(name); }
+    top.append(search,button('閉じる',close,true));
+    sheet.append(top,list);
+    function draw() {
+      if (closed) return;
+      list.replaceChildren();
+      const query = search.value.trim().replace(/^:|:$/g,'').toLocaleLowerCase();
+      function category(label, pairs) {
+        const matches = pairs.filter(p => !query || p[0].toLocaleLowerCase().includes(query) || p[1].includes(query));
+        if (!matches.length) return;
+        list.appendChild(el('h3',label,{fontSize:'17px',margin:'8px 0'}));
+        const buttons = row();
+        matches.forEach(p => {
+          const b = button(p[1],()=>choose(p[0]));
+          Object.assign(b.style,{minWidth:'44px',minHeight:'44px',flex:'0 0 auto'});
+          b.setAttribute('aria-label',p[0]); b.title = p[0]; buttons.appendChild(b);
+        });
+        list.appendChild(buttons);
+      }
+      category('よく使う',Array.from(new Set(QUICK.concat(recentEmoji()))).map(n => [n,emoji(n)]));
+      if (emojiData) emojiData.cats.forEach(c => category(c.label,c.list));
+      else category('リアクション',Object.keys(EM).map(n => [n,EM[n]]));
+    }
+    search.addEventListener('input',draw);
+    search.addEventListener('keydown',e => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      const name = search.value.trim().replace(/^:|:$/g,'');
+      if (/^[A-Za-z0-9_+-]+$/.test(name)) { e.preventDefault(); choose(name); }
+    });
+    sheet.addEventListener('cancel',e => { e.preventDefault(); close(); });
+    sheet.addEventListener('close',close);
+    document.body.appendChild(sheet);
+    S.sheet = close; trigger.setAttribute('aria-expanded','true');
+    sheet.showModal(); draw(); search.focus();
+    loadEmoji().then(draw);
+  }
+  function stars() {
+    const value = readLocal('cpSkStar',[]);
+    return Array.isArray(value) ? Array.from(new Set(value.filter(id => typeof id === 'string'))) : [];
+  }
+  function starButton(ch) {
+    const b = button('',() => {
+      const ids = stars(), on = ids.includes(ch);
+      saveLocal('cpSkStar',on ? ids.filter(id => id !== ch) : ids.concat(ch));
+      draw();
+    });
+    function draw() {
+      const on = stars().includes(ch);
+      b.textContent = on ? '⭐' : '☆';
+      b.setAttribute('aria-label','⭐ スター付き');
+      b.setAttribute('aria-pressed',String(on));
+    }
+    draw(); return b;
+  }
   function clearPage(mode) {
+    closeEmoji(); S.emojiLabels.clear();
     S.seq++; S.mode = mode;
     S.urls.forEach(u => URL.revokeObjectURL(u)); S.urls.clear();
-    host.replaceChildren(); return S.seq;
+    host = el('div',null,null,'card');
+    view.replaceChildren(el('h2','💬 Slack',null,'sec-title'),host);
+    return S.seq;
   }
   function title(text) { return el('h2', text, {fontSize:'20px', margin:'8px 0'}); }
   function back(fn) { host.appendChild(button('← 一覧へ', fn || renderHome)); }
@@ -3728,17 +3857,39 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function drawChannels(parent, search) {
     parent.replaceChildren();
-    const q = search.toLocaleLowerCase();
-    (S.home && S.home.chans || []).forEach(c => {
-      if (q && !plainName(c.name).toLocaleLowerCase().includes(q)) return;
-      const b = button('', () => openChannel(c.id));
-      Object.assign(b.style, {display:'flex', alignItems:'center', justifyContent:'space-between',
-        gap:'8px', textAlign:'left', width:'100%', border:'0', borderRadius:'0',
-        borderBottom:'1px solid var(--line)', padding:'12px 8px'});
-      b.appendChild(el('span', icon(c.kind)+' '+plainName(c.name), {flex:'1'}));
-      if (Number(c.unrep)>0) b.appendChild(note('要返信 '+Number(c.unrep)));
-      parent.appendChild(b);
-    });
+    const q = search.toLocaleLowerCase(), starred = new Set(stars());
+    const value = readLocal('cpSkFold',{});
+    const fold = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const chans = (S.home && S.home.chans || []).filter(c => !q || plainName(c.name).toLocaleLowerCase().includes(q));
+    function group(key,label,items) {
+      const heading = el('h3',null,{fontSize:'17px',margin:'8px 0'});
+      const list = el('div');
+      const toggle = button(label,() => {
+        const current = readLocal('cpSkFold',{});
+        const next = current && typeof current === 'object' && !Array.isArray(current) ? current : {};
+        fold[key] = !fold[key]; next[key] = fold[key];
+        saveLocal('cpSkFold',next); update();
+      });
+      toggle.style.width = '100%'; toggle.style.textAlign = 'left';
+      function update() {
+        list.hidden = !!fold[key];
+        toggle.setAttribute('aria-expanded',String(!fold[key]));
+      }
+      heading.appendChild(toggle); parent.append(heading,list); update();
+      items.forEach(c => {
+        const b = button('', () => openChannel(c.id));
+        Object.assign(b.style, {display:'flex', alignItems:'center', justifyContent:'space-between',
+          gap:'8px', textAlign:'left', width:'100%', border:'0', borderRadius:'0',
+          borderBottom:'1px solid var(--line)', padding:'12px 8px'});
+        b.appendChild(el('span', icon(c.kind)+' '+plainName(c.name), {flex:'1'}));
+        if (Number(c.unrep)>0) b.appendChild(note('要返信 '+Number(c.unrep)));
+        list.appendChild(b);
+      });
+    }
+    const favorites = chans.filter(c => starred.has(c.id));
+    if (favorites.length) group('star','⭐ スター付き',favorites);
+    group('ch','チャンネル',chans.filter(c => !starred.has(c.id) && (c.kind === 'ch' || c.kind === 'priv')));
+    group('dm','ダイレクトメッセージ',chans.filter(c => !starred.has(c.id) && (c.kind === 'dm' || c.kind === 'mpim')));
   }
   function renderHome() {
     clearPage('home');
@@ -3748,6 +3899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reload.setAttribute('aria-label','↻'); busy(reload, !!S.loading);
     bar.appendChild(reload); bar.appendChild(button('🕒 予約済み', renderScheduled));
     host.appendChild(bar);
+    if (S.home && S.home.unrepNote) host.appendChild(note(S.home.unrepNote));
     const search = input('search','検索'); search.placeholder = '検索';
     host.appendChild(search);
     const list = el('div'); host.appendChild(list);
@@ -3788,6 +3940,31 @@ document.addEventListener('DOMContentLoaded', () => {
       d.appendChild(note(icon(u.kind)+' '+plainName(u.chName || chName(u.ch))+' · '+Number(u.days || 0)+'日前'));
       d.appendChild(body(u.text));
       d.appendChild(button('スレッドを開く', () => openThread(u.ch, u.root || u.ts, renderUnrep)));
+      const ch = u.ch, root = u.root || u.ts, key = ch + ':' + root;
+      const mute = button('🔕 解決',async () => {
+        if (S.muting.has(key)) return;
+        S.muting.add(key); busy(mute,true);
+        let resolved = false;
+        try {
+          const r = await api({api:'slackMute', chts: ch + ':' + root});
+          if (!r || !r.ok) throw new Error(r && r.msg || '🔕 解決');
+          showUndo(r.msg || '🔕 解決しました', r.undo, () => loadHomeSlack(true));   /* b170b 監査 major-2：押し間違いを元に戻せる（サーバの undo の切符を使う） */
+          try { const eb = $('errBox'); if (eb) eb.scrollIntoView({block:'nearest'}); } catch (eS) {}   /* b170c 監査 minor-7：「元に戻す」を画面の外に出さない */
+          if (S.home) {
+            const before = S.home.unrep || [];
+            S.home.unrep = before.filter(item => item.ch !== ch || (item.root || item.ts) !== root);
+            const channel = (S.home.chans || []).find(c => c.id === ch);
+            if (channel) channel.unrep = Math.max(0,Number(channel.unrep || 0)-(before.length-S.home.unrep.length));
+          }
+          resolved = true;
+        } catch (e) { report(e); }
+        finally {
+          S.muting.delete(key); busy(mute,false);
+          if (resolved && S.mode === 'unrep') renderUnrep();
+          else if (resolved && S.mode === 'home') renderHome();
+        }
+      },true);
+      busy(mute,S.muting.has(key)); d.appendChild(mute);
       host.appendChild(d);
     });
   }
@@ -3823,10 +4000,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function sorted(msgs) {
     const m = new Map(); (msgs || []).forEach(x => m.set(x.ts,x));
-    return Array.from(m.values()).sort((a,b) => Number(a.ts)-Number(b.ts));
+    return Array.from(m.values()).sort((a,b) => Number(b.ts)-Number(a.ts));
   }
   async function openChannel(ch) {
-    const token = clearPage('channel'); back(); host.appendChild(title(chName(ch)));
+    const token = clearPage('channel'); back();
+    const heading = row(); heading.append(title(chName(ch)),starButton(ch)); host.appendChild(heading);
     const panel = el('div','読み込み中…'); host.appendChild(panel);
     try {
       const r = await api({api:'slackChannel', ch, cursor:''});
@@ -3838,42 +4016,46 @@ document.addEventListener('DOMContentLoaded', () => {
   function drawChannel(token, panel) {
     panel.replaceChildren();
     const page = S.channel;
-    remember(page.msgs);
+    panel.appendChild(composer(page.ch,'','', () => openChannel(page.ch)));
+    const list = el('div'); panel.appendChild(list);
+    function drawMessages() {
+      remember(page.msgs); list.replaceChildren();
+      page.msgs.forEach(m => list.appendChild(message(page.ch,m,()=>openThread(page.ch,m.root || m.ts,()=>openChannel(page.ch)))));
+    }
     const older = button('さらに前を読む', async () => {
       if (page.reading || !page.more) return;
       page.reading = true; busy(older,true);
-      const cursor = page.next, anchor = page.msgs[0] && String(page.msgs[0].ts);
-      const oldRow = anchor && Array.from(panel.querySelectorAll('article')).find(n => n.dataset.ts === anchor);
-      const top = oldRow && oldRow.getBoundingClientRect().top;
+      const cursor = page.next;
       try {
         const r = await api({api:'slackChannel', ch:page.ch, cursor});
         if (token !== S.seq) return;
         page.msgs = sorted((r.msgs || []).concat(page.msgs));
         page.next = r.next; page.more = !!r.more && !!r.next && r.next !== cursor;
-        drawChannel(token,panel);
-        const newRow = anchor && Array.from(panel.querySelectorAll('article')).find(n => n.dataset.ts === anchor);
-        if (newRow && oldRow) window.scrollBy(0,newRow.getBoundingClientRect().top-top);
+        drawMessages();
+        if (!page.more) older.remove();
       } catch(e) { if (token === S.seq) report(e); }
       finally { page.reading=false; busy(older,false); }
     });
+    drawMessages();
     if (page.more && page.next) panel.appendChild(older);
-    page.msgs.forEach(m => panel.appendChild(message(page.ch,m,()=>openThread(page.ch,m.root || m.ts,()=>openChannel(page.ch)))));
-    panel.appendChild(composer(page.ch,'','', () => openChannel(page.ch)));
   }
   async function openThread(ch, root, backTo) {
-    const token = clearPage('thread'); back(backTo || (()=>openChannel(ch)));
+    const token = clearPage('thread');
+    host.appendChild(button('← 戻る',backTo || (()=>openChannel(ch))));
     host.appendChild(title(chName(ch)));
     const panel = el('div','読み込み中…'); host.appendChild(panel);
     try {
       const r = await api({api:'slackThread', ch, ts:root});
       if (token !== S.seq) return;
       const msgs = sorted(r.msgs);
-      const parent = msgs[0];
-      const actualRoot = typeof r.root === 'string' ? r.root : parent && (parent.root || parent.ts) || root;
+      const actualRoot = typeof r.root === 'string' ? r.root : root;
+      const parent = msgs.find(m => String(m.ts) === String(actualRoot));
       remember(msgs); panel.replaceChildren();
-      msgs.forEach(m => panel.appendChild(message(ch,m,null)));
+      if (parent) panel.appendChild(message(ch,parent,null));
       panel.appendChild(composer(ch,actualRoot,parent && (parent.mine ? '自分' : plainName(parent.name)),
         () => openThread(ch,actualRoot,backTo)));
+      const replies = el('div'); panel.appendChild(replies);
+      msgs.filter(m => String(m.ts) !== String(actualRoot)).forEach(m => replies.appendChild(message(ch,m,null)));
     } catch(e) { if (token === S.seq) { panel.replaceChildren(); report(e,panel); panel.appendChild(button('↻',()=>openThread(ch,root,backTo))); } }
   }
   function message(ch, m, open) {
@@ -3899,22 +4081,22 @@ document.addEventListener('DOMContentLoaded', () => {
     return d;
   }
   function reactions(ch,m) {
-    const panel = row(); let pending=false; let expanded=false;
+    const panel = row(); let pending=false;
     const values = (m.reacts || []).map(x => ({n:x.n,c:Number(x.c)||0,me:!!x.me}));
     function draw() {
+      panel.childNodes.forEach(n => S.emojiLabels.delete(n));
       panel.replaceChildren();
       values.filter(x=>x.c>0).forEach(x => {
-        const b=button((EM[x.n] || ':'+x.n+':')+' '+x.c,()=>toggle(x.n),true);
+        const b=button(emoji(x.n)+' '+x.c,()=>toggle(x.n),true);
+        S.emojiLabels.set(b,{name:x.n,count:x.c});
+        b.setAttribute('aria-label',x.n+' '+x.c);
         b.setAttribute('aria-pressed',String(x.me));
         b.style.color=x.me ? 'var(--accent)' : 'var(--ink)'; b.disabled=pending;
         panel.appendChild(b);
       });
-      const plus=button('＋',()=>{expanded=!expanded;draw();},true);
-      plus.setAttribute('aria-label','リアクション'); plus.setAttribute('aria-expanded',String(expanded));
+      const plus=button('＋',()=>emojiPicker(toggle,plus),true);
+      plus.setAttribute('aria-label','リアクション'); plus.setAttribute('aria-expanded','false');
       plus.disabled=pending; panel.appendChild(plus);
-      if (expanded) QUICK.forEach(n => {
-        const b=button(EM[n],()=>toggle(n),true); b.setAttribute('aria-label',n); b.disabled=pending; panel.appendChild(b);
-      });
     }
     async function toggle(name) {
       if (pending) return;
@@ -3925,7 +4107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await api({api:'slackReact', ch, ts:m.ts, name, on});
         if (!x) { x={n:name,c:0,me:false}; values.push(x); }
         x.me=on; x.c=Math.max(0,x.c+(on?1:-1)); m.reacts=values.map(v=>Object.assign({},v));
-        expanded=false;
+        if (on) rememberEmoji(name);
       } catch(e) { report(e); }
       finally { pending=false;draw(); }
     }
@@ -4087,8 +4269,6 @@ document.addEventListener('DOMContentLoaded', () => {
       let text=slkMentionText(d.text,d.memo);
       const miss=slkMentionMiss(text,d.memo);
       if (miss.length) { report(new Error('メンションを確認してください：'+miss.join('、')),status); return; }
-      const unresolved=Array.from(text.replace(/<[^>]*>|https?:\/\/\S+/g,' ').matchAll(/(^|[^A-Za-z0-9_.@])[@＠]([^\s@＠<>,、。!?！？「」（）()]+)/g)).map(m=>'@'+m[2]);
-      if (unresolved.length) { report(new Error('メンションを確認してください：'+unresolved.join('、')),status); return; }
       if (!text.trim() && !d.files.length) return;
       const error=fileError(d.files); if (error) { report(new Error(error),status); return; }
       let when=0;
