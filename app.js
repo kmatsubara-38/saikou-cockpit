@@ -78,7 +78,49 @@ function metBack(m) {
 }
 
 /* ---- APIコア：body=JSON文字列 / Content-Type text/plain（プリフライト回避） ---- */
+/* b157 R16_pwa_instant_A Codex gpt-6-astra */
+let r16LastClick = null;
+const r16Busy = new WeakMap();
+document.addEventListener('click', e => {
+  if (!e.isTrusted) return;
+  const target = e.target && (e.target.nodeType === 1 ? e.target : e.target.parentElement);
+  if (!target) return;
+  const element = target.closest('button, input[type="button"], input[type="submit"], a, [role="button"]') || target;
+  r16LastClick = { element, at: Date.now() };
+}, true);
+function r16BeginBusy() {
+  const click = r16LastClick;
+  if (!click || Date.now() - click.at < 0 || Date.now() - click.at > 400) return () => {};
+  const element = click.element;
+  let state = r16Busy.get(element);
+  if (!state) {
+    state = {
+      count: 0,
+      aria: element.getAttribute('aria-busy'),
+      opacity: element.style.getPropertyValue('opacity'),
+      priority: element.style.getPropertyPriority('opacity'),
+      button: element.tagName === 'BUTTON' || (element.tagName === 'INPUT' && /^(button|submit)$/i.test(element.type)),
+      disabled: element.disabled
+    };
+    r16Busy.set(element, state);
+    element.setAttribute('aria-busy', 'true');
+    element.style.setProperty('opacity', '.6');
+    if (state.button) element.disabled = true;
+  }
+  state.count++;
+  return () => {
+    if (--state.count) return;
+    if (state.aria === null) element.removeAttribute('aria-busy');
+    else element.setAttribute('aria-busy', state.aria);
+    if (state.opacity) element.style.setProperty('opacity', state.opacity, state.priority);
+    else element.style.removeProperty('opacity');
+    if (state.button) element.disabled = state.disabled;
+    r16Busy.delete(element);
+  };
+}
 async function api(payload) {
+  const finishBusy = r16BeginBusy();
+  try {
   const k = localStorage.getItem(LS.KEY);
   if (!k) { showSetup(); throw new Error('合鍵が未設定です'); }
   metClick(String(payload && payload.api || ''));   // 📊操作＝api名だけを数える（中身は見ない）
@@ -109,7 +151,7 @@ async function api(payload) {
   try { j = await res.json(); }
   catch (e) { if (tm9) clearTimeout(tm9); metBack(M9); if (e && e.name === 'AbortError') throw new Error('時間切れ（90秒）でした。サーバ側で処理が続いている可能性があります＝保存や登録は、押し直す前に結果を確かめてください'); throw new Error('応答がJSONではありません（URL/デプロイ設定を確認）'); }
   if (tm9) clearTimeout(tm9);   // 🆕監査 minor-3：本文を読み終えるまでを90秒に含める
-  if (!j.ok) {
+  if (!j.ok && !(payload && payload.api === 'shokai' && j.already === true)) {
     metBack(M9);
     if (j.error === 'auth') { showSetup('合鍵が一致しません。再入力してください。'); }
     if (j.error === 'unknown_api') {
@@ -121,6 +163,9 @@ async function api(payload) {
   }
   if (M9 && !(j.met && j.met.ok)) metBack(M9);   // 📊本体okでも計測だけ受け取れなかったなら控えは消さない
   return j;
+  } finally {
+    finishBusy();
+  }
 }
 
 /* ---- エラー/オフライン表示 ---- */
@@ -1019,6 +1064,7 @@ function pipeOpen(host, btn, label, text) {
   host.appendChild(d);
 }
 
+/* b157 R16_pwa_instant_BC Codex gpt-6-astra */
 function regBox(reg, opt) {
   const t = document.createDocumentFragment();
       /* 🔴b162 監査 critical-1／major-2：登録済み・受付済みの行はサーバが reg を渡さない（送り直すとエンジンで SF 注意事項・申し送りが二重になる）＝「更新」の文言は出さない */
@@ -1037,8 +1083,30 @@ function regBox(reg, opt) {
         const open = box.style.display === 'none';
         if (open && !built) {
           built = true;
-          box.appendChild(pnd('div', 'muted', 'SFから：' + (reg.name || '') + '（予約申込日 ' + String(reg.apply || '').replace(/-/g, '/') + '）'));
-          let sex = '', sexPicked = false;
+          const duplicate = pnd('div', 'result ng');
+          duplicate.setAttribute('role', 'status');
+          duplicate.style.display = 'none';
+          box.appendChild(duplicate);
+          const source = pnd('div', 'muted');
+          box.appendChild(source);
+          let loading = !!(opt && opt.peek), peekFailed = false;
+          const draftKey = 'b157:shokai:' + encodeURIComponent(reg.sfp || '');
+          let saved = null, storageError = null;
+          try {
+            const raw = localStorage.getItem(draftKey);
+            if (raw) {
+              const draft = JSON.parse(raw);
+              if (draft && draft.api === 'shokai' && typeof draft.sfp === 'string' &&
+                  (!draft.rid || /^[a-z0-9]{1,40}$/i.test(draft.rid))) saved = draft;
+            }
+          } catch (e) { storageError = e; }
+          let pending = saved && saved.rid ? saved : null;
+          let sex = saved ? saved.sex : (reg.sex || ''), sexPicked = !!saved;
+          const renderSource = () => {
+            source.textContent = 'SFから：' + (loading ? 'Salesforce から読んでいます…' : (reg.name || '')) +
+              '（予約申込日 ' + (loading ? 'Salesforce から読んでいます…' : String(reg.apply || '').replace(/-/g, '/')) + '）';
+          };
+          renderSource();
           const sexPick = pnd('div');
           sexPick.style.display = 'none';
           sexPick.appendChild(pnd('label', 'field-label', '性別（SFに未登録＝選ぶとSFへ書き込みます）'));
@@ -1060,9 +1128,7 @@ function regBox(reg, opt) {
             sexChips.appendChild(chip);
           });
           box.appendChild(sexPick);
-          api({ api:'cvPeek', url: reg.sfp }).then(r => {
-            if (r && r.ok && !r.sex) sexPick.style.display = '';
-          }).catch(() => {});
+          sexPick.style.display = !loading && !reg.sex ? '' : 'none';
           const field = (text, control) => {
             const label = pnd('label', 'field-label', text);
             label.style.fontSize = '13px';
@@ -1080,8 +1146,10 @@ function regBox(reg, opt) {
             typeInput.appendChild(option);
           });
           field('種別', typeInput);
+          if (saved) typeInput.value = saved.type;
           let flag = ({ '自然': 'shizen', 'スタッフ': 'staff', 'PJT': 'pjt' })[reg.kubun] || (['shizen', 'staff', 'pjt'].includes(reg.kubun) ? reg.kubun : '');
-          let skind = 'パートナー様割引';
+          if (saved) flag = saved.flag;
+          let skind = saved ? saved.skind : 'パートナー様割引';
           const heading = text => {
             const label = pnd('div', 'field-label', text);
             label.style.fontSize = '13px';
@@ -1125,14 +1193,34 @@ function regBox(reg, opt) {
           const sonotaInput = pnd('textarea');
           sonotaInput.rows = 2;
           field('その他', sonotaInput);
+          if (saved) { plaudInput.value = saved.plaud; sonotaInput.value = saved.sonota; }
           const send = pnd('button', 'btn btn-primary', '分析シートに登録する');
           send.type = 'button';
           send.style.fontSize = '17px';
           send.style.lineHeight = '1.5';
           const result = pnd('div', 'result');
           result.setAttribute('role', 'status');
+          let locked = null;
+          const lockInputs = () => {
+            if (locked) return;
+            locked = Array.from(box.querySelectorAll('select, textarea, button')).filter(item => item !== send)
+              .map(item => ({ item, disabled: item.disabled }));
+            locked.forEach(({ item }) => { item.disabled = true; });
+          };
+          const unlockInputs = () => {
+            if (!locked) return;
+            locked.forEach(({ item, disabled }) => { item.disabled = disabled; });
+            locked = null;
+          };
+          const refresh = () => {
+            renderSource();
+            sexPick.style.display = !loading && !reg.sex ? '' : 'none';
+            duplicate.textContent = reg.dup || '';
+            duplicate.style.display = reg.dup ? '' : 'none';
+            send.disabled = loading || peekFailed || !!reg.dup;
+          };
           send.addEventListener('click', async () => {
-            if (send.disabled) return;
+            if (send.disabled || loading || peekFailed || reg.dup) return;
             if (sexPick.style.display !== 'none' && !sexPicked) {
               result.className = 'result ng';
               result.textContent = '性別を選んでください（SFに未登録のため、選んだ性別をSFへ書き込みます）';
@@ -1143,24 +1231,84 @@ function regBox(reg, opt) {
               result.textContent = '④⑤⑥の区分を1つ選んでください';
               return;
             }
-            send.disabled = true;
-            result.className = 'result';
-            result.textContent = '送信中…';
             const type = typeInput.value;
             const plaud = plaudInput.value.trim();
             const sonota = sonotaInput.value.trim();
+            let sent = false;
             try {
-              const response = await api({ api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp });
-              if (!response.ok) throw new Error(response.msg || '');
-              box.replaceChildren(pnd('div', 'muted', '受け付けました（1分以内に分析シートへ・結果は🔔通知センター）'));
+              if (!pending) {
+                const rid = 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+                pending = { api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp, rid };
+              }
+              localStorage.setItem(draftKey, JSON.stringify(pending));
+              send.disabled = true;
+              lockInputs();
+              result.className = 'result';
+              result.textContent = '📝 端末に控えました。送っています…';
+              sent = true;
+              const response = await api(pending);
+              if (!response.ok && !response.already) {
+                const error = new Error(response.msg || '');
+                error.data = response;
+                throw error;
+              }
+              // Keep a successfully received record if storage removal itself fails.
+              try { localStorage.removeItem(draftKey); } catch (e) {}
+              box.replaceChildren(pnd('div', 'muted', '✅ 受け付けました（1分以内に分析シートへ・結果は🔔通知センター）'));
             } catch (e) {
               result.className = 'result ng';
               result.textContent = e.message;
               send.disabled = false;
+              if (!sent || (e.data && e.data.ok === false)) {
+                // A definite rejection allows editing; an uncertain delivery keeps the exact snapshot.
+                const draft = pending && Object.assign({}, pending);
+                if (draft) delete draft.rid;
+                pending = null;
+                if (draft && sent) {
+                  try { localStorage.setItem(draftKey, JSON.stringify(draft)); }
+                  catch (storageFailure) { result.textContent += '\n' + storageFailure.message; }
+                }
+                unlockInputs();
+                send.textContent = '分析シートに登録する';
+              } else {
+                send.textContent = 'もう一度送る（同じ受付番号）';
+              }
             }
           });
           box.appendChild(send);
           box.appendChild(result);
+          if (saved) {
+            sexPick.querySelectorAll('.chip').forEach(item => {
+              const on = item.dataset.sx === (sex || '不明');
+              item.classList.toggle('on', on);
+              item.setAttribute('aria-pressed', String(on));
+            });
+          }
+          if (pending) {
+            lockInputs();
+            send.textContent = 'もう一度送る（同じ受付番号）';
+          }
+          if (storageError) {
+            result.className = 'result ng';
+            result.textContent = storageError.message;
+          }
+          refresh();
+          if (opt && opt.peek) {
+            /* b171e 監査 major-4：照会は「開いたときに呼ぶ関数」で受け取り、ここ（開いた1回目）で初めて呼ぶ＝描いただけでは送らない */
+            new Promise(ok => ok(opt.peek())).then(r => {
+              if (!r || !r.ok) throw new Error(r && r.msg || '');
+              Object.assign(reg, { sfp:r.sfp, name:r.name, apply:r.apply, sex:r.sex, dup:r.dup });
+              loading = false;
+              if (!saved) sex = reg.sex || '';
+              refresh();
+            }).catch(e => {
+              loading = false;
+              peekFailed = true;
+              refresh();
+              result.className = 'result ng';
+              result.textContent = (e.data && e.data.msg) || e.message;
+            });
+          }
           if (!(opt && opt.noDraft)) drafts.appendChild(regDraftControls(reg));
         }
         box.style.display = open ? '' : 'none';
@@ -1170,6 +1318,7 @@ function regBox(reg, opt) {
       t.appendChild(toggle);
       t.appendChild(box);
       t.appendChild(drafts);
+  if (opt && opt.open) toggle.click();
   return t;
 }
 
@@ -1194,7 +1343,7 @@ function pipePatient(p) {
       pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
     }
     if (s.isReg && s.reg) {
-      t.appendChild(regBox(s.reg, { noDraft: true }));
+      t.appendChild(regBox(s.reg, Object.assign({ noDraft: true }, (s.reg.sex === undefined && s.reg.sfp) ? { peek: () => api({ api: 'cvPeek', url: s.reg.sfp }) } : {})));   /* s66：一覧から開くとき性別が無ければ1回だけ照会（2回目の照会は無くした）。b171e：開いたときに呼ぶ（描いただけでは送らない） */
     }
     if (s.crmd) {
       const toggle = pnd('button', 'pmini', '🧾 Notion CRM からつくる');
@@ -1612,6 +1761,7 @@ async function plLoad(kind) {
 }
 
 /* 一覧の切替＝プルダウン（2026-07-27 松原指示。タブ入場時と切替時に、空なら読み込む） */
+/* b157 R16_pwa_instant_B Codex gpt-6-astra */
 async function plRegOpen() {
   const input = $('plRegUrl'), button = $('plRegBtn'), host = $('plRegHost');
   if (!input || !button || !host || button.disabled) return;
@@ -1619,9 +1769,10 @@ async function plRegOpen() {
   if (!url) { host.textContent = 'SF患者リンクを貼ってください'; return; }
   button.disabled = true;
   try {
-    const r = await api({ api: 'cvPeek', url });
-    const box = regBox({ sfp: r.sfp, name: r.name, apply: r.apply, kubun: '', done: false });
+    let sent = null;   // b171e：照会は regBox が開いたときに1回だけ呼ぶ（open:true＝ここで開く）
+    const box = regBox({ sfp: url, name: '', apply: '', sex: '', kubun: '', done: false }, { peek: () => (sent = api({ api: 'cvPeek', url })), open: true });
     host.replaceChildren(box);
+    await sent;
   } catch (e) {
     host.textContent = (e.data && e.data.msg) || e.message;
   } finally {
