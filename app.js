@@ -267,7 +267,7 @@ document.querySelectorAll('.tab').forEach(btn => {
    *   （b120の「'view-cal' という実在しないid」と同じ型）。台帳は実在idだけで書くこと。
    *   s43の経緯＝報告タブ内で🔥の先頭に置いていた。実装も配信も正しく届いていた（実機で「· s44」を確認）が、
    *   松原が探した場所と違った＝欠けていたのは機能ではなく**入口**だった。 */
-  ['view-gijiroku', 'view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  ['view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   frag.appendChild(cap('🛡 毎日の運用'));
   ['view-nippo', 'view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   rep.insertBefore(frag, rep.firstChild);
@@ -866,56 +866,7 @@ if ($('btnBrBrief')) $('btnBrBrief').addEventListener('click', async () => {
   } catch (e) { box.textContent = e.message; }
 });
 
-/* 📝s12 議事録取込＝区分（提携先=管理番号必須→SF活動記録も／社内・その他=第二の脳のみ） */
-let gjKubun = '提携先';
-document.querySelectorAll('#gjChips .chip').forEach(c => c.addEventListener('click', () => {
-  gjKubun = c.dataset.k;
-  document.querySelectorAll('#gjChips .chip').forEach(x => x.classList.toggle('on', x === c));
-  if ($('gjKanriBox')) $('gjKanriBox').classList.toggle('hidden', gjKubun !== '提携先');
-}));
-
-async function gjPull(force) {   // 📝Plaud/Meet URL取込（force=取込済みの明示上書き）
-  const u = $('plUrl').value.trim(), kn = ($('plKanri') ? $('plKanri').value.trim() : ''), res = $('plRes');
-  if (!u) { res.className = 'result ng'; res.textContent = 'PlaudかMeetメモのURLを貼ってください'; return; }
-  if (gjKubun === '提携先' && !kn) { res.className = 'result ng'; res.textContent = '提携先の議事録は管理番号を入れてください（例 1034）'; return; }
-  res.className = 'result';
-  res.textContent = '⬇ 取込中…（' + gjKubun + 'として処理：要約＋全文→Notion' + (gjKubun === '提携先' ? '＋SF活動記録' : '') + '）';
-  $('btnPlPull').disabled = true;
-  try {
-    const r = await api({ api: 'plaudPull', url: u, kubun: gjKubun, kanri: kn, force: force === true });
-    // 🔴取込済み＝黙って上書きしない。上書きは明示のタップで
-    if (r && r.dup) {
-      res.className = 'result';
-      res.textContent = '';
-      res.appendChild(document.createTextNode('⚠️ ' + (r.msg || '取込済みのURLです')));
-      const rw = document.createElement('div');
-      rw.style.marginTop = '8px';
-      const b1 = document.createElement('button');
-      b1.className = 'btn btn-small btn-primary';
-      b1.textContent = '♻️ 上書きして最新化';
-      b1.addEventListener('click', () => gjPull(true));
-      rw.appendChild(b1);
-      const b2 = document.createElement('button');
-      b2.className = 'btn btn-small';
-      b2.style.marginLeft = '6px';
-      b2.textContent = 'やめる';
-      b2.addEventListener('click', () => { res.textContent = ''; });
-      rw.appendChild(b2);
-      res.appendChild(rw);
-      return;
-    }
-    res.className = 'result ok';
-    res.textContent = r.msg + '\n日付: ' + (r.date || '') + (r.segs ? (' / 文字起こし ' + r.segs + 'セグメント') : '') +
-      (r.partner ? ' / 提携先: ' + r.partner : '') + '\n' + (r.sf ? r.sf + '\n' : '') + (r.note || '');
-    $('plUrl').value = '';
-  } catch (e) {
-    res.className = 'result ng';
-    res.textContent = e.message;
-  } finally {
-    $('btnPlPull').disabled = false;
-  }
-}
-if ($('btnPlPull')) $('btnPlPull').addEventListener('click', () => gjPull(false));
+/* 🗑s67（2026-10-16 松原「不要なので削除」）＝📝 議事録取込の入口を外した（PC 版 b172 と同格）。サーバの plaudPull は残す＝戻すときは s66 から戻す */
 
 let brBoardDone = false;
 async function brLoadBoard() {
@@ -1087,6 +1038,11 @@ function regBox(reg, opt) {
           duplicate.setAttribute('role', 'status');
           duplicate.style.display = 'none';
           box.appendChild(duplicate);
+          // b172：門番に止められた人を「再予約（前回とは別の予約）」として送る口。出すのはサーバが rebook=true と答えたときだけ
+          const rebookBtn = pnd('button', 'chip', '🔁 再予約として登録（前回の受付とは別の予約）');
+          rebookBtn.type = 'button';
+          rebookBtn.style.display = 'none';
+          box.appendChild(rebookBtn);
           const source = pnd('div', 'muted');
           box.appendChild(source);
           let loading = !!(opt && opt.peek), peekFailed = false;
@@ -1101,6 +1057,8 @@ function regBox(reg, opt) {
             }
           } catch (e) { storageError = e; }
           let pending = saved && saved.rid ? saved : null;
+          // b172 監査 major-1：控えから戻すのは「届いたか分からない送信」の写し（pending）だけ。断られた控えからは戻さない＝もう一度確かめさせる
+          let rebook = !!(pending && pending.rebook === true);
           let sex = saved ? saved.sex : (reg.sex || ''), sexPicked = !!saved;
           const renderSource = () => {
             source.textContent = 'SFから：' + (loading ? 'Salesforce から読んでいます…' : (reg.name || '')) +
@@ -1215,12 +1173,21 @@ function regBox(reg, opt) {
           const refresh = () => {
             renderSource();
             sexPick.style.display = !loading && !reg.sex ? '' : 'none';
-            duplicate.textContent = reg.dup || '';
+            duplicate.textContent = rebook
+              ? '🔁 再予約として登録します（前回の受付とは別の予約）。区分などを確かめて「分析シートに登録する」を押してください'
+              : (reg.dup || '');
+            duplicate.className = rebook ? 'result' : 'result ng';
             duplicate.style.display = reg.dup ? '' : 'none';
-            send.disabled = loading || peekFailed || !!reg.dup;
+            rebookBtn.style.display = reg.dup && reg.rebook && !rebook ? '' : 'none';
+            send.disabled = loading || peekFailed || (!!reg.dup && !rebook);
           };
+          rebookBtn.addEventListener('click', () => {
+            if (!confirm('前回の受付とは別の新しい予約（キャンセル後の取り直しなど）として登録しますか？\n同じ予約をもう一度送るときは押さないでください。\n※SF の受診日が前回と同じままだと、分析シートは前回の行を使います（区分は分析シートで確かめてください）。')) return;
+            rebook = true;
+            refresh();
+          });
           send.addEventListener('click', async () => {
-            if (send.disabled || loading || peekFailed || reg.dup) return;
+            if (send.disabled || loading || peekFailed || (reg.dup && !rebook)) return;
             if (sexPick.style.display !== 'none' && !sexPicked) {
               result.className = 'result ng';
               result.textContent = '性別を選んでください（SFに未登録のため、選んだ性別をSFへ書き込みます）';
@@ -1239,6 +1206,7 @@ function regBox(reg, opt) {
               if (!pending) {
                 const rid = 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
                 pending = { api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp, rid };
+                if (rebook) pending.rebook = true;
               }
               localStorage.setItem(draftKey, JSON.stringify(pending));
               send.disabled = true;
@@ -1262,8 +1230,9 @@ function regBox(reg, opt) {
               if (!sent || (e.data && e.data.ok === false)) {
                 // A definite rejection allows editing; an uncertain delivery keeps the exact snapshot.
                 const draft = pending && Object.assign({}, pending);
-                if (draft) delete draft.rid;
+                if (draft) { delete draft.rid; delete draft.rebook; }   // b172 監査 major-1：断られた再予約の印は控えに残さない
                 pending = null;
+                if (rebook) { rebook = false; refresh(); }   // もう一度送るなら「🔁 再予約として登録」から確かめ直す
                 if (draft && sent) {
                   try { localStorage.setItem(draftKey, JSON.stringify(draft)); }
                   catch (storageFailure) { result.textContent += '\n' + storageFailure.message; }
@@ -1297,7 +1266,8 @@ function regBox(reg, opt) {
             /* b171e 監査 major-4：照会は「開いたときに呼ぶ関数」で受け取り、ここ（開いた1回目）で初めて呼ぶ＝描いただけでは送らない */
             new Promise(ok => ok(opt.peek())).then(r => {
               if (!r || !r.ok) throw new Error(r && r.msg || '');
-              Object.assign(reg, { sfp:r.sfp, name:r.name, apply:r.apply, sex:r.sex, dup:r.dup });
+              Object.assign(reg, { sfp:r.sfp, name:r.name, apply:r.apply, sex:r.sex, dup:r.dup, rebook:r.rebook === true });
+              if (!reg.rebook) rebook = false;   // b172：前回の受付が転記待ちに戻った等＝控えの再予約の印を捨てる
               loading = false;
               if (!saved) sex = reg.sex || '';
               refresh();
