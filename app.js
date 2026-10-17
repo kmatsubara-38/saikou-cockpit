@@ -996,6 +996,144 @@ function regDraftControls(reg) {
   return root;
 }
 
+/* ==== 📝b173／s68（2026-10-16 松原指示）初診・申し送り空欄（今日以降）＝一覧→🤖自動生成→直す→送信（SF へ）。
+ *   PC の「今日の申し送り」上部と同じ実体（{api:'moushiBlank'}／{api:'moushiGen'}／{api:'moushiSend'}）。
+ *   🔴書きかけ（中身のある textarea）があるときは読み直さない。送信は確認つき・1回だけ（押している間と送れた後は押せない）。
+ *   🔴送れたときは、その行を一覧から消す（鏡は次の更新で追いつく）。r2：すでに書かれていた（filled）ときは本文を残して送信だけ止める。
+ *   🔴r2：直した本文があるときの🤖押し直しは確認してから／承認待ちの下書きを出したときは、その ts（pendTs）を送信に添える。 */
+function msbWriting(host) {
+  return [...host.querySelectorAll('textarea')].some(t => String(t.value || '').trim());
+}
+async function msbLoad(force) {
+  const host = $('msbHost');
+  if (!host) return;
+  if (msbWriting(host)) return;
+  if (force || !host.firstChild) host.replaceChildren(pnd('div', 'muted', '📝 初診・申し送り空欄を読込中…'));
+  try {
+    const r = await api({ api: 'moushiBlank' });
+    if (msbWriting(host)) return;
+    host.replaceChildren(msbCard(r));
+  } catch (e) {
+    if (msbWriting(host)) return;
+    host.replaceChildren(pnd('div', 'muted', '📝 初診・申し送り空欄を読み込めませんでした：' + e.message));
+  }
+}
+function msbCard(r) {
+  const c = pnd('div', 'psec');
+  const rows = (r && r.rows) || [];
+  const h = pnd('div', 'psh', '📝 初診・申し送り空欄（今日以降）');
+  const cnt = pnd('span', 'plc');
+  const setCnt = () => { cnt.textContent = '　' + rows.length + '名　' + ((r && r.at) || ''); };
+  setCnt();
+  h.appendChild(cnt);
+  const rb = pnd('button', 'pmini', '↻');
+  rb.type = 'button';
+  rb.setAttribute('aria-label', '取り直す');
+  rb.addEventListener('click', () => {
+    const host = $('msbHost');
+    if (host && msbWriting(host)) { cnt.textContent = '　書きかけがあるので読み直していません（「やめる」のあとで）'; return; }
+    msbLoad(true);
+  });
+  h.appendChild(rb);
+  c.appendChild(h);
+  if (r && r.msg) c.appendChild(pnd('div', 'muted', r.msg));
+  if (!rows.length) { c.appendChild(pnd('div', 'muted', '申し送りが空欄の初診の方はいません')); return c; }
+  rows.slice().forEach(x => c.appendChild(msbRow(x, () => {
+    const i = rows.indexOf(x);
+    if (i >= 0) rows.splice(i, 1);
+    setCnt();
+  })));
+  return c;
+}
+function msbRow(x, onGone) {
+  const c = pnd('div', 'pcard');
+  const hh = pnd('h4');
+  hh.appendChild(document.createTextNode((x.first || '—') + '　' + (x.name || '')));
+  if (x.kubun) hh.appendChild(pnd('span', 'ppill' + (x.kubun === 'PJT' ? ' ok' : ''), x.kubun));
+  if (x.pending) hh.appendChild(pnd('span', 'ppill', '承認待ちあり'));
+  c.appendChild(hh);
+  if (x.salon) c.appendChild(pnd('div', 'pmeta', '紹介元 ' + x.salon));
+  const gen = pnd('button', 'pmini', '🤖 自動生成');
+  gen.type = 'button';
+  const ed = pnd('div', 'edit-form');
+  ed.style.display = 'none';
+  const body = pnd('textarea');
+  body.rows = 10;
+  body.setAttribute('aria-label', '申し送り from 法人営業');
+  const note = pnd('div', 'edit-note');
+  const acts = pnd('div', 'edit-actions');
+  const send = pnd('button', 'btn btn-primary', '送信（SF へ）');
+  send.type = 'button';
+  const stop = pnd('button', 'btn', 'やめる');
+  stop.type = 'button';
+  const res = pnd('div', 'result');
+  res.setAttribute('role', 'status');
+  /* 🔴r2：made＝出した下書き（直したかの判定・監査 minor-2）／pendTs＝承認待ちの下書きを出したときの ts（送ると、その1件だけを外す・major-3／4） */
+  let busy = false, done = false, made = '', pendTs = '';
+  const status = (t, ng) => { res.className = 'result' + (ng ? ' ng' : ''); res.textContent = t; };
+  const gone = (ms) => setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); onGone(); }, ms);
+  gen.addEventListener('click', async () => {
+    if (busy || done) return;
+    if (body.value.trim() && body.value !== made && !window.confirm('直した本文を捨てて、新しく作り直しますか？')) return;
+    busy = true;
+    gen.disabled = true;
+    gen.textContent = '生成中…（材料を読んで10〜30秒）';
+    status('', false);
+    try {
+      const r = await api({ api: 'moushiGen', id: x.id });
+      made = body.value = String(r.text || '');
+      pendTs = String(r.pendTs || '');
+      note.textContent = String(r.msg || '');
+      ed.style.display = '';
+    } catch (e) {
+      status(e.message, true);
+    } finally {
+      busy = false;
+      gen.disabled = done;
+      gen.textContent = '🤖 自動生成';
+    }
+  });
+  stop.addEventListener('click', () => {
+    if (busy) return;
+    body.value = made = pendTs = '';
+    ed.style.display = 'none';
+    status('', false);
+  });
+  send.addEventListener('click', async () => {
+    if (busy || done) return;
+    const text = body.value.trim();
+    if (!text) { body.focus(); return; }
+    if (!window.confirm('「' + (x.name || '') + '」様の申し送りを Salesforce へ送ります。よろしいですか？\n（送ると申し送りシート・診療チームに出ます。ここからは取り消せません）')) return;
+    busy = true;
+    send.disabled = true;
+    gen.disabled = true;
+    status('送信中…', false);
+    try {
+      const r = await api({ api: 'moushiSend', id: x.id, text, pendTs });
+      done = true;
+      body.value = '';
+      status(r.msg || '送りました', false);
+      gone(1500);
+    } catch (e) {
+      /* 🔴r2（監査 minor-3）：すでに書かれていた（filled）ときは送信だけ止め、直した本文は残す（行も消さない） */
+      if (e.data && e.data.filled) { done = true; send.textContent = '送れません'; status(e.message, true); }
+      else status(e.message, true);
+    } finally {
+      busy = false;
+      if (!done) { send.disabled = false; gen.disabled = false; }
+    }
+  });
+  acts.appendChild(send);
+  acts.appendChild(stop);
+  ed.appendChild(body);
+  ed.appendChild(note);
+  ed.appendChild(acts);
+  c.appendChild(gen);
+  c.appendChild(ed);
+  c.appendChild(res);
+  return c;
+}
+
 function pnd(t, c, x) {
   const e = document.createElement(t);
   if (c) e.className = c;
@@ -1690,6 +1828,7 @@ function plPartnerRow(it) {
 async function plLoad(kind) {
   const host = $('pl' + kind + 'R');
   if (!host) return;
+  if (kind === 'Patient') msbLoad(false);   // 📝b173／s68：患者様リストの上に「初診・申し送り空欄」（書きかけ中は読み直さない）
   const n = parseInt($('pl' + kind + 'N').value, 10) || 50;
   const ord = $('pl' + kind + 'O').value;
   host.textContent = '読込中…';
