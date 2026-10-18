@@ -212,7 +212,7 @@ main{padding:8px 16px 16px;max-width:640px;margin:0 auto}
 .btn-punch{padding:22px;font-size:17px;border-radius:var(--radius);background:var(--accent-fill);color:var(--bg)}
 .btn-out{background:var(--ink);color:var(--bg)}
 .field-label{display:block;font-size:12px;font-weight:600;color:var(--sub);margin:10px 0 6px}
-textarea,input[type=password],input[type=url],input[type=text],input[type=date]{width:100%;border:1px solid var(--line);border-radius:var(--radius);padding:12px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink);resize:vertical}
+textarea,input[type=password],input[type=url],input[type=text],input[type=date],input:not([type]),input[type=number]{width:100%;border:1px solid var(--line);border-radius:var(--radius);padding:12px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink);resize:vertical}
 .check{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:10px}
 .result{font-size:13px;margin-top:10px;white-space:pre-wrap}
 .result.ok{color:var(--ok)}
@@ -245,7 +245,7 @@ textarea,input[type=password],input[type=url],input[type=text],input[type=date]{
 .setup-adv input{margin-top:8px}
 
 /* ===== 2026-07-23 パリティ拡張（月セレクタ/チップ/下書き/リール/スケルトン） ===== */
-select,input[type=date],input[type=text]{width:100%;border:1px solid var(--line);border-radius:var(--radius);padding:12px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink);-webkit-appearance:none;appearance:none}
+select,input[type=date],input[type=text],input:not([type]),input[type=number]{width:100%;border:1px solid var(--line);border-radius:var(--radius);padding:12px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink);-webkit-appearance:none;appearance:none}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 
 /* month selector */
