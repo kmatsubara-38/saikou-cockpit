@@ -996,8 +996,9 @@ function regDraftControls(reg) {
   return root;
 }
 
-/* ==== 📝b173／s68（2026-10-16 松原指示）初診・申し送り空欄（今日以降）＝一覧→🤖自動生成→直す→送信（SF へ）。
- *   PC の「今日の申し送り」上部と同じ実体（{api:'moushiBlank'}／{api:'moushiGen'}／{api:'moushiSend'}）。
+/* ==== 📝b173／s68（2026-10-16 松原指示）初診・申し送り空欄（今日以降）＝一覧→直す→送信（SF へ）。
+ *   🆕b174／s69（2026-10-17 松原指示）：🤖自動生成を撤去→行ごとの開閉（▾）→承認待ちの下書き（{api:'moushiOpen'}＝Gemini を呼ばない・無ければ空の型）→「承認（SF送信）」。
+ *   PC の「今日の申し送り」上部と同じ実体（{api:'moushiBlank'}／{api:'moushiOpen'}／{api:'moushiSend'}）。
  *   🔴書きかけ（中身のある textarea）があるときは読み直さない。送信は確認つき・1回だけ（押している間と送れた後は押せない）。
  *   🔴送れたときは、その行を一覧から消す（鏡は次の更新で追いつく）。r2：すでに書かれていた（filled）ときは本文を残して送信だけ止める。
  *   🔴r2：直した本文があるときの🤖押し直しは確認してから／承認待ちの下書きを出したときは、その ts（pendTs）を送信に添える。 */
@@ -1053,8 +1054,13 @@ function msbRow(x, onGone) {
   if (x.pending) hh.appendChild(pnd('span', 'ppill', '承認待ちあり'));
   c.appendChild(hh);
   if (x.salon) c.appendChild(pnd('div', 'pmeta', '紹介元 ' + x.salon));
-  const gen = pnd('button', 'pmini', '🤖 自動生成');
-  gen.type = 'button';
+  /* 🆕s69：開閉＝既存の ▾（.accv・閉じているときは -90°＝tkChev と同じ回し方）。開いても Gemini は呼ばない */
+  const tg = pnd('button', 'pmini', '申し送りを開く ');
+  tg.type = 'button';
+  tg.setAttribute('aria-expanded', 'false');
+  const chev = pnd('span', 'accv', '▾');
+  chev.style.transform = 'rotate(-90deg)';
+  tg.appendChild(chev);
   const ed = pnd('div', 'edit-form');
   ed.style.display = 'none';
   const body = pnd('textarea');
@@ -1062,42 +1068,41 @@ function msbRow(x, onGone) {
   body.setAttribute('aria-label', '申し送り from 法人営業');
   const note = pnd('div', 'edit-note');
   const acts = pnd('div', 'edit-actions');
-  const send = pnd('button', 'btn btn-primary', '送信（SF へ）');
+  const send = pnd('button', 'btn btn-primary', '承認（SF送信）');
   send.type = 'button';
-  const stop = pnd('button', 'btn', 'やめる');
-  stop.type = 'button';
   const res = pnd('div', 'result');
   res.setAttribute('role', 'status');
-  /* 🔴r2：made＝出した下書き（直したかの判定・監査 minor-2）／pendTs＝承認待ちの下書きを出したときの ts（送ると、その1件だけを外す・major-3／4） */
+  /* made＝出した下書き（直したかの判定）／pendTs＝承認待ちの下書きを出したときの ts（送ると、その1件だけを外す・b173 r2） */
   let busy = false, done = false, made = '', pendTs = '';
   const status = (t, ng) => { res.className = 'result' + (ng ? ' ng' : ''); res.textContent = t; };
   const gone = (ms) => setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); onGone(); }, ms);
-  gen.addEventListener('click', async () => {
+  const shut = () => { body.value = made = pendTs = ''; ed.style.display = 'none'; chev.style.transform = 'rotate(-90deg)'; tg.setAttribute('aria-expanded', 'false'); status('', false); };
+  tg.addEventListener('click', async () => {
     if (busy || done) return;
-    if (body.value.trim() && body.value !== made && !window.confirm('直した本文を捨てて、新しく作り直しますか？')) return;
+    if (ed.style.display !== 'none') {
+      if (body.value.trim() && body.value !== made && !window.confirm('直した本文を捨てて閉じますか？')) return;
+      shut();
+      return;
+    }
     busy = true;
-    gen.disabled = true;
-    gen.textContent = '生成中…（材料を読んで10〜30秒）';
-    status('', false);
+    tg.disabled = true;
+    status('読込中…', false);
     try {
-      const r = await api({ api: 'moushiGen', id: x.id });
+      const r = await api({ api: 'moushiOpen', id: x.id });
       made = body.value = String(r.text || '');
       pendTs = String(r.pendTs || '');
       note.textContent = String(r.msg || '');
+      note.style.color = r.bad ? 'var(--warn)' : '';
       ed.style.display = '';
+      chev.style.transform = '';
+      tg.setAttribute('aria-expanded', 'true');
+      status('', false);
     } catch (e) {
       status(e.message, true);
     } finally {
       busy = false;
-      gen.disabled = done;
-      gen.textContent = '🤖 自動生成';
+      tg.disabled = done;
     }
-  });
-  stop.addEventListener('click', () => {
-    if (busy) return;
-    body.value = made = pendTs = '';
-    ed.style.display = 'none';
-    status('', false);
   });
   send.addEventListener('click', async () => {
     if (busy || done) return;
@@ -1106,7 +1111,7 @@ function msbRow(x, onGone) {
     if (!window.confirm('「' + (x.name || '') + '」様の申し送りを Salesforce へ送ります。よろしいですか？\n（送ると申し送りシート・診療チームに出ます。ここからは取り消せません）')) return;
     busy = true;
     send.disabled = true;
-    gen.disabled = true;
+    tg.disabled = true;
     status('送信中…', false);
     try {
       const r = await api({ api: 'moushiSend', id: x.id, text, pendTs });
@@ -1115,20 +1120,19 @@ function msbRow(x, onGone) {
       status(r.msg || '送りました', false);
       gone(1500);
     } catch (e) {
-      /* 🔴r2（監査 minor-3）：すでに書かれていた（filled）ときは送信だけ止め、直した本文は残す（行も消さない） */
+      /* 🔴b173 r2（監査 minor-3）：すでに書かれていた（filled）ときは承認だけ止め、直した本文は残す（行も消さない） */
       if (e.data && e.data.filled) { done = true; send.textContent = '送れません'; status(e.message, true); }
       else status(e.message, true);
     } finally {
       busy = false;
-      if (!done) { send.disabled = false; gen.disabled = false; }
+      if (!done) { send.disabled = false; tg.disabled = false; }
     }
   });
   acts.appendChild(send);
-  acts.appendChild(stop);
   ed.appendChild(body);
   ed.appendChild(note);
   ed.appendChild(acts);
-  c.appendChild(gen);
+  c.appendChild(tg);
   c.appendChild(ed);
   c.appendChild(res);
   return c;
@@ -3874,727 +3878,4 @@ document.addEventListener('DOMContentLoaded', () => {
   tkLoad4(false);
 });
 
-/* b157 R14_slack_pwa Codex gpt-6-astra */
-/* R12_slack_pwa: page-local DOM and state; existing API and views are unchanged. */
-(function () {
-  const view = $('view-slack');
-  let host;
-  const tab = document.querySelector('.tab[data-view="slack"]');
-  if (!view || !tab) return;
-  const EM = {thumbsup:'👍', '+1':'👍', pray:'🙏', tada:'🎉', eyes:'👀',
-    white_check_mark:'✅', heavy_check_mark:'✔️', joy:'😂', heart:'❤️', bow:'🙇',
-    ok_hand:'👌', clap:'👏', smile:'😄', sweat_smile:'😅', fire:'🔥', '100':'💯',
-    raised_hands:'🙌', muscle:'💪', sparkles:'✨', warning:'⚠️', x:'❌',
-    question:'❓', exclamation:'❗', memo:'📝', calendar:'📅', star:'⭐',
-    sob:'😭', thinking_face:'🤔', relaxed:'☺️'};
-  const QUICK = ['+1','pray','tada','eyes','white_check_mark','joy','heart','bow'];
-  const S = {home:null, loading:null, users:null, usersJob:null, names:new Map(),
-    drafts:new Map(), seq:0, urls:new Set(), channel:null, mode:'home',
-    emojiJob:null, emojiLabels:new Map(), sheet:null, muting:new Set()};
-  const BASE = {boxSizing:'border-box', minWidth:'0', maxWidth:'100%', color:'var(--ink)',
-    fontSize:'17px', lineHeight:'1.5', overflowWrap:'anywhere', textTransform:'none',
-    animation:'none', transition:'none', transform:'none', opacity:'1'};
-  function el(tag, text, style, cls) {
-    const n = pnd(tag, cls || '', text);
-    Object.assign(n.style, BASE, style || {});
-    return n;
-  }
-  function button(text, fn, small) {
-    const b = el('button', text, {minHeight:'44px', minWidth:'44px', padding:'8px',
-      margin:'0', fontSize:small ? '13px' : '17px', whiteSpace:'normal',
-      background:'var(--card)', color:'var(--ink)', borderColor:'var(--accent)',
-      flex:'0 1 auto'}, 'btn');
-    b.type = 'button';
-    b.addEventListener('click', fn);
-    return b;
-  }
-  function row() { return el('div', null, {display:'flex', flexWrap:'wrap', gap:'8px', alignItems:'center'}); }
-  function input(type, name) {
-    const n = el('input', null, {width:'100%', minHeight:'44px', padding:'8px',
-      background:'var(--bg)', color:'var(--ink)', border:'1px solid var(--accent)'});
-    n.type = type; n.setAttribute('aria-label', name); return n;
-  }
-  function note(text) { return el('div', text, {fontSize:'13px'}); }
-  function report(e, where) {
-    const msg = String(e && e.message || e || '');
-    if (where) { where.textContent = msg; where.setAttribute('role', 'alert'); }
-    showErr(msg);
-  }
-  function busy(b, on) { b.disabled = on; b.setAttribute('aria-busy', String(on)); }
-  function plainName(n) { return n && !/^[UWBCDG][A-Z0-9]{7,}$/.test(String(n)) ? String(n) : '表示名'; }
-  function chName(id) { const c = (S.home && S.home.chans || []).find(x => x.id === id); return plainName(c && c.name); }
-  function icon(k) { return {ch:'#', priv:'🔒', mpim:'👥', dm:'💬'}[k] || '#'; }
-  function remember(msgs) { (msgs || []).forEach(m => { if (m.user && m.name) S.names.set(m.user, plainName(m.name)); }); }
-  function stamp(ts) {
-    const d = new Date(Number(ts) * 1000);
-    if (!Number.isFinite(d.getTime())) return '';
-    return (d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
-  }
-  function safeURL(raw) {
-    try { const u = new URL(raw); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch (_) { return ''; }
-  }
-  function link(parent, raw, label) {
-    const href = safeURL(raw); if (!href) { parent.appendChild(document.createTextNode(label || raw)); return; }
-    const a = el('a', label || raw, {color:'var(--accent)', display:'inline-block', minHeight:'44px',
-      padding:'8px 0', verticalAlign:'middle'}); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    parent.appendChild(a);
-  }
-  function rich(parent, value) {
-    const text = String(value || '');
-    const re = /<@([A-Z0-9]+)(?:\|([^>]+))?>|<#([A-Z0-9]+)(?:\|([^>]+))?>|<!(channel|here)>|<!subteam\^[^>|]+(?:\|([^>]+))?>|<(https?:\/\/[^>|]+)(?:\|([^>]+))?>|https?:\/\/[^\s<>]+|:([A-Za-z0-9_+-]+):/g;
-    let pos = 0, m;
-    const decode = s => s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
-    while ((m = re.exec(text))) {
-      parent.appendChild(document.createTextNode(decode(text.slice(pos, m.index))));
-      if (m[1]) parent.appendChild(document.createTextNode('@'+plainName(S.names.get(m[1]) || m[2])));
-      else if (m[3]) parent.appendChild(document.createTextNode('#'+plainName(m[4] || chName(m[3]))));
-      else if (m[5]) parent.appendChild(document.createTextNode('@'+m[5]));
-      else if (m[0].startsWith('<!subteam')) parent.appendChild(document.createTextNode(m[6] || '@表示名'));
-      else if (m[7]) link(parent, decode(m[7]), decode(m[8] || m[7]));
-      else if (/^https?:/.test(m[0])) link(parent, decode(m[0]));
-      else parent.appendChild(document.createTextNode(EM[m[9]] || m[0]));
-      pos = re.lastIndex;
-    }
-    parent.appendChild(document.createTextNode(decode(text.slice(pos))));
-  }
-  function body(text) { const d = el('div', null, {whiteSpace:'pre-wrap'}); rich(d, text); return d; }
-  function readLocal(key, fallback) {
-    try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; }
-    catch (_) { return fallback; }
-  }
-  function saveLocal(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); }
-    catch (e) { report(e); }
-  }
-  function validEmoji(value) {
-    return value && value.ok !== false && value.ver != null && Array.isArray(value.cats) &&
-      value.cats.every(c => c && typeof c.id === 'string' && typeof c.label === 'string' &&
-        Array.isArray(c.list) && c.list.every(p => Array.isArray(p) && p.length >= 2 &&
-          typeof p[0] === 'string' && /^[A-Za-z0-9_+-]+$/.test(p[0]) && typeof p[1] === 'string'));
-  }
-  let emojiData = readLocal('cpSkEmoji', null);
-  if (!validEmoji(emojiData)) emojiData = null;
-  const emojiNames = new Map();
-  function learnEmoji() {
-    emojiNames.clear();
-    if (emojiData) emojiData.cats.forEach(c => c.list.forEach(p => emojiNames.set(p[0],p[1])));
-    S.emojiLabels.forEach((v,n) => {
-      if (n.isConnected) n.textContent = emoji(v.name)+' '+v.count;
-      else S.emojiLabels.delete(n);
-    });
-  }
-  function emoji(name) { return emojiNames.get(name) || (Object.prototype.hasOwnProperty.call(EM,name) && EM[name]) || ':'+name+':'; }
-  learnEmoji();
-  function loadEmoji() {
-    if (!S.emojiJob) S.emojiJob = (async () => {
-      try {
-        const r = await api({api:'slackEmoji'});
-        if (validEmoji(r)) {
-          emojiData = {ver:r.ver,cats:r.cats};
-          learnEmoji();
-          saveLocal('cpSkEmoji',emojiData);
-        }
-      } catch (_) { /* Keep the cached catalog or the built-in fallback. */ }
-      return emojiData;
-    })();
-    return S.emojiJob;
-  }
-  function recentEmoji() {
-    const value = readLocal('cpSkEmoRecent',[]);
-    return Array.isArray(value) ? Array.from(new Set(value.filter(n => typeof n === 'string' && /^[A-Za-z0-9_+-]+$/.test(n)))).slice(0,16) : [];
-  }
-  function rememberEmoji(name) {
-    saveLocal('cpSkEmoRecent',[name].concat(recentEmoji().filter(n => n !== name)).slice(0,16));
-  }
-  function closeEmoji() { if (S.sheet) S.sheet(); }
-  function emojiPicker(select, trigger) {
-    closeEmoji();
-    const sheet = el('dialog',null,{position:'fixed',inset:'auto 0 0',margin:'0',
-      width:'100%',height:'60vh',maxHeight:'60dvh',padding:'12px',
-      display:'flex',flexDirection:'column',gap:'8px',overflow:'hidden',
-      background:'var(--card)',border:'1px solid var(--line)'});
-    sheet.setAttribute('aria-label','リアクション');
-    const top = row(), search = input('search','検索');
-    search.placeholder = '検索'; search.style.flex = '1 1 0'; search.style.width = '0';
-    const list = el('div',null,{overflowY:'auto',minHeight:'0',flex:'1 1 auto',overscrollBehavior:'contain'});
-    let closed = false;
-    function close() {
-      if (closed) return;
-      closed = true;
-      if (sheet.open && typeof sheet.close === 'function') sheet.close();
-      sheet.remove();
-      if (S.sheet === close) S.sheet = null;
-      trigger.setAttribute('aria-expanded','false');
-      if (trigger.isConnected) trigger.focus();
-    }
-    function choose(name) { close(); select(name); }
-    top.append(search,button('閉じる',close,true));
-    sheet.append(top,list);
-    function draw() {
-      if (closed) return;
-      list.replaceChildren();
-      const query = search.value.trim().replace(/^:|:$/g,'').toLocaleLowerCase();
-      function category(label, pairs) {
-        const matches = pairs.filter(p => !query || p[0].toLocaleLowerCase().includes(query) || p[1].includes(query));
-        if (!matches.length) return;
-        list.appendChild(el('h3',label,{fontSize:'17px',margin:'8px 0'}));
-        const buttons = row();
-        matches.forEach(p => {
-          const b = button(p[1],()=>choose(p[0]));
-          Object.assign(b.style,{minWidth:'44px',minHeight:'44px',flex:'0 0 auto'});
-          b.setAttribute('aria-label',p[0]); b.title = p[0]; buttons.appendChild(b);
-        });
-        list.appendChild(buttons);
-      }
-      category('よく使う',Array.from(new Set(QUICK.concat(recentEmoji()))).map(n => [n,emoji(n)]));
-      if (emojiData) emojiData.cats.forEach(c => category(c.label,c.list));
-      else category('リアクション',Object.keys(EM).map(n => [n,EM[n]]));
-    }
-    search.addEventListener('input',draw);
-    search.addEventListener('keydown',e => {
-      if (e.key !== 'Enter' || e.isComposing) return;
-      const name = search.value.trim().replace(/^:|:$/g,'');
-      if (/^[A-Za-z0-9_+-]+$/.test(name)) { e.preventDefault(); choose(name); }
-    });
-    sheet.addEventListener('cancel',e => { e.preventDefault(); close(); });
-    sheet.addEventListener('close',close);
-    document.body.appendChild(sheet);
-    S.sheet = close; trigger.setAttribute('aria-expanded','true');
-    sheet.showModal(); draw(); search.focus();
-    loadEmoji().then(draw);
-  }
-  function stars() {
-    const value = readLocal('cpSkStar',[]);
-    return Array.isArray(value) ? Array.from(new Set(value.filter(id => typeof id === 'string'))) : [];
-  }
-  function starButton(ch) {
-    const b = button('',() => {
-      const ids = stars(), on = ids.includes(ch);
-      saveLocal('cpSkStar',on ? ids.filter(id => id !== ch) : ids.concat(ch));
-      draw();
-    });
-    function draw() {
-      const on = stars().includes(ch);
-      b.textContent = on ? '⭐' : '☆';
-      b.setAttribute('aria-label','⭐ スター付き');
-      b.setAttribute('aria-pressed',String(on));
-    }
-    draw(); return b;
-  }
-  function clearPage(mode) {
-    closeEmoji(); S.emojiLabels.clear();
-    S.seq++; S.mode = mode;
-    S.urls.forEach(u => URL.revokeObjectURL(u)); S.urls.clear();
-    host = el('div',null,null,'card');
-    view.replaceChildren(el('h2','💬 Slack',null,'sec-title'),host);
-    return S.seq;
-  }
-  function title(text) { return el('h2', text, {fontSize:'20px', margin:'8px 0'}); }
-  function back(fn) { host.appendChild(button('← 一覧へ', fn || renderHome)); }
-  function marks() {
-    try {
-      const value = JSON.parse(localStorage.getItem('cpSkMarks') || '{}');
-      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    } catch (_) { return {}; }
-  }
-  function storeMarks(value) { localStorage.setItem('cpSkMarks', JSON.stringify(value)); }
-  function markRows(value) { return Array.isArray(value) ? value : value ? [value] : []; }
-  function hasMark(key) { return markRows(marks()[key]).some(m => !m.at || Number(m.at)*1000 > Date.now()); }
-  function addMark(key, r, at) {
-    const m = marks();
-    m[key] = markRows(m[key]).concat({id:r.id, at:r.postAt || at});
-    storeMarks(m);
-  }
-  function syncMarks(rows) {
-    const m = marks(), ids = new Set(rows.map(r => r.id));
-    Object.keys(m).forEach(k => { m[k] = markRows(m[k]).filter(r => ids.has(r.id)); if (!m[k].length) delete m[k]; });
-    storeMarks(m);
-  }
-  function removeMark(id) {
-    const m = marks();
-    Object.keys(m).forEach(k => { m[k] = markRows(m[k]).filter(r => r.id !== id); if (!m[k].length) delete m[k]; });
-    storeMarks(m);
-  }
-  function drawChannels(parent, search) {
-    parent.replaceChildren();
-    const q = search.toLocaleLowerCase(), starred = new Set(stars());
-    const value = readLocal('cpSkFold',{});
-    const fold = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    const chans = (S.home && S.home.chans || []).filter(c => !q || plainName(c.name).toLocaleLowerCase().includes(q));
-    function group(key,label,items) {
-      const heading = el('h3',null,{fontSize:'17px',margin:'8px 0'});
-      const list = el('div');
-      const toggle = button(label,() => {
-        const current = readLocal('cpSkFold',{});
-        const next = current && typeof current === 'object' && !Array.isArray(current) ? current : {};
-        fold[key] = !fold[key]; next[key] = fold[key];
-        saveLocal('cpSkFold',next); update();
-      });
-      toggle.style.width = '100%'; toggle.style.textAlign = 'left';
-      function update() {
-        list.hidden = !!fold[key];
-        toggle.setAttribute('aria-expanded',String(!fold[key]));
-      }
-      heading.appendChild(toggle); parent.append(heading,list); update();
-      items.forEach(c => {
-        const b = button('', () => openChannel(c.id));
-        Object.assign(b.style, {display:'flex', alignItems:'center', justifyContent:'space-between',
-          gap:'8px', textAlign:'left', width:'100%', border:'0', borderRadius:'0',
-          borderBottom:'1px solid var(--line)', padding:'12px 8px'});
-        b.appendChild(el('span', icon(c.kind)+' '+plainName(c.name), {flex:'1'}));
-        if (Number(c.unrep)>0) b.appendChild(note('要返信 '+Number(c.unrep)));
-        list.appendChild(b);
-      });
-    }
-    const favorites = chans.filter(c => starred.has(c.id));
-    if (favorites.length) group('star','⭐ スター付き',favorites);
-    group('ch','チャンネル',chans.filter(c => !starred.has(c.id) && (c.kind === 'ch' || c.kind === 'priv')));
-    group('dm','ダイレクトメッセージ',chans.filter(c => !starred.has(c.id) && (c.kind === 'dm' || c.kind === 'mpim')));
-  }
-  function renderHome() {
-    clearPage('home');
-    const bar = row();
-    bar.appendChild(button('🔔 要返信 '+(S.home && S.home.unrep || []).length+'件', renderUnrep));
-    const reload = button('↻', () => loadHomeSlack(true));
-    reload.setAttribute('aria-label','↻'); busy(reload, !!S.loading);
-    bar.appendChild(reload); bar.appendChild(button('🕒 予約済み', renderScheduled));
-    host.appendChild(bar);
-    if (S.home && S.home.unrepNote) host.appendChild(note(S.home.unrepNote));
-    const search = input('search','検索'); search.placeholder = '検索';
-    host.appendChild(search);
-    const list = el('div'); host.appendChild(list);
-    if (S.home) drawChannels(list, '');
-    else list.appendChild(note('読み込み中…'));
-    search.addEventListener('input', () => drawChannels(list, search.value));
-  }
-  async function loadHomeSlack(force) {
-    if (S.loading) return S.loading;
-    renderHome();
-    const token = S.seq;
-    S.loading = (async () => {
-      try {
-        const r = await api({api:'slackHome', force:!!force});
-        S.home = r;
-        if (r.me && typeof r.me === 'object' && r.me.id) S.names.set(r.me.id, plainName(r.me.name || r.me.n));
-      } catch (e) { report(e); }
-      finally {
-        S.loading = null;
-        if (S.seq === token) {
-          renderHome();
-          if (!S.home) {
-            host.lastChild.replaceChildren();
-            host.lastChild.appendChild(button('↻', () => loadHomeSlack(true)));
-          }
-        }
-      }
-    })();
-    return S.loading;
-  }
-  function renderUnrep() {
-    clearPage('unrep'); back();
-    host.appendChild(title('🔔 要返信 '+(S.home && S.home.unrep || []).length+'件'));
-    if (S.home && S.home.unrepNote) host.appendChild(note(S.home.unrepNote));   // 🆕b169d 監査 major-1：いつの数字か・止まっていないか
-    (S.home && S.home.unrep || []).forEach(u => {
-      const d = el('article', null, {padding:'12px 0', borderBottom:'1px solid var(--line)'});
-      d.appendChild(el('strong', plainName(u.who)));
-      d.appendChild(note(icon(u.kind)+' '+plainName(u.chName || chName(u.ch))+' · '+Number(u.days || 0)+'日前'));
-      d.appendChild(body(u.text));
-      d.appendChild(button('スレッドを開く', () => openThread(u.ch, u.root || u.ts, renderUnrep)));
-      const ch = u.ch, root = u.root || u.ts, key = ch + ':' + root;
-      const mute = button('🔕 解決',async () => {
-        if (S.muting.has(key)) return;
-        S.muting.add(key); busy(mute,true);
-        let resolved = false;
-        try {
-          const r = await api({api:'slackMute', chts: ch + ':' + root});
-          if (!r || !r.ok) throw new Error(r && r.msg || '🔕 解決');
-          showUndo(r.msg || '🔕 解決しました', r.undo, () => loadHomeSlack(true));   /* b170b 監査 major-2：押し間違いを元に戻せる（サーバの undo の切符を使う） */
-          try { const eb = $('errBox'); if (eb) eb.scrollIntoView({block:'nearest'}); } catch (eS) {}   /* b170c 監査 minor-7：「元に戻す」を画面の外に出さない */
-          if (S.home) {
-            const before = S.home.unrep || [];
-            S.home.unrep = before.filter(item => item.ch !== ch || (item.root || item.ts) !== root);
-            const channel = (S.home.chans || []).find(c => c.id === ch);
-            if (channel) channel.unrep = Math.max(0,Number(channel.unrep || 0)-(before.length-S.home.unrep.length));
-          }
-          resolved = true;
-        } catch (e) { report(e); }
-        finally {
-          S.muting.delete(key); busy(mute,false);
-          if (resolved && S.mode === 'unrep') renderUnrep();
-          else if (resolved && S.mode === 'home') renderHome();
-        }
-      },true);
-      busy(mute,S.muting.has(key)); d.appendChild(mute);
-      host.appendChild(d);
-    });
-  }
-  async function renderScheduled() {
-    const token = clearPage('scheduled'); back(); host.appendChild(title('🕒 予約済み'));
-    const panel = el('div','読み込み中…'); host.appendChild(panel);
-    try {
-      const r = await api({api:'slackScheduled'});
-      try { syncMarks(r.rows || []); } catch(e) { report(e); }
-      if (token !== S.seq) return;
-      panel.replaceChildren();
-      (r.rows || []).forEach(item => {
-        const article = el('article', null, {padding:'12px 0', borderBottom:'1px solid var(--line)'});
-        article.appendChild(el('strong',chName(item.ch)));
-        article.appendChild(note(item.when || stamp(item.at))); article.appendChild(body(item.text));
-        const cancel = button('送信予約を取り消す', async () => {
-          if (!window.confirm(chName(item.ch)+' · '+(item.when || stamp(item.at))+'\n送信予約を取り消す')) return;
-          busy(cancel,true);
-          try {
-            await api({api:'slackScheduleCancel', ch:item.ch, id:item.id});
-            article.remove();
-            try { removeMark(item.id); } catch(e) { report(e); }
-          } catch(e) { report(e); busy(cancel,false); }
-        });
-        article.appendChild(cancel); panel.appendChild(article);
-      });
-      if (!(r.rows || []).length) panel.appendChild(note('🕒 予約済み 0件'));
-    } catch(e) {
-      if (token !== S.seq) return;
-      panel.replaceChildren(); report(e,panel);
-      panel.appendChild(button('↻',renderScheduled));
-    }
-  }
-  function sorted(msgs) {
-    const m = new Map(); (msgs || []).forEach(x => m.set(x.ts,x));
-    return Array.from(m.values()).sort((a,b) => Number(b.ts)-Number(a.ts));
-  }
-  async function openChannel(ch) {
-    const token = clearPage('channel'); back();
-    const heading = row(); heading.append(title(chName(ch)),starButton(ch)); host.appendChild(heading);
-    const panel = el('div','読み込み中…'); host.appendChild(panel);
-    try {
-      const r = await api({api:'slackChannel', ch, cursor:''});
-      if (token !== S.seq) return;
-      S.channel = {ch, msgs:sorted(r.msgs), more:r.more, next:r.next, reading:false};
-      drawChannel(token, panel);
-    } catch(e) { if (token === S.seq) { panel.replaceChildren(); report(e,panel); panel.appendChild(button('↻',()=>openChannel(ch))); } }
-  }
-  function drawChannel(token, panel) {
-    panel.replaceChildren();
-    const page = S.channel;
-    panel.appendChild(composer(page.ch,'','', () => openChannel(page.ch)));
-    const list = el('div'); panel.appendChild(list);
-    function drawMessages() {
-      remember(page.msgs); list.replaceChildren();
-      page.msgs.forEach(m => list.appendChild(message(page.ch,m,()=>openThread(page.ch,m.root || m.ts,()=>openChannel(page.ch)))));
-    }
-    const older = button('さらに前を読む', async () => {
-      if (page.reading || !page.more) return;
-      page.reading = true; busy(older,true);
-      const cursor = page.next;
-      try {
-        const r = await api({api:'slackChannel', ch:page.ch, cursor});
-        if (token !== S.seq) return;
-        page.msgs = sorted((r.msgs || []).concat(page.msgs));
-        page.next = r.next; page.more = !!r.more && !!r.next && r.next !== cursor;
-        drawMessages();
-        if (!page.more) older.remove();
-      } catch(e) { if (token === S.seq) report(e); }
-      finally { page.reading=false; busy(older,false); }
-    });
-    drawMessages();
-    if (page.more && page.next) panel.appendChild(older);
-  }
-  async function openThread(ch, root, backTo) {
-    const token = clearPage('thread');
-    host.appendChild(button('← 戻る',backTo || (()=>openChannel(ch))));
-    host.appendChild(title(chName(ch)));
-    const panel = el('div','読み込み中…'); host.appendChild(panel);
-    try {
-      const r = await api({api:'slackThread', ch, ts:root});
-      if (token !== S.seq) return;
-      const msgs = sorted(r.msgs);
-      const actualRoot = typeof r.root === 'string' ? r.root : root;
-      const parent = msgs.find(m => String(m.ts) === String(actualRoot));
-      remember(msgs); panel.replaceChildren();
-      if (parent) panel.appendChild(message(ch,parent,null));
-      panel.appendChild(composer(ch,actualRoot,parent && (parent.mine ? '自分' : plainName(parent.name)),
-        () => openThread(ch,actualRoot,backTo)));
-      const replies = el('div'); panel.appendChild(replies);
-      msgs.filter(m => String(m.ts) !== String(actualRoot)).forEach(m => replies.appendChild(message(ch,m,null)));
-    } catch(e) { if (token === S.seq) { panel.replaceChildren(); report(e,panel); panel.appendChild(button('↻',()=>openThread(ch,root,backTo))); } }
-  }
-  function message(ch, m, open) {
-    const d = el('article', null, {padding:'12px 0', borderBottom:'1px solid var(--line)'});
-    d.dataset.ts = m.ts;
-    const by = row();
-    by.appendChild(el('strong', m.mine ? '自分' : plainName(m.name)));
-    by.appendChild(note(stamp(m.ts))); d.appendChild(by); d.appendChild(body(m.text));
-    (m.files || []).forEach(f => d.appendChild(attachment(f)));
-    d.appendChild(reactions(ch,m));
-    if (Number(m.rc)>0 || m.st) {
-      const status = row();
-      if (Number(m.rc)>0) status.appendChild(open ? button('💬 返信 '+Number(m.rc)+'件',open,true) : note('💬 返信 '+Number(m.rc)+'件'));
-      if (m.st) {
-        const badge = note(m.st);
-        if (m.st === '返信済') badge.style.color='var(--ok)';
-        if (m.st === '要返信') badge.style.color='var(--warn)';
-        status.appendChild(badge);
-      }
-      d.appendChild(status);
-    }
-    if (open) d.appendChild(button('💬 スレッドで返信',open,true));
-    return d;
-  }
-  function reactions(ch,m) {
-    const panel = row(); let pending=false;
-    const values = (m.reacts || []).map(x => ({n:x.n,c:Number(x.c)||0,me:!!x.me}));
-    function draw() {
-      panel.childNodes.forEach(n => S.emojiLabels.delete(n));
-      panel.replaceChildren();
-      values.filter(x=>x.c>0).forEach(x => {
-        const b=button(emoji(x.n)+' '+x.c,()=>toggle(x.n),true);
-        S.emojiLabels.set(b,{name:x.n,count:x.c});
-        b.setAttribute('aria-label',x.n+' '+x.c);
-        b.setAttribute('aria-pressed',String(x.me));
-        b.style.color=x.me ? 'var(--accent)' : 'var(--ink)'; b.disabled=pending;
-        panel.appendChild(b);
-      });
-      const plus=button('＋',()=>emojiPicker(toggle,plus),true);
-      plus.setAttribute('aria-label','リアクション'); plus.setAttribute('aria-expanded','false');
-      plus.disabled=pending; panel.appendChild(plus);
-    }
-    async function toggle(name) {
-      if (pending) return;
-      let x=values.find(v=>v.n===name);
-      const on=!(x && x.me);
-      pending=true; draw();
-      try {
-        await api({api:'slackReact', ch, ts:m.ts, name, on});
-        if (!x) { x={n:name,c:0,me:false}; values.push(x); }
-        x.me=on; x.c=Math.max(0,x.c+(on?1:-1)); m.reacts=values.map(v=>Object.assign({},v));
-        if (on) rememberEmoji(name);
-      } catch(e) { report(e); }
-      finally { pending=false;draw(); }
-    }
-    draw(); return panel;
-  }
-  function attachment(f) {
-    const panel=el('div');
-    panel.appendChild(note(f.name || '📎 添付'));
-    const open=button(f.img ? '🖼 開く' : '📄 開く',async()=>{
-      busy(open,true); const token=S.seq;
-      try {
-        const r=await api({api:'slackFile', id:f.id});
-        if (token !== S.seq) return;
-        if (typeof r.b64 !== 'string') { const e=new Error('添付を開けません'); e.data=r; throw e; }
-        const bytes=Uint8Array.from(atob(r.b64),c=>c.charCodeAt(0));
-        const mime=String(r.mime || f.mime || 'application/octet-stream');
-        const url=URL.createObjectURL(new Blob([bytes],{type:mime}));
-        S.urls.add(url);
-        if (f.img && /^image\/(?:png|jpe?g|gif|webp|avif|bmp)$/i.test(mime)) {
-          const img=el('img',null,{display:'block',width:'auto',height:'auto',maxWidth:'100%'});
-          img.alt=r.name || f.name || ''; img.src=url; panel.appendChild(img);
-          open.remove();
-        } else {
-          const a=el('a',r.name || f.name || '📄 開く',{display:'inline-block',minHeight:'44px',
-            padding:'8px',color:'var(--accent)'});
-          a.href=url; a.download=r.name || f.name || 'file'; panel.appendChild(a); a.click();
-        }
-      } catch(e) {
-        if (token !== S.seq) return;
-        const reason=note(''); panel.appendChild(reason); report(e,reason);
-        const href=e.data && e.data.link || f.link;
-        if (href) link(panel,href,'Slack で開く');
-      } finally { busy(open,false); }
-    },true);
-    panel.appendChild(open); return panel;
-  }
-  function users() {
-    if (S.users) return Promise.resolve(S.users);
-    if (!S.usersJob) S.usersJob=api({api:'slackUsers'}).then(r=>{
-      S.users=r.users || [];
-      S.users.forEach(u=>S.names.set(u.id,plainName(u.n || u.r)));
-      return S.users;
-    }).finally(()=>{S.usersJob=null;});
-    return S.usersJob;
-  }
-  function localMinute(date) {
-    const d=new Date(date.getTime()-date.getTimezoneOffset()*60000);
-    return d.toISOString().slice(0,16);
-  }
-  function scheduleDefault() {
-    const now=Date.now(), d=new Date(now);
-    d.setHours(d.getHours()+1,0,0,0);
-    if (d.getTime()<now+60000) d.setHours(d.getHours()+1);
-    return localMinute(d);
-  }
-  function draftFor(key) {
-    if (!S.drafts.has(key)) S.drafts.set(key,{text:'',memo:Object.create(null),files:[],at:'',schedule:false,sending:false,styling:false});
-    return S.drafts.get(key);
-  }
-  function fileError(files) {
-    if (files.length>5) return '添付は1回5ファイルまで';
-    if (files.reduce((n,f)=>n+f.size,0)>20*1024*1024) return '添付は合計20MBまで';
-    return '';
-  }
-  function readFile(file) {
-    return new Promise((resolve,reject)=>{
-      const reader=new FileReader();
-      reader.onload=()=>{
-        const result=String(reader.result || ''), comma=result.indexOf(',');
-        if (comma<0) { reject(new Error('添付を読み込めません')); return; }
-        resolve({name:file.name,mime:file.type || 'application/octet-stream',b64:result.slice(comma+1)});
-      };
-      reader.onerror=()=>reject(reader.error || new Error('添付を読み込めません'));
-      reader.onabort=()=>reject(new Error('添付を読み込めません'));
-      reader.readAsDataURL(file);
-    });
-  }
-  function composer(ch,root,parentName,refresh) {
-    const key=ch+':'+(root || 'new'), d=draftFor(key);
-    const box=el('section',null,{padding:'12px 0'});
-    const label=el('label',root ? 'スレッド返信' : '新規投稿');
-    const field=el('textarea',null,{width:'100%',minHeight:'120px',padding:'8px',
-      background:'var(--bg)',color:'var(--ink)',border:'1px solid var(--accent)'});
-    field.rows=5; field.value=d.text; field.setAttribute('aria-label',root ? 'スレッド返信' : '新規投稿');
-    label.appendChild(field); box.appendChild(label);
-    const tools=row(), mentions=el('div'), timing=el('div'), files=el('div'), status=note('');
-    status.setAttribute('role','status'); status.setAttribute('aria-live','polite');
-    let start=d.text.length,end=start, revision=0;
-    function caret() { start=field.selectionStart; end=field.selectionEnd; }
-    ['input','click','keyup','select','blur'].forEach(evt=>field.addEventListener(evt,()=>{
-      caret(); if (evt==='input') { d.text=field.value; revision++; }
-    }));
-    function insert(name,id) {
-      if (d.sending || d.styling) return;
-      const token='@'+name;
-      if (id && d.memo[token] && d.memo[token]!==id) { report(new Error(token+'：同じ表示名のメンションがあります'),status); return; }
-      if (id) d.memo[token]=id;
-      field.setRangeText(token+' ',start,end,'end'); d.text=field.value; caret(); revision++;
-      mentions.replaceChildren(); field.focus();
-    }
-    const mention=button('＠ メンション',async()=>{
-      if (mentions.childNodes.length) { mentions.replaceChildren(); return; }
-      busy(mention,true);
-      try {
-        const list=await users();
-        if (!box.isConnected) return;
-        const search=input('search','検索'); search.placeholder='検索'; mentions.appendChild(search);
-        const broadcasts=row();
-        broadcasts.appendChild(button('@channel',()=>insert('channel')));
-        broadcasts.appendChild(button('@here',()=>insert('here'))); mentions.appendChild(broadcasts);
-        const results=el('div',null,{maxHeight:'240px',overflowY:'auto'}); mentions.appendChild(results);
-        function filter() {
-          results.replaceChildren();
-          const q=search.value.toLocaleLowerCase();
-          list.filter(u=>String(u.n || '').toLocaleLowerCase().includes(q) || String(u.r || '').toLocaleLowerCase().includes(q)).forEach(u=>{
-            const name=plainName(u.n || u.r);
-            const b=button(name+(u.r && u.r!==name ? ' · '+plainName(u.r) : ''),()=>insert(name,u.id));
-            b.style.width='100%'; b.style.textAlign='left'; results.appendChild(b);
-          });
-        }
-        search.addEventListener('input',filter); filter();
-      } catch(e) { report(e,status); }
-      finally { busy(mention,d.sending || d.styling); }
-    });
-    const at=input('datetime-local','🕒 送信予約'); at.value=d.at || scheduleDefault();
-    function limits() {
-      at.min=localMinute(new Date(Math.ceil((Date.now()+60000)/60000)*60000));
-      at.max=localMinute(new Date(Date.now()+120*86400000));
-    }
-    limits(); at.addEventListener('focus',limits);
-    at.addEventListener('input',()=>{d.at=at.value;});
-    const schedule=button('🕒 送信予約',()=>{
-      if (!d.schedule && d.files.length) { report(new Error('添付ありは予約不可'),status); return; }
-      d.schedule=!d.schedule; if (d.schedule && !d.at) d.at=at.value;
-      update();
-    });
-    timing.appendChild(at);
-    const choose=input('file','📎 添付'); choose.multiple=true; choose.style.display='none';
-    const attach=button('📎 添付',()=>choose.click());
-    choose.addEventListener('change',()=>{
-      const next=d.files.concat(Array.from(choose.files || []));
-      const error=fileError(next);
-      if (error || (d.schedule && next.length)) { report(new Error(error || '添付ありは予約不可'),status); choose.value=''; return; }
-      d.files=next; choose.value=''; update();
-    });
-    const style=button('✍️ いつもの文体に整える',async()=>{
-      if (!field.value.trim() || d.sending || d.styling) return;
-      d.styling=true; const before=revision; update();
-      try {
-        const r=await api({api:'styleWrite', voice:field.value, ch:'slack', tone:'normal', to:root ? parentName : chName(ch)});
-        if (typeof r.text!=='string') throw new Error('本文を確認してください');
-        if (before===revision) { d.text=r.text; field.value=r.text; start=end=r.text.length; revision++; }
-      } catch(e) { report(e,status); }
-      finally { d.styling=false;d.update(); }
-    });
-    const send=button('送信',async()=>{
-      if (d.sending || d.styling) return;
-      d.text=field.value;
-      let text=slkMentionText(d.text,d.memo);
-      const miss=slkMentionMiss(text,d.memo);
-      if (miss.length) { report(new Error('メンションを確認してください：'+miss.join('、')),status); return; }
-      if (!text.trim() && !d.files.length) return;
-      const error=fileError(d.files); if (error) { report(new Error(error),status); return; }
-      let when=0;
-      if (d.schedule) {
-        if (d.files.length) { report(new Error('添付ありは予約不可'),status); return; }
-        when=new Date(at.value).getTime();
-        if (!Number.isFinite(when) || when<Date.now()+60000 || when>Date.now()+120*86400000) {
-          report(new Error('送信予約は1分後〜120日'),status); return;
-        }
-        try { storeMarks(marks()); } catch(e) { report(e,status); return; }
-      }
-      const p={ch,text}; if (root) p.root=root; if (when) p.at=Math.floor(when/1000);
-      if (/<!channel>|<!here>|<!subteam/.test(text)) {
-        if (!window.confirm('全員に通知されます。よろしいですか？')) return;
-        p.broadcastOk=true;
-      }
-      if (!when && hasMark(key) && !window.confirm('2通出ます。よろしいですか？')) return;
-      const dest=root ? (parentName || '表示名')+'さんのスレッドへ本人名義で投稿します' : chName(ch)+' に本人名義で投稿します';
-      if (!window.confirm(dest+(when ? '\n🕒 送信予約 '+at.value.replace('T',' ') : ''))) return;
-      d.sending=true; update(); const token=S.seq;
-      try {
-        if (d.files.length) p.files=await Promise.all(d.files.map(readFile));
-        const r=await api({api:'slackPost', p});
-        if (r.scheduled) {
-          try { addMark(key,r,p.at); } catch(e) { report(e); }
-        } else if (root && S.home) {
-          const before=S.home.unrep || [];
-          S.home.unrep=before.filter(u=>u.ch!==ch || (u.root || u.ts)!==root);
-          const channel=(S.home.chans || []).find(c=>c.id===ch);
-          if (channel) channel.unrep=Math.max(0,Number(channel.unrep || 0)-(before.length-S.home.unrep.length));
-        }
-        d.text=''; d.files=[]; d.memo=Object.create(null); d.schedule=false; d.at='';
-        field.value=''; choose.value=''; at.value=scheduleDefault(); start=end=0;
-        if (r.msg) showOk(String(r.msg));
-        if (S.seq===token) {
-          if (root || !r.scheduled) await refresh();
-          else status.textContent='🕒 予約済み';
-        }
-      } catch(e) { report(e,status); }
-      finally { d.sending=false; d.update(); }
-    });
-    function update() {
-      if (field.value !== d.text) field.value=d.text;
-      const locked=d.sending || d.styling;
-      [field,mention,schedule,at,choose,attach,style,send].forEach(n=>{n.disabled=locked;});
-      // A refreshed composer shares draft state with an in-flight send.
-      field.readOnly=locked; busy(send,d.sending || d.styling);
-      schedule.setAttribute('aria-pressed',String(d.schedule));
-      timing.style.display=d.schedule ? 'block' : 'none';
-      mentions.querySelectorAll('button,input').forEach(n=>{n.disabled=locked;});
-      files.replaceChildren();
-      d.files.forEach((f,i)=>{
-        const line=row(); line.appendChild(note(f.name+' · '+Math.ceil(f.size/1024)+' KB'));
-        const remove=button('×',()=>{d.files.splice(i,1);update();},true);
-        remove.setAttribute('aria-label',f.name+' 添付を取り消す'); remove.disabled=locked;
-        line.appendChild(remove); files.appendChild(line);
-      });
-      if (hasMark(key)) files.appendChild(note('🕒 予約済み'));
-    }
-    tools.append(mention,schedule,attach,style);
-    box.append(tools,mentions,timing,choose,files,status,send);
-    d.update=update;
-    update(); return box;
-  }
-/* PC 版と同じメンションの決まり（このまま移して使う） */
-function slkMentionText(text,memo){text=String(text).replace(/＠/g,"@");var map={"@channel":"<!channel>","@here":"<!here>"};Object.keys(memo).forEach(function(k){map[k]="<@"+memo[k]+">";var c=k.replace(/[ 　]/g,"");if(c!==k&&!map[c])map[c]=map[k]});var names=Object.keys(map).sort(function(a,b){return b.length-a.length});var pattern=names.map(function(n){return n.replace(/[.*+?^{}()|[\]\\$]/g,"\\$&")}).join("|");return text.replace(new RegExp("(^|[^A-Za-z0-9_.@])("+pattern+")(?![A-Za-z0-9_])","g"),function(all,pre,name){return pre+map[name]})}
-function slkMentionMiss(text,memo){var miss=[];Object.keys(memo).forEach(function(k){var head=k.replace(/^[@＠]/,"").replace(/[ 　]/g,"").slice(0,2);if(text.indexOf("<@"+memo[k]+">")<0&&(text.indexOf("@"+head)>=0||text.indexOf("＠"+head)>=0)&&miss.indexOf(k)<0)miss.push(k)});return miss}
-  tab.addEventListener('click',()=>loadHomeSlack(false));
-})();
+/* 🗑s69（2026-10-17 b174 松原指示「Slack タブを丸ごと削除」）：Slack タブ（view-slack・R14_slack_pwa の即時関数＝要返信・チャンネル・スレッド・書く欄・絵文字・予約）を撤去 */
