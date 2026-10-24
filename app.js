@@ -244,6 +244,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (btn.dataset.view === 'notif') loadNotifs();
     if (btn.dataset.view === 'home') loadHomeMonth();
     if (btn.dataset.view === 'pipe') plKindShow();   // 🔎入場時に選択中の一覧を読み込む
+    if (btn.dataset.view === 'style') stWarm4();     // 🆕s71：入場＝手本を温める（読むだけ・Gemini は呼ばない）
     if (btn.dataset.view === 'more') loadBooks();    // 📖s47：入場＝読書を読み込む（主役を「更新」待ちにしない）
   });
 });
@@ -338,7 +339,18 @@ function renderGauges(d) {
     : uf('初診', u.shoshin, u.shoshinN) + '　' + uf('再診', u.saishin, u.saishinN);
 }
 
+/* 🆕b179 r3／s71（2026-10-22 敵対監査 major-3 の続き）：毎朝の処理（cpDailyTick）の生存証明が36時間より古ければ、HOME の上に赤い帯（PC と同じ文）。
+ *   中身は {api:'home'} の dly に同乗＝往復は増えない。部品は既存の .result.ng だけ（新しい CSS は0）。直ったら（stale でなくなったら）帯を外す */
+function dlyBand4(dly) {
+  const v = $('view-home');
+  if (!v) return;
+  let b = $('dlyBand4');
+  if (!(dly && dly.stale)) { if (b && b.parentNode) b.parentNode.removeChild(b); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'dlyBand4'; b.className = 'result ng'; b.setAttribute('role', 'alert'); v.insertBefore(b, v.firstChild); }
+  b.textContent = '🔴 毎朝の処理が止まっています（最後の生存証明＝' + (dly.last || 'なし') + '）＝GAS のエディタで cpInstallDaily を1回実行してください（設置したら翌朝7時台に消えます）';
+}
 function renderHome(d) {
+  try { dlyBand4(d && d.dly); } catch (eD) {}
   renderGauges(d);
   // スケジュール
   const ul = $('schedList');
@@ -1019,10 +1031,14 @@ async function msbLoad(force) {
     host.replaceChildren(pnd('div', 'muted', '📝 初診・申し送り空欄を読み込めませんでした：' + e.message));
   }
 }
+/* 🆕b179／s71（2026-10-22 松原さん）：承認待ちリストを開閉式に（見出しに件数・既定閉・その端末で覚える localStorage 'cpAcc_msbPwa'）。
+ *   行（.pcard）はカードの直下のまま＝見出し以外の子を隠すだけ（書きかけの textarea も消えない）。▾は既存の .accv（閉じているときは -90°）。 */
+function msbOpenGet() { try { return localStorage.getItem('cpAcc_msbPwa') === '1'; } catch (e) { return false; } }
+function msbOpenSet(v) { try { localStorage.setItem('cpAcc_msbPwa', v ? '1' : '0'); } catch (e) {} }
 function msbCard(r) {
   const c = pnd('div', 'psec');
   const rows = (r && r.rows) || [];
-  const h = pnd('div', 'psh', '📝 初診・申し送り空欄（今日以降）');
+  const h = pnd('div', 'psh', '📝 承認待ちリスト（初診・申し送り空欄＝承認待ちの下書き）');
   const cnt = pnd('span', 'plc');
   const setCnt = () => { cnt.textContent = '　' + rows.length + '名　' + ((r && r.at) || ''); };
   setCnt();
@@ -1030,20 +1046,36 @@ function msbCard(r) {
   const rb = pnd('button', 'pmini', '↻');
   rb.type = 'button';
   rb.setAttribute('aria-label', '取り直す');
-  rb.addEventListener('click', () => {
+  rb.addEventListener('click', (ev) => {
+    if (ev && ev.stopPropagation) ev.stopPropagation();   // 🆕s71：↻ で開閉しない
     const host = $('msbHost');
     if (host && msbWriting(host)) { cnt.textContent = '　書きかけがあるので読み直していません（「やめる」のあとで）'; return; }
     msbLoad(true);
   });
   h.appendChild(rb);
+  const chev = pnd('span', 'accv', '▾');
+  h.appendChild(chev);
+  h.style.cursor = 'pointer';
+  h.setAttribute('role', 'button');
+  h.tabIndex = 0;
+  let open = msbOpenGet();
+  const paint = () => {
+    Array.from(c.children).forEach(ch => { if (ch !== h && ch.style) ch.style.display = open ? '' : 'none'; });
+    chev.style.transform = open ? 'none' : 'rotate(-90deg)';
+    h.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  const tgl = () => { open = !open; msbOpenSet(open); paint(); };
+  h.addEventListener('click', tgl);
+  h.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); tgl(); } });
   c.appendChild(h);
   if (r && r.msg) c.appendChild(pnd('div', 'muted', r.msg));
-  if (!rows.length) { c.appendChild(pnd('div', 'muted', '申し送りが空欄の初診の方はいません')); return c; }
+  if (!rows.length) { c.appendChild(pnd('div', 'muted', '申し送りが空欄の初診の方はいません')); paint(); return c; }
   rows.slice().forEach(x => c.appendChild(msbRow(x, () => {
     const i = rows.indexOf(x);
     if (i >= 0) rows.splice(i, 1);
     setCnt();
   })));
+  paint();
   return c;
 }
 function msbRow(x, onGone) {
@@ -1489,6 +1521,9 @@ function pipePatient(p) {
       const fd = pnd('button', 'pmini go', '✉️ 受診後フィードバックメッセージを生成');
       const fdb = pnd('div', 'pbody');
       fdb.style.display = 'none';
+      /* 🆕b179 r7（監査 minor-2）：同意の確認は本文の箱（fdb）の外の別の要素＝本文の箱を全部選んで写しても本文だけになる（fbSc4 と同じ形） */
+      const fdp = pnd('div', 'note bad');
+      fdp.style.display = 'none';
       const fdr = pnd('button', 'pmini', '↻ 作り直す');
       fdr.style.marginLeft = '6px';
       fdr.style.display = 'none';
@@ -1497,6 +1532,7 @@ function pipePatient(p) {
         if (!force && done) {
           const op = fdb.style.display === 'none';
           fdb.style.display = op ? '' : 'none';
+          fdp.style.display = (op && fdp.textContent) ? '' : 'none';
           fdr.style.display = op ? '' : 'none';
           fd.textContent = op ? '閉じる' : '✉️ 受診後フィードバックメッセージを生成';
           return;
@@ -1507,18 +1543,20 @@ function pipePatient(p) {
         fdb.textContent = '紹介元スタイリスト様へお送りする文面を作成しています…';
         try {
           const x = await api({ api: 'fbDraft', id: p.id });
+          fdp.textContent = x.pre || ''; fdp.style.display = x.pre ? '' : 'none';   // 🆕b179 r7：同意の確認は別の要素
           fdb.textContent = x.text || '';
           done = true;
           fd.textContent = '閉じる';
           fdr.style.display = '';
         } catch (e) {
+          fdp.textContent = ''; fdp.style.display = 'none';
           fdb.textContent = e.message;
           fd.textContent = '✉️ 受診後フィードバックメッセージを生成';
         } finally { fd.disabled = false; fdr.disabled = false; }
       };
       fd.addEventListener('click', () => gen(false));
       fdr.addEventListener('click', () => { done = false; gen(true); });
-      t.appendChild(fd); t.appendChild(fdr); t.appendChild(fdb);
+      t.appendChild(fd); t.appendChild(fdr); t.appendChild(fdp); t.appendChild(fdb);
     }
     if (s.isFb) {
       const lw = document.createElement('label');
@@ -2032,7 +2070,7 @@ function npLock(on) {
   _npBusy = on;
   $('npLoadBtn').disabled = on;
   $('npSaveBtn').disabled = on || !(_npState && _npState.row);
-  ['npQ1', 'npQ2', 'npQ3', 'npQ4'].forEach(id => { $(id).readOnly = on; });
+  ['npQ1', 'npQ2', 'npQ3', 'npQ4', 'npQ5'].forEach(id => { $(id).readOnly = on; });   // b179 r9：Q5
   $('npForce').disabled = on;
 }
 async function npLoad() {
@@ -2059,7 +2097,7 @@ async function npLoad() {
     hint.style.display = r.hint && String(r.hint).trim() ? '' : 'none';
     hint.textContent = r.hint ? '📌 参考：前回書いた「今日の一点」＝ ' + r.hint : '';
     const labels = r.labels || [], values = r.values || [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {   // b179 r9：Q1〜Q5
       $('npL' + (i + 1)).textContent = labels[i] || ('Q' + (i + 1));
       $('npQ' + (i + 1)).value = values[i] || '';
       const cap = $('npQ' + (i + 1) + 'N'), value = values[i];
@@ -2094,10 +2132,10 @@ async function npSave() {
     npMessage('npStat', '先に「📥 今日のシートを読み込む」を押してください');
     return;
   }
-  const base = _npState.base || ['', '', '', ''];
+  const base = _npState.base || ['', '', '', '', ''];
   const payload = { base, force: !!$('npForce').checked, allowStaleDate: !!_npStale };
   let changed = 0;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     const value = String($('npQ' + (i + 1)).value || '').trim();
     payload['q' + (i + 1)] = value !== String(base[i] || '').trim() ? value : null;
     if (payload['q' + (i + 1)] !== null) changed++;
@@ -2120,7 +2158,7 @@ async function npSave() {
     const res = npMessage('npRes', d && d.msg ? d.msg : '通信エラー：' + e.message);
     if (d && d.url) npLink(res, d.url, ' シートで確認する →');
   } finally {
-    $('npSaveBtn').textContent = '今日の日報シートへ書く';
+    $('npSaveBtn').textContent = '今日の日誌シートへ書く';
     npLock(false);
   }
   if (reload) await npLoad();
@@ -3002,7 +3040,7 @@ function stTone4Set(v) {
 }
 function stEta4() {
   const e = $('stEta');
-  if (e) e.textContent = '生成はだいたい' + ST_ETA_SEC + '秒かかります（AIに1往復＋手本の読み出し）。手本づくりは毎朝すませてあるので、ここでは書くだけです';
+  if (e) e.textContent = '打つのが止まって0.8秒で自動で整え始めます（' + ST_MIN4 + '字から・生成はだいたい' + ST_ETA_SEC + '秒＝AIに1往復）。送り先・温度感を変えるとすぐ作り直し、同じ内容はすぐ出ます';
 }
 /* 押した瞬間から「だいたい何秒／いま何秒」を出す＝無反応の時間を作らない。
  *   戻り値は止める関数。呼んだ側は成功でも失敗でも必ず止める（止め忘れると数字が動き続ける）。 */
@@ -3015,7 +3053,133 @@ function stWait4(el, sec, label) {
   return () => clearInterval(t);
 }
 
+/* ==== 🆕b179／s71（2026-10-22 松原さん）文体ラボの自動生成＝ボタン式をやめ、書いている途中から生成する（PC の styleJs と同じ動き） ====
+ *   打つのが止まって ST_WAIT4（0.8秒）で生成（ST_MIN4 字から）／送り先・温度感を変えたら即（stKick4）／走らせるのは同時に1本（stBusy4）。
+ *   走っている間に入力が変わったら、戻ってから最新の入力で1回だけ作り直す（stDirty4）＝打鍵ごとには呼ばない。
+ *   古い応答は連番（stSeq4）で捨てる＝新しい結果を古い応答が上書きしない。同じ入力は端末の控え（stMemo4・30件）で即答＝往復0。
+ *   表示は stLive の5状態（PC と同じ文面）。サーバが上限（1日15回・外部通信の日次予算・Gemini の生成枠切れ＝429）で断ったら off＝「✍️ この内容で作る」（stWrite4）へ戻る。
+ *   タブを開いたら stWarm4（{api:'styleWarm'}＝読むだけ）で手本を温め、今日の残り回数を聞く。 */
+const ST_MIN4 = 12, ST_WAIT4 = 800, ST_DELTA4 = 6;   // Gemini の無料枠はモデルごとに1日20回＝話した内容だけが6字未満しか変わらない小さな直しは自動で作り直さない
+/* r6（最終見直し）：サーバに上限の口（styleWarm）があると分かるまで自動にしない＝b178 のサーバ相手に上限なしで生成しない。温めが通ったら外す */
+let stV4 = '', stOffM4 = '自動の準備中（サーバの上限の口を確かめています）', stSeq4 = 0, stBusy4 = 0, stDirty4 = false, stOff4 = true, stKey4 = '', stT4 = 0;
+const stMemo4 = new Map();
+const ST_LIVE4 = {
+  idle: '⌨️ 打つのが止まると自動で整えます（' + ST_MIN4 + '字から）', gen: '✍️ 生成中…', new: '✅ 最新＝いまの入力から作りました',
+  old: '⏳ 古い＝下の文はひとつ前の入力から作ったものです（止まると作り直します）', off: '⏸ 自動の生成を止めています＝下の「✍️ この内容で作る」で作れます'
+};
+function stKeyNow4() {
+  return stCh4 + '|' + stTone4 + '|' + String(($('stTo') || {}).value || '').trim() + '|' + String(($('stIn') || {}).value || '').trim();
+}
+function stLive4(s, m) {
+  const e = $('stLive'), o = $('stOut'), g = $('btnStWrite');
+  if (s === 'off') { if (m) stOffM4 = m; else m = stOffM4; }   // 止めた理由（上限・生成枠切れ）は打っても消さない
+  if (e) { e.textContent = (ST_LIVE4[s] || '') + (m ? '　' + m : ''); if (e.setAttribute) e.setAttribute('data-st', s); }
+  if (o && o.style) o.style.opacity = ((s === 'old' || s === 'gen') && o.value) ? '.55' : '';
+  if (g && g.classList) g.classList.toggle('hidden', s !== 'off');
+}
+function stMemo4Put(k, r) {
+  stMemo4.delete(k); stMemo4.set(k, r);
+  if (stMemo4.size > 30) stMemo4.delete(stMemo4.keys().next().value);
+}
+/* できあがりを描く（自動と押したときで共用）。c＝その生成を頼んだときの送り先（途中で選び直しても「⚠️選んだのは」を誤って出さない） */
+function stPaint4(r, c) {
+  c = c || stCh4;
+  const res = $('stResult');
+  $('stOut').value = r.text || '';
+  $('stOutWrap').classList.remove('hidden');
+  /* 🔴送り先は**サーバが返した r.ch**を出す（手元の選択の写しではない）＝chが効いている証拠を画面に出す。
+   *   万一ズレたら黙って直さずに、ズレたことを言う。 */
+  const srvCh = r.ch || c;
+  $('stOutCh').textContent = stChName(srvCh) + (srvCh !== c ? '　⚠️選んだのは' + stChName(c) + 'でした' : '');
+  /* 🔴手本の代用申告。サーバが myvoiceNote を載せてくればそれを、無ければ同じ意味の文をこちらで組む＝
+   *   「無言で別チャネルの手本に落ちる」を画面側でも復活させない。 */
+  const fb = $('stFall');
+  if (r.myvoiceFallback) {
+    fb.textContent = '📌 ' + (r.myvoiceNote ||
+      ('「' + srvCh + '」の手本がコーパスに0件のため、「' + (r.myvoiceScene || '') + '」の手本で書いています'));
+    fb.classList.remove('hidden');
+  } else { fb.textContent = ''; fb.classList.add('hidden'); }
+  let ft = (r.fixes && r.fixes.length) ? ('🔧 整えた箇所：' + r.fixes.join('／')) : '🔧 整える箇所はありませんでした';
+  if (r.warns && r.warns.length) ft += '\n⚠️ ' + r.warns.join('／');
+  $('stFix').textContent = ft;
+  res.className = 'result ok'; res.classList.remove('hidden');
+  let s9 = '✅ 整えました（送り先＝' + stChName(srvCh) + '／実データから作った型' + (r.pairs || 0) +
+           '件・骨格' + (r.skel || 0) + '件を参照' + (r.shots ? '＋あなたの文' + r.shots + '件' : '') + '）';
+  if (!r.taught) s9 += '　💡LINEのトーク履歴を「📚 手本を教える」に貼ると、社外向けの文体がぐっと近づきます';
+  if (r.note) s9 += '　※' + r.note;
+  res.textContent = s9;
+  saveCache(LS.STYLE, { at: Date.now(), ch: srvCh, text: r.text || '' });
+}
+function stSig4(v) { return (String(v).match(/[0-9０-９]+|[ァ-ヶー]+|[一-龯々]+|[A-Za-zＡ-Ｚａ-ｚ]+/g) || []).join('|'); }
+function stIn4() {
+  clearTimeout(stT4);
+  const o = $('stOut');
+  if (stKey4 && stKeyNow4() !== stKey4 && o && o.value) stLive4('old');
+  if (stOff4) { stLive4('off'); return; }
+  if (String(($('stIn') || {}).value || '').trim().length < ST_MIN4) { if (!stKey4) stLive4('idle'); return; }
+  stT4 = setTimeout(() => { stGen4(false); }, ST_WAIT4);
+}
+function stKick4() {
+  clearTimeout(stT4);
+  const o = $('stOut');
+  if (stKey4 && stKeyNow4() !== stKey4 && o && o.value) stLive4('old');
+  stGen4(false);
+}
+async function stGen4(fresh) {
+  if (stOff4) { stLive4('off'); return; }
+  const v = String(($('stIn') || {}).value || '').trim();
+  if (v.length < ST_MIN4) return;
+  const k = stKeyNow4(), o = $('stOut'), c = stCh4;
+  if (!fresh && k === stKey4 && o && o.value) { stLive4('new'); return; }
+  if (!fresh && stMemo4.has(k)) { stKey4 = k; stPaint4(stMemo4.get(k), c); stLive4('new', '（同じ内容＝すぐ表示）'); return; }
+  const pre = (x) => x.slice(0, x.lastIndexOf('|'));
+  /* r2（監査 major-1）：字数でなく中身＝数字・カタカナ・漢字・英字（stSig4）が1つでも変わったら必ず作り直す */
+  if (!fresh && stKey4 && pre(k) === pre(stKey4) && Math.abs(v.length - stV4.length) < ST_DELTA4 && stSig4(v) === stSig4(stV4)) {
+    stLive4('old', '（小さな直しでは自動で作り直しません＝「言い直す」で作れます）'); return;
+  }
+  if (stBusy4) { stDirty4 = true; return; }
+  const q = ++stSeq4; stBusy4 = q; stV4 = v;
+  stLive4('gen', '（だいたい' + ST_ETA.write + '秒）');
+  let r = null, err = null;
+  try { r = await api({ api: 'styleWrite', voice: v, ch: c, tone: stTone4, to: String(($('stTo') || {}).value || ''), auto: true, fresh: !!fresh }); }
+  catch (e) { err = e; }
+  if (stBusy4 === q) stBusy4 = 0;
+  if (q !== stSeq4) { stAfter4(); return; }          // 古い応答は捨てる
+  if (err) { stLive4(stKey4 ? 'old' : 'idle', '⚠️ ' + stReason4(err.message)); stAfter4(); return; }
+  if (r && r.capped) { stOff4 = true; stLive4('off', r.msg || ''); return; }   // 上限・予算・生成枠切れ（429）＝ボタン式へ退避
+  if (r.auto && r.auto.left != null) r.note = (r.note ? r.note + '　' : '') + '今日はあと' + r.auto.left + '回まで自動';
+  stMemo4Put(k, r); stKey4 = k; stPaint4(r, c);
+  stLive4(stKeyNow4() === k ? 'new' : 'old', r.cached ? '（同じ内容＝控えから）' : '');
+  stAfter4();
+}
+function stAfter4() { if (stDirty4 && !stBusy4) { stDirty4 = false; stGen4(false); } }
+/* ↺リセット＝送り先・温度感を既定へ・相手・話した内容・結果を空に。走っている生成は連番で捨てる */
+function stClear4() {
+  stSeq4++; stBusy4 = 0; stDirty4 = false; stKey4 = ''; clearTimeout(stT4);
+  stCh4Set('slack'); stTone4Set('normal');
+  ['stIn', 'stTo', 'stOut'].forEach(i => { const e = $(i); if (e) { e.value = ''; if (e.style) e.style.opacity = ''; } });
+  ['stFix', 'stFall', 'stStale', 'stResult'].forEach(i => { const e = $(i); if (e) e.textContent = ''; });
+  ['stOutWrap', 'stFall', 'stStale', 'stResult'].forEach(i => { const e = $(i); if (e && e.classList) e.classList.add('hidden'); });
+  stLive4(stOff4 ? 'off' : 'idle');
+}
+async function stWarm4() {
+  stLive4(stOff4 ? 'off' : 'idle');
+  try {
+    const r = await api({ api: 'styleWarm' });
+    stOff4 = !!(r && r.off);
+    if (stOff4) stLive4('off', (r && r.msg) || '');
+    else if (!stKey4) stLive4('idle', (r && r.left != null) ? '今日はあと' + r.left + '回まで自動' : '');
+  } catch (e) {
+    /* r6：上限の口が無い（古いサーバ＝unknown_api）・届かない＝自動にしない（ボタン式のまま） */
+    stOff4 = true; stLive4('off', 'サーバに自動生成の上限の口が無いか、確かめられません＝ボタンで作ります（' + String(e && e.message || e).slice(0, 40) + '）');
+  }
+}
+/* ==== /b179 ==== */
+
+/* 押したときの生成（自動を止めた日の「✍️ この内容で作る」・もっと丁寧に／短く／言い直す）。上限は見ない＝道具が仕事を拒否しない。
+ *   fresh＝言い直す（サーバの控えを使わない）。ボタンに直接つなぐとイベントが来るので「=== true」で見る。 */
 async function stWrite4() {
+  const fresh = arguments[0];
   const v = ($('stIn').value || '').trim();
   const res = $('stResult');
   if (!v) { res.className = 'result ng'; res.textContent = '話した内容を入れてください'; res.classList.remove('hidden'); return; }
@@ -3024,36 +3188,22 @@ async function stWrite4() {
   res.className = 'result'; res.classList.remove('hidden');
   const stop = stWait4(res, ST_ETA.write, '✍️ いつもの言い方に整えています…');
   $('stStale').classList.add('hidden');
+  clearTimeout(stT4); stDirty4 = false;
+  const q = ++stSeq4, k = stKeyNow4(), c = stCh4; stBusy4 = q; stV4 = v;
+  stLive4(stOff4 ? 'off' : 'gen');
   try {
-    const r = await api({ api: 'styleWrite', voice: v, ch: stCh4, tone: stTone4, to: ($('stTo').value || '') });
+    const r = await api({ api: 'styleWrite', voice: v, ch: stCh4, tone: stTone4, to: ($('stTo').value || ''), fresh: fresh === true });
+    if (stBusy4 === q) stBusy4 = 0;
+    if (q !== stSeq4) { stop(); b.disabled = false; b.textContent = '✍️ この内容で作る'; return; }   // 古い応答は捨てる（リセット・次の生成が先に動いた）
     if (!r.ok) throw new Error(r.msg || '整えられませんでした');
     stop();
-    $('stOut').value = r.text || '';
-    $('stOutWrap').classList.remove('hidden');
-    /* 🔴送り先は**サーバが返した r.ch**を出す（手元の選択の写しではない）＝chが効いている証拠を画面に出す。
-     *   万一ズレたら黙って直さずに、ズレたことを言う。 */
-    const srvCh = r.ch || stCh4;
-    $('stOutCh').textContent = stChName(srvCh) + (srvCh !== stCh4 ? '　⚠️選んだのは' + stChName(stCh4) + 'でした' : '');
-    /* 🔴手本の代用申告。サーバが myvoiceNote を載せてくればそれを、無ければ同じ意味の文をこちらで組む＝
-     *   「無言で別チャネルの手本に落ちる」を画面側でも復活させない。 */
-    const fb = $('stFall');
-    if (r.myvoiceFallback) {
-      fb.textContent = '📌 ' + (r.myvoiceNote ||
-        ('「' + srvCh + '」の手本がコーパスに0件のため、「' + (r.myvoiceScene || '') + '」の手本で書いています'));
-      fb.classList.remove('hidden');
-    } else { fb.textContent = ''; fb.classList.add('hidden'); }
-    let ft = (r.fixes && r.fixes.length) ? ('🔧 整えた箇所：' + r.fixes.join('／')) : '🔧 整える箇所はありませんでした';
-    if (r.warns && r.warns.length) ft += '\n⚠️ ' + r.warns.join('／');
-    $('stFix').textContent = ft;
-    res.className = 'result ok';
-    let s9 = '✅ 整えました（送り先＝' + stChName(srvCh) + '／実データから作った型' + (r.pairs || 0) +
-             '件・骨格' + (r.skel || 0) + '件を参照' + (r.shots ? '＋あなたの文' + r.shots + '件' : '') + '）';
-    if (!r.taught) s9 += '　💡LINEのトーク履歴を「📚 手本を教える」に貼ると、社外向けの文体がぐっと近づきます';
-    if (r.note) s9 += '　※' + r.note;
-    res.textContent = s9;
-    saveCache(LS.STYLE, { at: Date.now(), ch: srvCh, text: r.text || '' });
+    stMemo4Put(k, r); stKey4 = k; stPaint4(r, c);
+    stLive4(stOff4 ? 'off' : (stKeyNow4() === k ? 'new' : 'old'));
   } catch (e) {
+    if (stBusy4 === q) stBusy4 = 0;
     stop();
+    if (q !== stSeq4) { b.disabled = false; b.textContent = '✍️ この内容で作る'; return; }
+    stLive4(stOff4 ? 'off' : (stKey4 ? 'old' : 'idle'));
     const net = stIsNet4(e.message), why = stReason4(e.message), sd = $('stStale');
     if (!net) {
       /* 🔴サーバが理由を言って断った＝**通信は生きている**。控えは出さない・原因をそのまま出す。
@@ -3085,7 +3235,7 @@ async function stWrite4() {
       }
     }
   }
-  b.disabled = false; b.textContent = '✍️ いつもの僕の文章にする';
+  b.disabled = false; b.textContent = '✍️ この内容で作る';
 }
 
 /* 📚 手本を教える＝doPost 'styleTeach'／'styleTeachMulti'。**書く照会なので控えで偽らない**（失敗は失敗と言い、貼り付けは消さない）
@@ -3278,19 +3428,26 @@ function wireCal4AndStyle() {
   const cc = $('stChChips');
   if (cc) cc.addEventListener('click', ev => {
     const c = ev.target.closest('button[data-stch]');
-    if (c) stCh4Set(c.dataset.stch);
+    if (c) { stCh4Set(c.dataset.stch); stKick4(); }   // 🆕s71：送り先を変えたら即作り直す
   });
   const tc = $('stToneChips');
   if (tc) tc.addEventListener('click', ev => {
     const c = ev.target.closest('button[data-sttone]');
-    if (c) stTone4Set(c.dataset.sttone);
+    if (c) { stTone4Set(c.dataset.sttone); stKick4(); }   // 🆕s71：温度感を変えたら即作り直す
   });
   const sw = $('btnStWrite'); if (sw) sw.addEventListener('click', stWrite4);
   const sc = $('btnStCopy');
-  if (sc) sc.addEventListener('click', () => { try { navigator.clipboard.writeText($('stOut').value); showOk('コピーしました'); } catch (e) {} });
+  /* r2（監査 major-1）：下の文が今の入力より前の内容から作ったもの（古い）なら、確かめてから写す */
+  if (sc) sc.addEventListener('click', () => { if (stKey4 && stKeyNow4() !== stKey4 && !window.confirm('下の文は、いまの入力より前の内容から作ったものです（古い）。このままコピーしますか？')) return; try { navigator.clipboard.writeText($('stOut').value); showOk('コピーしました'); } catch (e) {} });
   const sp = $('btnStPolite'); if (sp) sp.addEventListener('click', () => { stTone4Set('polite'); stWrite4(); });
   const ss = $('btnStShort'); if (ss) ss.addEventListener('click', () => { stTone4Set('short'); stWrite4(); });
-  const sa = $('btnStAgain'); if (sa) sa.addEventListener('click', stWrite4);
+  const sa = $('btnStAgain'); if (sa) sa.addEventListener('click', () => stWrite4(true));   // 言い直す＝サーバの控えを使わない
+  /* 🆕s71：打ちながら自動で作る（入力が止まって0.8秒）・↺リセット */
+  /* r2（監査 minor-1）：日本語の変換中（isComposing）は数えず、変換が決まったら（compositionend）数える */
+  const stInEv4 = (ev) => { if (ev && ev.isComposing) return; stIn4(); };
+  const si4 = $('stIn'); if (si4) { si4.addEventListener('input', stInEv4); si4.addEventListener('compositionend', stIn4); }
+  const sto4 = $('stTo'); if (sto4) { sto4.addEventListener('input', stInEv4); sto4.addEventListener('compositionend', stIn4); }
+  const sr4 = $('btnStReset'); if (sr4) sr4.addEventListener('click', stClear4);
   /* 📚手本を教える／📥収穫／↻取り直し／🗂いまの手本＝s43で新たに配線した doPost 4口 */
   const st9 = $('btnStTeach'); if (st9) st9.addEventListener('click', stTeach4);
   const sta9 = $('btnStTeachAdd'); if (sta9) sta9.addEventListener('click', stTAdd4);   // 🔴s44：＋貼り付け欄（PC同格）
@@ -3315,6 +3472,7 @@ function wireCal4AndStyle() {
     kh9.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); stKeepTgl(); } });
   }
   stEta4();   // ⏱予告は押す前から出す
+  stLive4('idle');
   calModeShow('free');
 }
 document.addEventListener('DOMContentLoaded', wireCal4AndStyle);
@@ -3426,12 +3584,14 @@ async function fbSc4(li, title) {
     if (!(r && r.ok)) { p.innerHTML = '<div class="note bad"></div>'; p.firstChild.textContent = (r && r.msg) || '生成できませんでした'; return; }
     if (r.pending) { p.innerHTML = '<div class="note bad"></div>'; p.firstChild.textContent = r.msg; return; }
     const h = document.createElement('div'); h.className = 'evp-h';
-    h.textContent = '💬 ' + (r.name || '') + ' 様の受診後FB案';
+    h.textContent = '💬 ' + (r.name || 'お客様') + 'の受診後FB案';   // r7：名前はサーバの伏せ字（最初の1字＋＊＊ 様／お客様）
     const ta = document.createElement('textarea'); ta.readOnly = true; ta.value = r.text;
     ta.style.minHeight = '180px';
     const cp = document.createElement('button'); cp.className = 'chip'; cp.textContent = '📋 コピー';
     cp.addEventListener('click', () => { try { navigator.clipboard.writeText(r.text); showOk('コピーしました'); } catch (e) {} });
-    p.appendChild(h); p.appendChild(ta); p.appendChild(cp);
+    p.appendChild(h);
+    if (r.pre) { const cf = document.createElement('div'); cf.className = 'note bad'; cf.textContent = r.pre; p.appendChild(cf); }   // 🆕b179 r6：同意の確認（コピーには入れない）
+    p.appendChild(ta); p.appendChild(cp);
   } catch (e) { p.innerHTML = '<div class="note bad"></div>'; p.firstChild.textContent = e.message; }
 }
 /* 📹2026-08-04：GoogleのUIから付けたMeetは説明文に入らない（conferenceDataに入る）。

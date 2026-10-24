@@ -185,7 +185,11 @@
         <input type="text" id="stTo" placeholder="例）院長／提携サロンのご担当者様">
         <label class="field-label" for="stIn">話した内容</label>
         <textarea id="stIn" rows="5" placeholder="例）提携サロン様からご紹介の件です。来週の無料相談の日程を調整させてください"></textarea>
-        <button class="btn btn-primary" id="btnStWrite">✍️ いつもの僕の文章にする</button>
+        <!-- 🆕s71（b179・2026-10-22 松原さん）：ボタン式をやめ、打つのが止まって0.8秒で自動生成。状態は stLive（待ち／生成中／最新／古い／止めた）。
+             ↺リセット＝送り先・温度感を既定へ・相手・話した内容・結果を空に。btnStWrite は自動を止めた日（上限・予算）だけ出る退避の口。 -->
+        <div class="chips"><button type="button" class="chip" id="btnStReset">↺ リセット</button></div>
+        <div id="stLive" class="steta" aria-live="polite"></div>
+        <button class="btn btn-primary hidden" id="btnStWrite">✍️ この内容で作る</button>
         <!-- ⏱3秒ルールの正直申告＝押す前に「だいたい何秒」を出す（実測 cold 6.4秒／予告値はPC版 LSEC の"文体"と同値） -->
         <div id="stEta" class="steta"></div>
 
@@ -308,9 +312,9 @@
 
     <!-- 🆕2026-07-24 出勤時間報告（フレックス）＝日付+時刻→テンプレ承認→Slack C054KRTSF8T へ@channel（本人名義・本文はサーバ再構築） -->
     <div id="view-nippo">
-      <h2 class="sec-title">📔 日報</h2>
+      <h2 class="sec-title">📔 日誌</h2>
       <div class="card">
-        <div class="edit-note">ここで書く→「今日の日報」シートへ直接反映</div>
+        <div class="edit-note">ここで書く→「今日の日誌」シートへ直接反映</div>
         <div class="edit-actions">
           <button type="button" class="btn" id="npLoadBtn">📥 今日のシートを読み込む</button>
           <span id="npSheetLink"></span>
@@ -330,11 +334,15 @@
           <label class="field-label" id="npL4" for="npQ4">Q4</label>
           <textarea id="npQ4" rows="3" aria-describedby="npQ4N"></textarea>
           <div id="npQ4N" class="edit-note"></div>
+          <!-- 🆕s71（b179 r9・2026-10-22）：Q5（見出しはシートの文言をそのまま出す） -->
+          <label class="field-label" id="npL5" for="npQ5">Q5</label>
+          <textarea id="npQ5" rows="3" aria-describedby="npQ5N"></textarea>
+          <div id="npQ5N" class="edit-note"></div>
           <label class="edit-check"><input type="checkbox" id="npForce"> 既に書かれている欄も上書きする</label>
-          <button type="button" class="btn btn-primary" id="npSaveBtn" disabled>今日の日報シートへ書く</button>
+          <button type="button" class="btn btn-primary" id="npSaveBtn" disabled>今日の日誌シートへ書く</button>
           <div id="npRes" class="result" role="status" style="display:none"></div>
         </div>
-        <div class="edit-note">書くのは<b>松原の行のC〜F列（Q1〜Q4）だけ</b>です。G列（名前）も、他の方の行も触りません。行番号は固定せず<b>毎回B列から松原の行を探して</b>から書きます（名簿の曜日指定で並び順が変わるため）。既に書かれている欄は上書きせずスキップします（上の印を入れたときだけ上書き）。書いた直後に<b>もう一度読み直して一致を確かめて</b>から「完了」と出します。</div>
+        <div class="edit-note">書くのは<b>松原の行のC〜G列（Q1〜Q5）だけ</b>です。名前の欄も、コメントの欄も、他の方の行も触りません。列は毎回シートの見出しで確かめ、並びが変わっていたら書きません。行番号は固定せず<b>毎回B列から松原の行を探して</b>から書きます（名簿の曜日指定で並び順が変わるため）。既に書かれている欄は上書きせずスキップします（上の印を入れたときだけ上書き）。書いた直後に<b>もう一度読み直して一致を確かめて</b>から「完了」と出します。</div>
       </div>
     </div>
 
