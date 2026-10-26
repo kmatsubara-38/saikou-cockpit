@@ -81,16 +81,59 @@ function metBack(m) {
 /* b157 R16_pwa_instant_A Codex gpt-6-astra */
 let r16LastClick = null;
 const r16Busy = new WeakMap();
+/* ⚡s72（b180・2026-10-24 松原さん「押下後、即座に情報が反映される＝2秒以内」）：押下の起点を3つに。
+ *   クリック（k:'c'）・入力欄の Enter（k:'k'＝日本語変換の確定は除く）・選択や日付の確定（k:'g'）。
+ *   🔴ついでの不具合③：旧＝起点がクリックだけ＝Enter で送った登録は二度押しが止まらなかった（タスク追加の Enter 連打で二重登録の恐れ）。
+ *   確認の窓（confirm／prompt）を閉じた時刻も覚える＝窓を出している間の秒数を「押してから」に数えない・窓の後の送信にも札を出す */
+const sndMark = (element, k) => {
+  if (!element) return;
+  if (r16LastClick && r16LastClick.mo) { try { r16LastClick.mo.disconnect(); } catch (e) {} }
+  const g = { element, at: Date.now(), k, sAt: 0 };
+  /* 押してから「画面の情報が変わる」までを測る（札・エラー枠・押した要素そのものの変化は数えない） */
+  try {
+    const ours = m => m.type === 'childList' && [...m.addedNodes, ...m.removedNodes].length > 0 &&
+      [...m.addedNodes, ...m.removedNodes].every(z => z.nodeType === 1 && z.classList && z.classList.contains('cpSnd'));
+    g.mo = new MutationObserver(ms => {
+      if (g.sAt) return;
+      for (const m of ms) {
+        if (ours(m)) continue;
+        let n = m.target; if (n && n.nodeType !== 1) n = n.parentElement;
+        if (!n || !n.closest || n.closest('.cpSnd,#errBox') || element.contains(n)) continue;
+        g.sAt = Date.now(); try { g.mo.disconnect(); } catch (e) {} break;
+      }
+    });
+    g.mo.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+    setTimeout(() => { try { g.mo.disconnect(); } catch (e) {} }, 30000);
+  } catch (e) {}
+  r16LastClick = g;
+};
 document.addEventListener('click', e => {
   if (!e.isTrusted) return;
   const target = e.target && (e.target.nodeType === 1 ? e.target : e.target.parentElement);
   if (!target) return;
   const element = target.closest('button, input[type="button"], input[type="submit"], a, [role="button"]') || target;
-  r16LastClick = { element, at: Date.now() };
+  sndMark(element, 'c');
 }, true);
+document.addEventListener('keydown', e => {
+  if (!e.isTrusted || e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+  const x = e.target;
+  if (x && x.tagName && /^(INPUT|SELECT)$/.test(x.tagName)) sndMark(x, 'k');
+}, true);
+document.addEventListener('change', e => {
+  if (!e.isTrusted) return;
+  const x = e.target;
+  if (x && x.tagName && /^(INPUT|SELECT|TEXTAREA)$/.test(x.tagName)) sndMark(x, 'g');
+}, true);
+['confirm', 'prompt'].forEach(n => {
+  const f = window[n];
+  if (typeof f !== 'function' || f._cpSnd) return;
+  const w2 = function () { const r = f.apply(window, arguments); if (r16LastClick) r16LastClick.at2 = Date.now(); return r; };
+  w2._cpSnd = 1; window[n] = w2;
+});
+const sndBase = g => g ? Math.max(g.at, g.at2 || 0) : 0;
 function r16BeginBusy() {
   const click = r16LastClick;
-  if (!click || Date.now() - click.at < 0 || Date.now() - click.at > 400) return () => {};
+  if (!click || Date.now() - sndBase(click) < 0 || Date.now() - sndBase(click) > 400) return () => {};
   const element = click.element;
   let state = r16Busy.get(element);
   if (!state) {
@@ -118,13 +161,66 @@ function r16BeginBusy() {
     r16Busy.delete(element);
   };
 }
+/* ⚡s72 書く口の名簿（PC の CPW と同じ考え）。a・b＝保存中… c＝送信中…（取り消せない書き込み） d＝受け付けています… fN＝作成中…だいたいN秒 q＝楽観表示が済み（失敗だけ札） */
+const SNDW = { taskSave: 'a', taskDelete: 'b', taskEvSave: 'a', notifReadAll: 'a', undo: 'a', msgLearnForget: 'b', bookSave: 'a', bookRead: 'a',
+  nippoSheetSave: 'a', styleTeach: 'a', styleTeachMulti: 'a', moushiSkip: 'b',
+  taskStatus: 'q', notifRead: 'q', intelStatus: 'q',
+  approve: 'c', zangyoReport: 'c', shukkinReport: 'c', advSave: 'c', moushiSend: 'c', pipeFb: 'c', pipeStep: 'c', receipt: 'c',
+  calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c',
+  kintaiFree: 'd', shokai: 'd',
+  bookScan: 'f15', robinSyncLine: 'f20', styleHarvest: 'f13', styleRefresh: 'f10' };
+const SNDL = { a: '保存中…', b: '保存中…', c: '送信中…', d: '受け付けています…' };
+const sndFly = new WeakMap();
+/* ⚡s72 r2（敵対監査 致命-1）：下書き・プレビューは同じ欄・同じ口から本送信の前に何度も出る＝札も二度押しの止めも付けない（付けると Enter の本送信が「二度押し」で止まる） */
+const sndDraft4 = (n, p) => (n === 'shukkinReport' && p.draft === true) || (n === 'zangyoReport' && !!(p.payload && p.payload.draft === true)) || (n === 'robinSyncLine' && p.dry === true);
+/* 往復の秒数の控え（端末だけ・300件まで）。home の便の met に同乗して届く＝往復0増。残すのは api 名・ボタンの id・秒数・成否だけ */
+const LAT = 'cp_lat';
+function latAdd(o) { try { let a = JSON.parse(localStorage.getItem(LAT) || '[]'); if (!Array.isArray(a)) a = []; a.push(o); if (a.length > 300) a = a.slice(-300); localStorage.setItem(LAT, JSON.stringify(a)); } catch (e) {} }
+function latPeek() { try { const a = JSON.parse(localStorage.getItem(LAT) || '[]'); return Array.isArray(a) && a.length ? a.slice(0, 60) : null; } catch (e) { return null; } }
+function latDrop(n) { try { const a = JSON.parse(localStorage.getItem(LAT) || '[]'); localStorage.setItem(LAT, JSON.stringify(Array.isArray(a) ? a.slice(n) : [])); } catch (e) {} }
+function sndBdg(el, tx, cl) {
+  let b = el._cpSb;
+  if (!b || !b.isConnected) {
+    b = document.createElement('span'); b.setAttribute('role', 'status'); b.setAttribute('aria-live', 'polite');
+    try { el.insertAdjacentElement('afterend', b); } catch (e) { return null; }
+    el._cpSb = b;
+  }
+  b.className = 'cpSnd' + (cl ? ' ' + cl : ''); b.textContent = tx; clearTimeout(b._h);
+  return b;
+}
+function sndOff(b, ms) { if (!b) return; clearTimeout(b._h); b._h = setTimeout(() => { if (b.parentNode) b.parentNode.removeChild(b); }, ms); }
+/* 押下から出た書く口に札を出し、二度押しを止める。返すのは終わりの関数（成否・理由）。名簿に無い口・押下から1.5秒より後の呼び出しは素通し */
+function sndBegin(payload) {
+  const nm = String(payload && payload.api === 'pair' ? (payload.w && payload.w.api) || '' : (payload && payload.api) || '');
+  const m = SNDW[nm], g = r16LastClick, now = Date.now(), b0 = sndBase(g);
+  if (!m || !g || sndDraft4(nm, payload || {}) || now < b0 || now - b0 > 1500) return null;   // ⚡s72 r2：下書き・確認は素通し
+  const el = g.element;
+  let f = sndFly.get(el); if (!f) { f = {}; sndFly.set(el, f); }
+  const p = f[nm];
+  if (p && p.g !== g && now - p.t < 120000) { const er = new Error('いま送っています（二度押しは送りません）'); er.dup = true; throw er; }
+  const me = { g, t: now }; f[nm] = me;
+  const q = m === 'q', sec = m.charAt(0) === 'f' ? (+m.slice(1) || 30) : 0, own = /中…/.test(String(el.textContent || ''));
+  const bd = (q || own) ? null : sndBdg(el, sec ? ('作成中…だいたい' + sec + '秒') : (SNDL[m] || '送信中…'), 'run');
+  const iv = (bd && sec) ? setInterval(() => { if (bd.isConnected) bd.textContent = '作成中…' + Math.round((Date.now() - b0) / 1000) + '秒目（だいたい' + sec + '秒）'; }, 1000) : null;
+  return (ok, why) => {
+    clearInterval(iv); if (f[nm] === me) delete f[nm];
+    if (ok === null) { if (bd && bd.parentNode) bd.parentNode.removeChild(bd); return; }
+    latAdd({ a: nm.slice(0, 40), b: String(el.id || (el.tagName + '.' + String(el.className || '').split(' ')[0])).slice(0, 30), k: g.k, s: g.sAt ? Math.max(0, g.sAt - b0) : -1, r: Date.now() - b0, o: ok ? 1 : 0, t: b0 });
+    if (el.isConnected && !(q && ok)) sndOff(sndBdg(el, ok ? '✓ 完了' : '✕ 失敗：' + String(why || '理由が返ってきませんでした').slice(0, 80), ok ? 'ok' : 'ng'), ok ? 1600 : 15000);
+    else if (bd && bd.parentNode) bd.parentNode.removeChild(bd);
+  };
+}
 async function api(payload) {
+  const sndEnd = sndBegin(payload);   // ⚡s72：二度押しはここで止まる（例外 dup）＝送らない
+  let sndOk = false, sndWhy = '';
   const finishBusy = r16BeginBusy();
   try {
   const k = localStorage.getItem(LS.KEY);
   if (!k) { showSetup(); throw new Error('合鍵が未設定です'); }
   metClick(String(payload && payload.api || ''));   // 📊操作＝api名だけを数える（中身は見ない）
   const M9 = (payload && payload.api === 'home') ? metTake() : null;   // 📊homeの便にだけ同乗＝往復ゼロ増
+  const LT9 = (payload && payload.api === 'home') ? latPeek() : null;   // ⚡s72：往復の秒数も同じ便に（met.lt）
+  const MT9 = (M9 || LT9) ? Object.assign({}, M9 || {}, LT9 ? { lt: LT9 } : {}) : null;
   let res;
   /* 🆕s62（2026-10-04 監査 M-3）：返事が来ないと「…中」のまま固まっていた＝90秒で打ち切って理由を出す。
    *   書き込み系はサーバ側で処理が続いている可能性がある＝押し直す前に結果を確かめる、と文に入れる */
@@ -134,7 +230,7 @@ async function api(payload) {
     res = await fetch(gasUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ k }, payload, M9 ? { met: M9 } : {})),
+      body: JSON.stringify(Object.assign({ k }, payload, MT9 ? { met: MT9 } : {})),
       redirect: 'follow',
       signal: ac9 ? ac9.signal : undefined
     });
@@ -155,16 +251,34 @@ async function api(payload) {
     metBack(M9);
     if (j.error === 'auth') { showSetup('合鍵が一致しません。再入力してください。'); }
     if (j.error === 'unknown_api') {
-      throw new Error('この機能はサーバー側が未開通です（GAS貼り替え＝doPost拡張の反映待ち）');
+      const eU = new Error('この機能はサーバー側が未開通です（GAS貼り替え＝doPost拡張の反映待ち）');
+      eU.unknownApi = true;   // ⚡s72 r2：{api:'pair'} を知らないサーバ（b179）なら apiPair4 が書く口だけで送り直す
+      throw eU;
     }
     const err = new Error(j.msg ? String(j.msg) : ('APIエラー: ' + (j.error || '不明')));   // 🆕s62 監査 m-5：人向けの理由（msg）は前置きを付けずに出す   // コックピットapi*は失敗時 msg で理由を返す＝黙殺しない
     err.data = j;   // 🆕s60（b165）：失敗の返事そのもの（日報の staleDate・url など）を呼び手が読めるように載せる＝今の呼び手は message だけ見るので変わらない
     throw err;
   }
   if (M9 && !(j.met && j.met.ok)) metBack(M9);   // 📊本体okでも計測だけ受け取れなかったなら控えは消さない
+  if (LT9 && j.met && j.met.lt && j.met.lt.ok) latDrop(j.met.lt.n || 0);   // ⚡s72：受け取ったと言われた件数だけ消す
+  sndOk = true;
   return j;
-  } finally {
+  } catch (eS) { sndWhy = eS && eS.message; if (eS && eS.unknownApi && payload && payload.api === 'pair') sndOk = null; throw eS; } finally {
     finishBusy();
+    if (sndEnd) { try { sndEnd(sndOk, sndWhy); } catch (e) {} }
+  }
+}
+/* ⚡s72 r2（敵対監査 要修正1）：同乗（{api:'pair'}）。サーバがまだ pair を知らない（b179・unknown_api）ときは、書く口だけを送り直して一覧を取り直す
+ *   ＝スマホを先に配信しても、タスクの追加・直す・消すは今までどおり動く（そのときは往復が2回）。送り直しは同じ押下の続き＝札も同じ */
+async function apiPair4(w, r) {
+  try { return await api({ api: 'pair', w, r }); }
+  catch (e) {
+    if (!(e && e.unknownApi)) throw e;
+    if (r16LastClick) r16LastClick.at2 = Date.now();
+    const wr = await api(w);
+    let rr = null;
+    try { rr = await api(r); } catch (e2) { rr = null; }
+    return { ok: true, msg: wr && wr.msg, w: wr, r: rr };
   }
 }
 
@@ -540,9 +654,14 @@ $('notifList').addEventListener('click', async ev => {
   }
 });
 
+/* ⚡s72（A）：押した瞬間に未読を全部薄くし「既読」ボタンを隠す。失敗＝元に戻して理由 */
 $('btnReadAll').addEventListener('click', async () => {
+  const sv = [...document.querySelectorAll('#notifList .notif.unread')].map(c => {
+    const bs = [...c.querySelectorAll('button[data-act="read"]')];
+    const o = [c, c.style.opacity, bs]; c.classList.remove('unread'); c.style.opacity = '.45'; bs.forEach(b => { b.hidden = true; }); return o;
+  });
   try { await api({ api: 'notifReadAll' }); await loadNotifs(true); }
-  catch (e) { showErr(e.message); }
+  catch (e) { if (!e.dup) sv.forEach(o => { o[0].classList.add('unread'); o[0].style.opacity = o[1]; o[2].forEach(b => { b.hidden = false; }); }); showErr(e.message); }
 });
 
 async function loadNotifs(force) {
@@ -792,12 +911,15 @@ async function mlOpen(id) {
       const bt = document.createElement('button');
       bt.className = 'chip';
       bt.textContent = '忘れる';
+      /* ⚡s72（B）：押した瞬間に行を消す（読み直しの往復を無くす）。失敗＝行を戻して理由 */
       bt.addEventListener('click', async () => {
+        if (bt.disabled) return;
+        bt.disabled = true; row.style.display = 'none';
         try {
-          await api({ api: 'msgLearnForget', kind: x.kind, a: x.a });
-          b.classList.add('hidden');
-          mlOpen(b.id);
-        } catch (e) { l.textContent = '消せませんでした：' + e.message; }
+          const r = await api({ api: 'msgLearnForget', kind: x.kind, a: x.a });
+          if (r && r.undo) showUndo(r.msg || '忘れました', r.undo, () => { b.classList.add('hidden'); mlOpen(b.id); });
+          else showOk((r && r.msg) || '忘れました');
+        } catch (e) { if (!e.dup) { row.style.display = 'flex'; bt.disabled = false; } l.textContent = '消せませんでした：' + e.message; }
       });
       row.appendChild(l); row.appendChild(bt); b.appendChild(row);
     });
@@ -2382,15 +2504,22 @@ async function loadBooks() {
 }
 if ($('btnBookReload')) $('btnBookReload').addEventListener('click', loadBooks);
 
+/* ⚡s72（A）：読書の書き込みは押した瞬間に一覧へ描く。サーバの返事の本（r.book）で確定、失敗＝押す前の一覧へ戻して理由 */
+const bkSnap4 = () => JSON.stringify({ n: bkBooks.now || [], d: bkBooks.done || [] });
+const bkBack4 = s => { try { const o = JSON.parse(s); bkBooks.now = o.n; bkBooks.done = o.d; renderBooks(); } catch (e) {} };
+const bkFind4 = ts => { const x = (bkBooks.now || []).concat(bkBooks.done || []).find(y => String(y.ts) === String(ts)); return x ? JSON.parse(JSON.stringify(x)) : null; };
+const bkCalc4 = b => { const p = +b.pages || 0, r = Math.max(0, parseInt(b.read, 10) || 0); b.read = r; if (p) { b.remain = Math.max(0, p - r); b.pct = Math.min(100, Math.round(r / p * 100)); } return b; };
 /* 📅b144：期限は change で拾う（クリックの委譲では日付の確定を拾えない） */
 if ($('bookList')) $('bookList').addEventListener('change', async ev => {
   const el = ev.target;
   if (!el || el.dataset.bk !== 'due') return;
+  const s9 = bkSnap4(), c9 = bkFind4(el.dataset.ts);
+  if (c9) { c9.due = el.value; c9.days = null; c9.over = false; c9.perDay = 0; bkPut(c9); renderBooks(); }
   try {
     const r = await api({ api: 'bookSave', p: { ts: el.dataset.ts, due: el.value } });
     showOk(r.msg || '期限を入れました');
     bkPut(r.book); renderBooks();
-  } catch (e) { showErr(e.message); }
+  } catch (e) { if (!e.dup) bkBack4(s9); showErr(e.message); }
 });
 if ($('bookList')) $('bookList').addEventListener('click', async ev => {
   const btn = ev.target.closest('button[data-bk]');
@@ -2402,10 +2531,12 @@ if ($('bookList')) $('bookList').addEventListener('click', async ev => {
     const e = $('bkR_' + ts);
     if (!e) return;
     btn.disabled = true;
+    const s9 = bkSnap4(), c9 = bkFind4(ts), v9 = e.value;
+    if (c9) { c9.read = v9; bkCalc4(c9); bkPut(c9); renderBooks(); }
     try {
-      const r = await api({ api: 'bookRead', ts, read: e.value });
+      const r = await api({ api: 'bookRead', ts, read: v9 });
       showOk(r.msg || '完了'); bkPut(r.book); renderBooks();
-    } catch (er) { showErr(er.message); }
+    } catch (er) { if (!er.dup) bkBack4(s9); showErr(er.message); }
     btn.disabled = false;
     return;
   }
@@ -2413,10 +2544,12 @@ if ($('bookList')) $('bookList').addEventListener('click', async ev => {
     /* 🔴読了は戻す口が無い＝押す前に書名を出して1回だけ確かめる（PC版 bkFinish と同じ文言） */
     if (!confirm(b.title + '　を「読了」にします。\n\n読み終えた本の一覧へ移り、進捗は総ページまで進みます。よろしいですか？')) return;
     btn.disabled = true;
+    const s9 = bkSnap4(), c9 = bkFind4(ts);
+    if (c9) { c9.status = '読了'; c9.finished = todayYmd(); if (+c9.pages) c9.read = +c9.pages; bkCalc4(c9); bkPut(c9); renderBooks(); }
     try {
       const r = await api({ api: 'bookSave', p: { ts, status: '読了' } });
       showOk(r.msg || '完了'); bkPut(r.book); renderBooks();
-    } catch (er) { showErr(er.message); }
+    } catch (er) { if (!er.dup) bkBack4(s9); showErr(er.message); }
     btn.disabled = false;
     return;
   }
@@ -2498,14 +2631,20 @@ if ($('bkAddBtn')) $('bkAddBtn').addEventListener('click', async () => {
   const btn = $('bkAddBtn');
   btn.disabled = true; btn.textContent = '登録中…';
   if (out) { out.className = 'result'; out.textContent = ''; }
+  /* ⚡s72（A）：押した瞬間に仮の本を一覧へ・欄を空に。失敗＝一覧と欄を戻す */
+  const ids9 = ['bkTitle', 'bkAuthor', 'bkPages', 'bkDue', 'bkRead', 'bkNote', 'bkFinD'], kp9 = ids9.map(id => { const e = $(id); return e ? e.value : ''; });
+  const tmp9 = bkCalc4({ ts: 'tmp' + Date.now(), title: p.title, author: p.author, pages: +p.pages || 0, read: p.read, due: p.due, note: p.note, status: p.status, finished: p.finished || '' });
+  const s9 = bkSnap4(); bkPut(tmp9); renderBooks(); ids9.forEach(id => { const e = $(id); if (e) e.value = ''; });
   try {
     const r = await api({ api: 'bookSave', p });
     if (out) { out.className = 'result ok'; out.textContent = r.msg || '登録しました'; }
+    const f9 = a => (a || []).filter(x => x.ts !== tmp9.ts); bkBooks.now = f9(bkBooks.now); bkBooks.done = f9(bkBooks.done);
     bkPut(r.book); renderBooks();
     /* 🔴登録できたら入力は消す（b137の線引き＝送って用が済んだ器は残さない）。案内文も最初の姿へ */
     ['bkTitle', 'bkAuthor', 'bkPages', 'bkDue', 'bkRead', 'bkNote', 'bkFinD', 'bkPhoto'].forEach(id => { const e = $(id); if (e) e.value = ''; });
     const sn = $('bkScanNote'); if (sn) sn.textContent = '写真を入れると、ここに読み取り結果が出ます';
   } catch (e) {
+    if (!e.dup) { bkBack4(s9); ids9.forEach((id, i) => { const el = $(id); if (el && !el.value) el.value = kp9[i]; }); }
     if (out) { out.className = 'result ng'; out.textContent = e.message; }
   } finally { btn.disabled = false; btn.textContent = 'この本を登録する'; }
 });
@@ -3858,11 +3997,14 @@ function tkRow4(t) {
   const del = document.createElement('button');
   del.className = 'chip'; del.textContent = '消す';
   /* ↩️confirm廃止＝消してから「元に戻す」（2026-08-05 第1手） */
+  /* ⚡s72（B＋E）：押した瞬間に行を隠してボタンを止める。消すと一覧は1往復（{api:'pair'}）。失敗＝行を戻して理由。元に戻すの切符は r.w.undo */
   del.addEventListener('click', async () => {
-    try { const r = await api({ api: 'taskDelete', id: t.id });
-      if (r && r.ok) { showUndo(r.msg || '消しました', r.undo, () => tkLoad4(false)); tkLoad4(false); }
-      else showErr((r && r.msg) || '消せません');
-    } catch (e) { showErr(e.message); }
+    if (del.disabled) return;
+    del.disabled = true; const sd = d.style.display; d.style.display = 'none';
+    try { const r = await apiPair4({ api: 'taskDelete', id: t.id }, { api: 'tasks', done: TKDone4 });
+      showUndo(r.msg || '消しました', r.w && r.w.undo, () => tkLoad4(false));
+      if (r.r && r.r.ok) { TK4 = r.r; tkDraw4(); } else tkLoad4(false);
+    } catch (e) { if (!e.dup) { d.style.display = sd; del.disabled = false; } showErr(e.message); }
   });
   b.appendChild(del);
   d.appendChild(b);
@@ -3894,15 +4036,19 @@ function tkEdit4(t, row) {
     if (!ti) { say('やることを入れてください'); return; }
     if (!p.querySelector('.e2').value) { say('アクション期限（自分が動く日）を入れてください'); return; }
     const b = p.querySelector('.e5'); b.disabled = true; b.textContent = '保存中…';
+    /* ⚡s72（A＋E）：押した瞬間に行の件名を差し替える。保存と一覧は1往復。失敗＝件名を戻して理由 */
+    const ti0 = row.querySelector('.tk-title'), old0 = ti0 ? ti0.textContent : '';
+    if (ti0) ti0.textContent = ti;
     try {
       /* 🔴idを必ず渡す＝新規追加にならない。ステータスとサロンはそのまま持ち越す */
-      const r = await api({ api: 'taskSave', t: { id: t.id, title: ti, status: t.status,
+      const r = await apiPair4({ api: 'taskSave', t: { id: t.id, title: ti, status: t.status,
         due: p.querySelector('.e2').value, due2: p.querySelector('.e7').value,
         kanri: (p.querySelector('.e3').value || '').trim(),
-        salon: t.salon || '', note: p.querySelector('.e4').value || '' } });
+        salon: t.salon || '', note: p.querySelector('.e4').value || '' } }, { api: 'tasks', done: TKDone4 });
       b.disabled = false; b.textContent = 'この内容で直す';
-      if (r && r.ok) { showOk(r.msg || '直しました'); tkLoad4(false); } else say((r && r.msg) || '直せませんでした');
-    } catch (e) { b.disabled = false; b.textContent = 'この内容で直す'; say('通信エラー：' + e.message); }
+      showOk(r.msg || '直しました'); p.remove();
+      if (r.r && r.r.ok) { TK4 = r.r; tkDraw4(); } else tkLoad4(false);
+    } catch (e) { if (ti0) ti0.textContent = old0; b.disabled = false; b.textContent = 'この内容で直す'; say(e.dup ? e.message : '直せませんでした：' + e.message); }
   });
   row.appendChild(p);
   setTimeout(() => p.querySelector('.e1').focus(), 60);
@@ -3956,15 +4102,16 @@ function tkCal4(t, row, btn) {
     });
     if (bad.length) { say('読めない時間帯があります：' + bad.join(' / '), true); return; }
     const b = p.querySelector('.q5'); b.disabled = true; b.textContent = '保存中…';
+    const ob = btn ? btn.textContent : ''; if (btn) btn.textContent = '📅 予定を編集';   // ⚡s72（A）：押した瞬間に行のボタンを変える・失敗で戻す
     try {
       const r = await api({ api: 'taskEvSave', t: { taskId: t.id, title: ti, date: dt, slots } });
       b.disabled = false; b.textContent = label();
-      if (!(r && r.ok)) { say((r && r.msg) || '保存できませんでした', true); return; }
+      if (!(r && r.ok)) { if (btn) btn.textContent = ob; say((r && r.msg) || '保存できませんでした', true); return; }
       say(r.msg || '保存しました'); showOk(r.msg || '保存しました');
       if (TK4 && TK4.ev) TK4.ev[t.id] = { t: '' };
       if (btn) btn.textContent = '📅 予定を編集';
       setTimeout(() => { p.remove(); tkLoad4(false); }, 1500);
-    } catch (e) { b.disabled = false; b.textContent = label(); say('通信エラー：' + e.message, true); }
+    } catch (e) { if (btn && !e.dup) btn.textContent = ob; b.disabled = false; b.textContent = label(); say('通信エラー：' + e.message, true); }
   });
   row.appendChild(p);
   /* 🔴既に予定があるなら中身を出して「直す」画面にする（作り直しにならない） */
@@ -3984,11 +4131,26 @@ async function tkAdd4() {
   if (!t) { showErr('やることを入れてください'); return; }
   /* 🔴2026-08-05：アクション期限は必須（いつ動くかの無いタスクを作らない） */
   if (!$('tkD').value) { showErr('アクション期限（自分が動く日）を入れてください'); return; }
+  /* ⚡s72（A＋E・ついでの不具合③）：押した瞬間に欄を空にし、仮の行（薄い・押せない）を一覧の先頭へ＝Enter の連打は空の欄で止まる。
+   *   保存と一覧は1往復（{api:'pair'}）。失敗＝仮の行を消して欄を戻す */
+  const due = $('tkD').value, due2 = $('tkD2') ? $('tkD2').value : '';
+  $('tkT').value = ''; $('tkD').value = ''; if ($('tkD2')) $('tkD2').value = '';
+  const host = $('tkList');
+  let tmp = null;
+  if (host) {
+    const mu = host.querySelector('.muted'); if (mu && mu.parentNode === host) mu.remove();
+    tmp = tkRow4({ id: '', title: t, status: '未着手', due, due2, kanri: '', salon: '' });
+    tmp.classList.add('cpTmp'); host.insertBefore(tmp, host.firstChild);
+  }
   try {
-    const r = await api({ api: 'taskSave', t: { title: t, due: $('tkD').value, due2: $('tkD2') ? $('tkD2').value : '' } });
-    if (r && r.ok) { showOk(r.msg || '追加しました'); $('tkT').value = ''; $('tkD').value = ''; if ($('tkD2')) $('tkD2').value = ''; tkLoad4(false); }
-    else showErr((r && r.msg) || '追加できません');
-  } catch (e) { showErr(e.message); }
+    const r = await apiPair4({ api: 'taskSave', t: { title: t, due, due2 } }, { api: 'tasks', done: TKDone4 });
+    showOk(r.msg || '追加しました');
+    if (r.r && r.r.ok) { TK4 = r.r; tkDraw4(); } else tkLoad4(false);
+  } catch (e) {
+    if (tmp && tmp.parentNode) tmp.remove();
+    if (!$('tkT').value) $('tkT').value = t; if (!$('tkD').value) $('tkD').value = due; if ($('tkD2') && !$('tkD2').value) $('tkD2').value = due2;
+    showErr(e.message);
+  }
 }
 
 /* 起動時の配線（1回だけ・PWAは再初期化ループが無いので二重化しない） */
@@ -4008,7 +4170,7 @@ document.addEventListener('DOMContentLoaded', () => {
    *   2026-08-20 松原「機能していないから」＝カードごと撤廃したので起動点も撤去。 */
   on('tkAddBtn', tkAdd4);
   const ti = $('tkT');
-  if (ti) ti.addEventListener('keydown', ev => { if (ev.key === 'Enter') tkAdd4(); });
+  if (ti) ti.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing && ev.keyCode !== 229) tkAdd4(); });   // ⚡s72：日本語変換の確定の Enter では送らない
   on('tkDoneTgl', () => { TKDone4 = !TKDone4;
     const b = $('tkDoneTgl'); if (b) b.textContent = TKDone4 ? '✔ 未完了だけ' : '✔ 完了も見る';
     tkLoad4(true); });
