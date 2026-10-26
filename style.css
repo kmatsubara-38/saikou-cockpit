@@ -449,3 +449,9 @@ main{padding-bottom:88px}
 .sheet-pn,.sheet.on .sheet-pn{opacity:1;transform:none;transition:none}
 .fab,.fab:active{transform:none;transition:none}
 }
+
+/* ⚡s72（b180・2026-10-24）：書くボタンの札（押した瞬間＝保存中…／送信中…／作成中…だいたいN秒 → ✓ 完了／✕ 失敗：理由）と、楽観表示の仮の行（薄い・押せない） */
+.cpSnd{display:inline-block;margin:0 6px;padding:0 8px;border:1px solid var(--line);border-radius:var(--radius);font-size:12px;line-height:1.8;vertical-align:middle;white-space:nowrap;color:var(--sub)}
+.cpSnd.ok{border-color:var(--ok);color:var(--ok)}
+.cpSnd.ng{border-color:var(--bad);color:var(--bad);white-space:normal}
+.cpTmp{opacity:.55;pointer-events:none}
