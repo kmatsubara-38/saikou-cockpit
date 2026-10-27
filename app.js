@@ -166,7 +166,7 @@ const SNDW = { taskSave: 'a', taskDelete: 'b', taskEvSave: 'a', notifReadAll: 'a
   nippoSheetSave: 'a', styleTeach: 'a', styleTeachMulti: 'a', moushiSkip: 'b',
   taskStatus: 'q', notifRead: 'q', intelStatus: 'q',
   approve: 'c', zangyoReport: 'c', shukkinReport: 'c', advSave: 'c', moushiSend: 'c', pipeFb: 'c', pipeStep: 'c', receipt: 'c',
-  calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c',
+  calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c', nippoCoach: 'c',
   kintaiFree: 'd', shokai: 'd',
   bookScan: 'f15', robinSyncLine: 'f20', styleHarvest: 'f13', styleRefresh: 'f10' };
 const SNDL = { a: '保存中…', b: '保存中…', c: '送信中…', d: '受け付けています…' };
@@ -2826,17 +2826,21 @@ function rvWatch() {
 /* ==== b157/s56 R4_pwa ③FAB＝右下の💬 → 下から出るシート → 既存の api() で {api:'chatPull', kanri, name}
  *   成功＝r.html（サーバ apiChatPull がマスク済で組んだHTML）を innerHTML に入れる（この1箇所だけ・ユーザ入力は入れない・殻側で本文を加工しない）
  *   失敗＝api() が投げた e.message（'この機能はサーバー側が未開通です…' も含む）を textContent に出す。 ==== */
-function sheetOpen() {
+let sheetFrom = 'fabChat';   // 📝s74：どちらのボタンで開いたか（閉じたらそこへ戻る）
+function sheetOpen(from, title) {
   const s = $('chatSheet'); if (!s) return;
+  sheetFrom = from === 'fabNippo' ? 'fabNippo' : 'fabChat';
+  const tt = $('chatSheetTitle'); if (tt) tt.textContent = title || '🧠 ロビン（第二の脳）';
   s.classList.remove('hidden');
   requestAnimationFrame(() => s.classList.add('on'));
-  const f = $('fabChat'); if (f) f.setAttribute('aria-expanded', 'true');
+  ['fabChat', 'fabNippo'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', String(id === sheetFrom)); });
   const x = $('chatSheetClose'); if (x) x.focus();
 }
 function sheetClose() {
   const s = $('chatSheet'); if (!s) return;
   s.classList.remove('on'); s.classList.add('hidden');
-  const f = $('fabChat'); if (f) { f.setAttribute('aria-expanded', 'false'); f.focus(); }
+  ['fabChat', 'fabNippo'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', 'false'); });
+  const f = $(sheetFrom); if (f) f.focus();
 }
 /* ==== s57 🧠ロビン（第二の脳＝Obsidian Vault）の鮮度と LINE 取込（PC 版 b158 と同格・2026-09-26 b159：②は松原の判断待ちで止める＝r.hold・説明はサーバの文）
  *   Slack→ロビン＝PC が 3時間ごとに自動（鏡・伏字つき）。LINE は API が無い＝書き出しを Drive に置いた分をボタンで即取込。
@@ -2857,15 +2861,28 @@ function robinRender(box, r) {
   (r.rows || []).forEach(x => {
     const tr = document.createElement('tr');
     const a = document.createElement('td'); a.textContent = x.label;
-    const b = document.createElement('td'); b.className = 'at'; b.textContent = (x.last && x.last.at) ? x.last.at : ((x.last && x.last.err) ? ('読めず：' + x.last.err) : '—');
+    const b = document.createElement('td'); b.className = 'at'; b.textContent = (x.last && x.last.at) ? (x.last.at + (x.ago ? '（' + x.ago + '）' : '')) : ((x.last && x.last.err) ? ('読めず：' + x.last.err) : '—');
+    if (x.warn) b.style.color = 'var(--ng)';   // 📝s74（b182）古さの赤（LINE は②を止めている間ずっと）
     const c = document.createElement('td'); c.className = 'sub'; c.textContent = x.how;
     tr.appendChild(a); tr.appendChild(b); tr.appendChild(c); tb.appendChild(tr);
   });
   box.appendChild(tb);
+  /* 📝s74（b182）止めているもの（松原さんの判断待ち）＝理由と再開に要る判断（文はサーバの cpRobinHolds_） */
+  if (r.holds && r.holds.length) {
+    const hb = document.createElement('div'); hb.style.marginTop = '12px';
+    const hh = pnd('div', '', '止めているもの（松原さんの判断待ち）'); hh.style.fontWeight = '700'; hb.appendChild(hh);
+    r.holds.forEach(h => {
+      const d = document.createElement('div'); d.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--line)';
+      const a = pnd('div', '', '⏸ ' + h.what + '（' + h.since + '〜）'); a.style.fontWeight = '700'; d.appendChild(a);
+      d.appendChild(pnd('div', 'muted', '理由：' + h.why)); d.appendChild(pnd('div', 'muted', '再開に要る判断：' + h.need));
+      hb.appendChild(d);
+    });
+    box.appendChild(hb);
+  }
   const pd = r.pending || {};
   const wait = Math.max(0, (pd.n || 0) - (pd.stay || 0));
   const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'btn robinBtn'; bt.id = 'robinPeekBtn';
-  bt.textContent = '① LINE の書き出しに何が入るか見る（待ち ' + wait + ' 本' + (pd.stay ? ('・除外して置いたまま ' + pd.stay + ' 本') : '') + '）';
+  bt.textContent = r.peekLabel || ('① LINE の書き出しに何が入るか見る（待ち ' + wait + ' 本' + (pd.stay ? ('・除外して置いたまま ' + pd.stay + ' 本') : '') + '）');
   bt.addEventListener('click', () => robinPeek(box, bt));
   box.appendChild(bt);
   box.appendChild(pnd('div', 'muted', r.note || 'LINE は API が無いため、LINE アプリで書き出したトーク履歴（TXT／HTML）を Drive「レイリー_トーク履歴」に置くと、①で中身を見てから②でロビンへ入ります（話者名は伏字・メール／電話は伏字・患者情報の疑いは入れない）。Slack は PC が 3時間ごとに自動で鏡にします。レイリーはロビンを読むので、ロビンが最新ならレイリーも最新です。'));
@@ -2923,6 +2940,102 @@ async function partnerPull(box, bt) {
   if (bt) bt.disabled = false;
 }
 if ($('fabChat')) $('fabChat').addEventListener('click', chatPull);
+/* ==== 📝s74（b182）日報ボタン＝PC の 📋 と同じ口 nippoCoach（日付を選ぶ→空欄だけ書く→読み直しの一致を出す・鍵が無ければ下書き）。
+ *   鍵の保存は PC の小窓から（スマホに鍵を打つ欄は置かない）。札は共通の部品（SNDW の c＝送信中…） ==== */
+let npDays4 = null;
+const npJst4 = (ms) => new Date(Date.now() + 9 * 3600e3 - (ms || 0)).toISOString().slice(0, 10);
+function nippoOpen() {
+  const box = $('chatSheetBody'); if (!box) return;
+  sheetOpen('fabNippo', '📝 日報（外部コーチの方の Notion）');
+  box.textContent = '';
+  const td = npJst4(0), lo = npJst4(60 * 864e5);
+  if (!npDays4) npDays4 = [td];
+  box.appendChild(pnd('div', 'muted', '日付を選んで「日報に書く」を押すと、その日の日報の松原さんの行の空欄だけを埋めます（先に入っている欄・他の方の行は触りません）。書いた後に読み直して一致を数えます。1回に7日まで・未来の日は選べません。'));
+  const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0';
+  const inp = document.createElement('input'); inp.type = 'date'; inp.id = 'npDay4'; inp.max = td; inp.min = lo; inp.value = td; inp.setAttribute('aria-label', '足す日付');
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn'; add.textContent = '＋ この日を足す';
+  const ch = document.createElement('div'); ch.id = 'npChips4'; ch.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px';
+  add.addEventListener('click', () => {
+    const v = inp.value;
+    if (!v || v > td || v < lo) { showErr('今日まで・過去60日以内の日を選んでください'); return; }
+    if (npDays4.indexOf(v) < 0) { if (npDays4.length >= 7) { showErr('1回に7日までです'); return; } npDays4.push(v); npDays4.sort(); }
+    npChips4(ch);
+  });
+  row.appendChild(inp); row.appendChild(add); box.appendChild(row); box.appendChild(ch); npChips4(ch);
+  const go = document.createElement('button'); go.type = 'button'; go.className = 'btn btn-primary robinBtn'; go.id = 'npGo4'; go.textContent = '📝 日報に書く';
+  go.addEventListener('click', () => npSend4());
+  box.appendChild(go);
+  const o = document.createElement('div'); o.id = 'npOut4'; box.appendChild(o);
+}
+function npChips4(ch) {
+  ch.textContent = '';
+  npDays4.forEach(d => {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.style.cssText = 'min-height:36px;padding:2px 12px';
+    c.textContent = (+d.slice(5, 7)) + '/' + (+d.slice(8, 10)) + ' ×'; c.setAttribute('aria-label', d + ' を外す');
+    c.addEventListener('click', () => { npDays4 = npDays4.filter(x => x !== d); npChips4(ch); });
+    ch.appendChild(c);
+  });
+  if (!npDays4.length) ch.appendChild(pnd('span', 'muted', '日付が選ばれていません'));
+}
+async function npSend4() {
+  const o = $('npOut4'); if (!o) return;
+  if (!npDays4 || !npDays4.length) { showErr('日付を選んでください'); return; }
+  o.textContent = '';
+  try { npShow4(o, await api({ api: 'nippoCoach', dates: npDays4.slice() })); }
+  catch (e) { if (e && e.data) npShow4(o, e.data); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', e.message)); } }   // 鍵が無い（ok:false）も下書きを出す
+}
+function npShow4(o, r) {
+  o.textContent = '';
+  if (!r) { o.appendChild(pnd('div', 'muted', '返事が空でした')); return; }
+  o.appendChild(pnd('div', 'muted', r.msg || ''));
+  (r.days || []).forEach(x => {
+    const d = document.createElement('div'); d.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--line)';
+    const h = pnd('div', '', x.head || x.d); h.style.fontWeight = '700'; d.appendChild(h);
+    (x.lines || []).forEach(L => d.appendChild(pnd('div', 'muted', L)));
+    if (x.copy) {
+      const ta = document.createElement('textarea'); ta.readOnly = true; ta.value = x.copy; ta.rows = 8; ta.style.cssText = 'width:100%;font-size:15px;margin-top:6px'; d.appendChild(ta);
+      const cb = document.createElement('button'); cb.type = 'button'; cb.className = 'btn robinBtn'; cb.textContent = '📋 この日の下書きをコピー';
+      cb.addEventListener('click', () => copyText(x.copy, cb)); d.appendChild(cb);
+    }
+    if (x.act && x.act.items && x.act.items.length) npAct4(d, x.act);
+    o.appendChild(d);
+  });
+  if (r.note) o.appendChild(pnd('div', 'muted', r.note));
+  if (r.nokey) o.appendChild(pnd('div', 'muted', '外部コーチの方から連携の鍵が届いたら、PC のボードの同じ小窓（右下の📋）に貼って保存してください。保存すると、同じボタンで実際に書きます。'));
+}
+/* 🔴s74 r3（b182 r3・再監査 軽微-B）：網で取れない名前がある＝チェックは既定で外す（松原さんが行ごとに選んで入れる）。説明文も「網で取れない名前があります」に
+ * 🔴s74 r2（b182 r2・敵対監査 致命-1）：アクションは押した瞬間に書かない＝行ごとの下書き（チェックつき）を出し、
+ *   「アクションも書く」を押した行だけ同じ口 nippoCoach（act＝{d, items}）で書く。サーバは #残業報告から作り直した下書きと照合する */
+function npAct4(d, a) {
+  const bx = document.createElement('div'); bx.className = 'npAct4'; bx.style.cssText = 'margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px';
+  const t = pnd('div', '', 'アクションの下書き（まだ書いていません）'); t.style.fontWeight = '700'; bx.appendChild(t);
+  bx.appendChild(pnd('div', 'muted', '#残業報告の行です。網で取れない名前があります。名前・お客様が分かる行はチェックしないでください。チェックは最初は全部外してあります＝書く行にだけチェックを入れて「アクションも書く」を押してください。'));
+  const hd = String(a.text || '').split(String.fromCharCode(10)).slice(0, 3).join(' ');
+  if (hd) bx.appendChild(pnd('div', 'muted', '見出し：' + hd));
+  const cs = [];
+  a.items.forEach(s => {
+    const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:6px 0;min-height:36px';
+    const c = document.createElement('input'); c.type = 'checkbox'; c.checked = false; c.value = s; c.setAttribute('aria-label', s); cs.push(c);
+    lb.appendChild(c); lb.appendChild(pnd('span', '', '・' + s)); bx.appendChild(lb);
+  });
+  if (a.drop) bx.appendChild(pnd('div', 'muted', '網に当たって外した行：' + a.drop + '行（書きません）'));
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-primary robinBtn'; b.textContent = '✍ アクションも書く（' + (+a.d.slice(5, 7)) + '/' + (+a.d.slice(8, 10)) + '）';
+  const out = document.createElement('div');
+  b.addEventListener('click', async () => {
+    const sel = cs.filter(c => c.checked).map(c => c.value);
+    if (!sel.length) { showErr('書く行にチェックを入れてください'); return; }
+    out.textContent = '';
+    const show = (r) => {
+      out.textContent = ''; out.appendChild(pnd('div', 'muted', (r && r.msg) || '返事が空でした'));
+      ((r && r.days) || []).forEach(y => (y.lines || []).forEach(L => out.appendChild(pnd('div', 'muted', L))));
+      if (r && r.ok) { b.disabled = true; b.textContent = '✓ アクションを書きました'; }
+    };
+    try { show(await api({ api: 'nippoCoach', dates: [a.d], act: { d: a.d, items: sel } })); }
+    catch (e) { if (e && e.data) show(e.data); else { out.textContent = ''; out.appendChild(pnd('div', 'muted', e.message)); } }
+  });
+  bx.appendChild(b); bx.appendChild(out); d.appendChild(bx);
+}
+if ($('fabNippo')) $('fabNippo').addEventListener('click', nippoOpen);
 if ($('chatSheetClose')) $('chatSheetClose').addEventListener('click', sheetClose);
 if ($('chatSheetBd')) $('chatSheetBd').addEventListener('click', sheetClose);
 document.addEventListener('keydown', ev => {

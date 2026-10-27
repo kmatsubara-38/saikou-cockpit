@@ -433,6 +433,7 @@ html.jsok .rv.in{opacity:1;transform:none}
 /* ===== b157/s56 R4_pwa ③FAB（右下固定・tabbar の上・z 41）とシート（z 60・setup の 100 より下） ===== */
 .fab{position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:41;width:56px;height:56px;border:1px solid var(--accent);border-radius:var(--radius);background:var(--accent-fill);color:var(--bg);font-size:24px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;transition:transform .16s cubic-bezier(.22,1,.36,1)}
 .fab:active{transform:scale(.94)}
+#fabChat{bottom:calc(152px + env(safe-area-inset-bottom))}
 .sheet{position:fixed;inset:0;z-index:60}
 .sheet-bd{position:absolute;inset:0;background:rgba(0,0,0,.55)}
 .sheet-pn{position:absolute;left:0;right:0;bottom:0;max-height:80vh;display:flex;flex-direction:column;gap:10px;background:var(--card);border-top:1px solid var(--line);padding:14px 16px calc(16px + env(safe-area-inset-bottom));opacity:0;transform:translateY(18px);transition:opacity .22s cubic-bezier(.22,1,.36,1),transform .22s cubic-bezier(.22,1,.36,1)}

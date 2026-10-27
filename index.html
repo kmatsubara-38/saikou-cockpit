@@ -614,6 +614,8 @@
 </nav>
 
 <!-- 💬b157/s56 R4_pwa ③FAB＝右下固定（tabbar の上）。押すと下からシートが出て {api:'chatPull'} の結果（サーバでマスク済のHTML）を出す。文脈＝🔎で直近に開いた提携先（app.js の CTX） -->
+<!-- 📝s74（b182）日報ボタン＝右下の下（PC の 📋 と同じ場所）。押すと同じシートに「日付を選んで日報に書く」。🧠ロビンはその上（style.css の #fabChat） -->
+<button type="button" class="fab" id="fabNippo" aria-label="日報（外部コーチの方の Notion）に書く" aria-controls="chatSheet" aria-expanded="false">📝</button>
 <button type="button" class="fab" id="fabChat" aria-label="ロビン（第二の脳）の鮮度と同期" aria-controls="chatSheet" aria-expanded="false">🧠</button>
 <div id="chatSheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="chatSheetTitle">
   <div class="sheet-bd" id="chatSheetBd"></div>
