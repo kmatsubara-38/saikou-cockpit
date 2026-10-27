@@ -169,8 +169,9 @@
 
         <label class="field-label">送り先</label>
         <div class="chips" id="stChChips">
-          <button type="button" class="chip on" data-stch="slack">Slack</button>
-          <button type="button" class="chip" data-stch="line">LINE</button>
+          <!-- ✍️s73（b181）：アプリ版と同じ並び（LINE が一番左）・既定は LINE -->
+          <button type="button" class="chip on" data-stch="line">LINE（社外）</button>
+          <button type="button" class="chip" data-stch="slack">Slack（社内）</button>
           <button type="button" class="chip" data-stch="mail">メール</button>
         </div>
         <label class="field-label">温度感</label>
@@ -185,6 +186,9 @@
         <input type="text" id="stTo" placeholder="例）院長／提携サロンのご担当者様">
         <label class="field-label" for="stIn">話した内容</label>
         <textarea id="stIn" rows="5" placeholder="例）提携サロン様からご紹介の件です。来週の無料相談の日程を調整させてください"></textarea>
+        <!-- ✍️s73（b181）直前のやり取り（任意）：相手とのトークの文を貼る（スクショの文字読み取りは足さない）。関所はサーバ（cpStyleCtxGate_） -->
+        <label class="field-label" for="stCtx">直前のやり取り（任意）</label>
+        <textarea id="stCtx" rows="3" placeholder="相手とのトークの文を貼ると、その流れに合わせた返事になります（体・年齢の行は外し、電話・メール・住所は伏せて AI へ渡します）"></textarea>
         <!-- 🆕s71（b179・2026-10-22 松原さん）：ボタン式をやめ、打つのが止まって0.8秒で自動生成。状態は stLive（待ち／生成中／最新／古い／止めた）。
              ↺リセット＝送り先・温度感を既定へ・相手・話した内容・結果を空に。btnStWrite は自動を止めた日（上限・予算）だけ出る退避の口。 -->
         <div class="chips"><button type="button" class="chip" id="btnStReset">↺ リセット</button></div>
@@ -195,7 +199,7 @@
 
         <div id="stOutWrap" class="hidden">
           <!-- 🔴送り先はサーバが返した r.ch を出す＝chが本当に効いているかが画面で分かる（手元の選択の写しではない） -->
-          <div class="field-label">できあがり（送り先＝<span id="stOutCh">Slack</span>）</div>
+          <div class="field-label">できあがり（送り先＝<span id="stOutCh">LINE（社外）</span>）</div>
           <!-- 🔴手本の代用申告（myvoiceFallback）＝無言で別チャネルの手本に落ちない -->
           <div id="stFall" class="stfall hidden"></div>
           <!-- 🛟通信できないときの控え（いつ時点かを必ず添える＝新しく作れたフリをしない） -->

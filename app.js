@@ -358,7 +358,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (btn.dataset.view === 'notif') loadNotifs();
     if (btn.dataset.view === 'home') loadHomeMonth();
     if (btn.dataset.view === 'pipe') plKindShow();   // 🔎入場時に選択中の一覧を読み込む
-    if (btn.dataset.view === 'style') stWarm4();     // 🆕s71：入場＝手本を温める（読むだけ・Gemini は呼ばない）
+    if (btn.dataset.view === 'style') { if (!String(($('stIn') || {}).value || '').trim()) { stCh4Set('line'); stTone4Set('normal'); } stWarm4(); }   // 🆕s71：入場＝手本を温める（読むだけ・Gemini は呼ばない）／✍️s73：空なら既定（LINE）へ
     if (btn.dataset.view === 'more') loadBooks();    // 📖s47：入場＝読書を読み込む（主役を「更新」待ちにしない）
   });
 });
@@ -3164,7 +3164,7 @@ function stReason4(msg) {
   return m.indexOf(h) === 0 ? m.slice(h.length) : m;
 }
 
-let stCh4 = 'slack', stTone4 = 'normal';
+let stCh4 = 'line', stTone4 = 'normal';   // ✍️s73：既定は LINE（アプリ版と同じ）
 /* 🔴チップの見た目と送信値がズレる事故（PC版 stReset のコメント参照）を防ぐため、
  *   選択は必ずこの関数を通す＝状態と塗りが同じ1行で動く。番人はこれを直接叩いて payload を検める。 */
 function stCh4Set(v) {
@@ -3206,8 +3206,9 @@ const ST_LIVE4 = {
   idle: '⌨️ 打つのが止まると自動で整えます（' + ST_MIN4 + '字から）', gen: '✍️ 生成中…', new: '✅ 最新＝いまの入力から作りました',
   old: '⏳ 古い＝下の文はひとつ前の入力から作ったものです（止まると作り直します）', off: '⏸ 自動の生成を止めています＝下の「✍️ この内容で作る」で作れます'
 };
+const stCtxV4 = () => String(($('stCtx') || {}).value || '');   // ✍️s73 直前のやり取り（任意）
 function stKeyNow4() {
-  return stCh4 + '|' + stTone4 + '|' + String(($('stTo') || {}).value || '').trim() + '|' + String(($('stIn') || {}).value || '').trim();
+  return stCh4 + '|' + stTone4 + '|' + String(($('stTo') || {}).value || '').trim() + '|' + stCtxV4().trim() + '|' + String(($('stIn') || {}).value || '').trim();
 }
 function stLive4(s, m) {
   const e = $('stLive'), o = $('stOut'), g = $('btnStWrite');
@@ -3280,7 +3281,7 @@ async function stGen4(fresh) {
   const q = ++stSeq4; stBusy4 = q; stV4 = v;
   stLive4('gen', '（だいたい' + ST_ETA.write + '秒）');
   let r = null, err = null;
-  try { r = await api({ api: 'styleWrite', voice: v, ch: c, tone: stTone4, to: String(($('stTo') || {}).value || ''), auto: true, fresh: !!fresh }); }
+  try { r = await api({ api: 'styleWrite', voice: v, ch: c, tone: stTone4, to: String(($('stTo') || {}).value || ''), context: stCtxV4(), auto: true, fresh: !!fresh }); }
   catch (e) { err = e; }
   if (stBusy4 === q) stBusy4 = 0;
   if (q !== stSeq4) { stAfter4(); return; }          // 古い応答は捨てる
@@ -3292,14 +3293,19 @@ async function stGen4(fresh) {
   stAfter4();
 }
 function stAfter4() { if (stDirty4 && !stBusy4) { stDirty4 = false; stGen4(false); } }
-/* ↺リセット＝送り先・温度感を既定へ・相手・話した内容・結果を空に。走っている生成は連番で捨てる */
+/* ↺リセット＝送り先・温度感を既定（LINE・いつも通り）へ・相手・直前のやり取り・話した内容・結果を空に。走っている生成は連番で捨てる */
 function stClear4() {
-  stSeq4++; stBusy4 = 0; stDirty4 = false; stKey4 = ''; clearTimeout(stT4);
-  stCh4Set('slack'); stTone4Set('normal');
-  ['stIn', 'stTo', 'stOut'].forEach(i => { const e = $(i); if (e) { e.value = ''; if (e.style) e.style.opacity = ''; } });
+  stCh4Set('line'); stTone4Set('normal');
+  stWipe4();
+}
+/* ✍️s73（b181）4欄（話した内容・直前のやり取り・相手・できた文）と結果を空に。走っている生成は連番で捨てる・端末の控え（メモリ）も消す。
+ *   送り先・温度感は触らない（📋コピーの後に呼ぶ＝アプリ版 ResetAll と同じ） */
+function stWipe4(m) {
+  stSeq4++; stBusy4 = 0; stDirty4 = false; stKey4 = ''; stV4 = ''; clearTimeout(stT4); stMemo4.clear();
+  ['stIn', 'stTo', 'stCtx', 'stOut'].forEach(i => { const e = $(i); if (e) { e.value = ''; if (e.style) e.style.opacity = ''; } });
   ['stFix', 'stFall', 'stStale', 'stResult'].forEach(i => { const e = $(i); if (e) e.textContent = ''; });
   ['stOutWrap', 'stFall', 'stStale', 'stResult'].forEach(i => { const e = $(i); if (e && e.classList) e.classList.add('hidden'); });
-  stLive4(stOff4 ? 'off' : 'idle');
+  if (stOff4) stLive4('off'); else stLive4('idle', m || '');
 }
 async function stWarm4() {
   stLive4(stOff4 ? 'off' : 'idle');
@@ -3331,7 +3337,7 @@ async function stWrite4() {
   const q = ++stSeq4, k = stKeyNow4(), c = stCh4; stBusy4 = q; stV4 = v;
   stLive4(stOff4 ? 'off' : 'gen');
   try {
-    const r = await api({ api: 'styleWrite', voice: v, ch: stCh4, tone: stTone4, to: ($('stTo').value || ''), fresh: fresh === true });
+    const r = await api({ api: 'styleWrite', voice: v, ch: stCh4, tone: stTone4, to: ($('stTo').value || ''), context: stCtxV4(), fresh: fresh === true });
     if (stBusy4 === q) stBusy4 = 0;
     if (q !== stSeq4) { stop(); b.disabled = false; b.textContent = '✍️ この内容で作る'; return; }   // 古い応答は捨てる（リセット・次の生成が先に動いた）
     if (!r.ok) throw new Error(r.msg || '整えられませんでした');
@@ -3577,7 +3583,8 @@ function wireCal4AndStyle() {
   const sw = $('btnStWrite'); if (sw) sw.addEventListener('click', stWrite4);
   const sc = $('btnStCopy');
   /* r2（監査 major-1）：下の文が今の入力より前の内容から作ったもの（古い）なら、確かめてから写す */
-  if (sc) sc.addEventListener('click', () => { if (stKey4 && stKeyNow4() !== stKey4 && !window.confirm('下の文は、いまの入力より前の内容から作ったものです（古い）。このままコピーしますか？')) return; try { navigator.clipboard.writeText($('stOut').value); showOk('コピーしました'); } catch (e) {} });
+  /* ✍️s73（b181）：写せたら、話した内容・直前のやり取り・相手・できた文を空に（送り先と温度感はそのまま）。写せなかったら消さない */
+  if (sc) sc.addEventListener('click', () => { if (stKey4 && stKeyNow4() !== stKey4 && !window.confirm('下の文は、いまの入力より前の内容から作ったものです（古い）。このままコピーしますか？')) return; const t = $('stOut').value; Promise.resolve().then(() => navigator.clipboard.writeText(t)).then(() => { showOk('コピーしました'); stWipe4('（コピーしたので消しました）'); }, () => showErr('コピーできませんでした（文はそのまま残しています）')); });
   const sp = $('btnStPolite'); if (sp) sp.addEventListener('click', () => { stTone4Set('polite'); stWrite4(); });
   const ss = $('btnStShort'); if (ss) ss.addEventListener('click', () => { stTone4Set('short'); stWrite4(); });
   const sa = $('btnStAgain'); if (sa) sa.addEventListener('click', () => stWrite4(true));   // 言い直す＝サーバの控えを使わない
@@ -3586,6 +3593,7 @@ function wireCal4AndStyle() {
   const stInEv4 = (ev) => { if (ev && ev.isComposing) return; stIn4(); };
   const si4 = $('stIn'); if (si4) { si4.addEventListener('input', stInEv4); si4.addEventListener('compositionend', stIn4); }
   const sto4 = $('stTo'); if (sto4) { sto4.addEventListener('input', stInEv4); sto4.addEventListener('compositionend', stIn4); }
+  const stc4 = $('stCtx'); if (stc4) { stc4.addEventListener('input', stInEv4); stc4.addEventListener('compositionend', stIn4); }   // ✍️s73 直前のやり取り
   const sr4 = $('btnStReset'); if (sr4) sr4.addEventListener('click', stClear4);
   /* 📚手本を教える／📥収穫／↻取り直し／🗂いまの手本＝s43で新たに配線した doPost 4口 */
   const st9 = $('btnStTeach'); if (st9) st9.addEventListener('click', stTeach4);
