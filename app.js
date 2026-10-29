@@ -2168,6 +2168,11 @@ $('btnSendReceipt').addEventListener('click', async () => {
 });
 
 /* b157 R7_pwa: daily report */
+/* 📔s76（b184・2026-10-29）＝シートの項目が変わっても追従する（PC の npBuild／npDiff と同じ規則）。
+ *   ①質問の欄はサーバの qs（番号・見出しの文・列）から毎回作る＝欄の数・文言を焼き込まない
+ *   ②前回の構成（タブ名・見出しの行・名前の列・qs）を端末（localStorage npLay）に控え、変わったら1行で知らせる
+ *   ③書きかけは見出しの文で端末（npDraft）に控える＝並びが変わっても中身が別の欄に入らない。消えた項目・前の日の書きかけは捨てずに見せる
+ *   ④保存は sig（見出しの文字→列）と ans（qs と同じ並び・未編集は null）。サーバが書く直前の見出しと違えば書かない */
 let _npState = null, _npStale = false, _npBusy = false, _npOpened = false;
 
 function npMessage(id, text) {
@@ -2188,11 +2193,148 @@ function npLink(node, url, text) {
     node.appendChild(link);
   } catch (e) {}
 }
+function npLsG(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function npLsS(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function npQt(l) { return String(l || '').replace(/^[QqＱｑ] ?[0-9０-９]+[ 　.:：、．]*/, ''); }
+/* 前回 a と今回 b の構成の差（PC の npDiff と同じ規則・同じ文言） */
+function npDiff(a, b) {
+  if (!a || !b || !a.qs || !b.qs) return [];
+  const o = [], u = {}, A = a.qs, B = b.qs, rest = [], gone = [];
+  if (a.tab && b.tab && a.tab !== b.tab) o.push('タブ名が「' + a.tab + '」→「' + b.tab + '」に変わりました');
+  if (a.hdr && b.hdr && a.hdr !== b.hdr) o.push('見出しの行が' + a.hdr + '→' + b.hdr + '行目に移りました');
+  if (a.name && b.name && a.name !== b.name) o.push('名前の列が' + a.name + '→' + b.name + 'に移りました');
+  for (let i = 0; i < A.length; i++) {
+    let h = -1;
+    for (let j = 0; j < B.length; j++) if (!u[j] && B[j].label === A[i].label) { h = j; break; }
+    if (h < 0) { rest.push(A[i]); continue; }
+    u[h] = 1;
+    if (B[h].colA !== A[i].colA) o.push('Q' + B[h].n + ' の列が' + A[i].colA + '→' + B[h].colA + 'に移りました');
+  }
+  for (let i = 0; i < rest.length; i++) {
+    let h2 = -1;
+    for (let j = 0; j < B.length; j++) if (!u[j] && B[j].n === rest[i].n) { h2 = j; break; }
+    if (h2 < 0) { gone.push(rest[i]); continue; }
+    u[h2] = 1;
+    o.push('Q' + rest[i].n + ' の見出しが『' + npQt(rest[i].label) + '』→『' + npQt(B[h2].label) + '』に変わりました' +
+      (B[h2].colA !== rest[i].colA ? '（列も' + rest[i].colA + '→' + B[h2].colA + '）' : ''));
+  }
+  for (let j = 0; j < B.length; j++) if (!u[j]) o.push('Q' + B[j].n + '『' + npQt(B[j].label) + '』が増えました（' + B[j].colA + '列）');
+  for (let i = 0; i < gone.length; i++) o.push('Q' + gone[i].n + '『' + npQt(gone[i].label) + '』が無くなりました');
+  return o;
+}
+/* 書きかけ＝{d:シートの対象日, by:{見出しの文:書きかけ}, old:{"日付｜見出しの文":書きかけ}}。対象日が変わったら by を old へ移す */
+/* 📔s76 r3（軽微-1）：箱へ入れるとき、同じ鍵に違う中身が既にあれば「（2）」「（3）」…を付けて足す（黙って上書きしない） */
+function npOldPut(x, k, v) {
+  let k2 = k, n = 1;
+  while (Object.prototype.hasOwnProperty.call(x.old, k2) && x.old[k2] !== v) k2 = k + '（' + (++n) + '）';
+  x.old[k2] = v;
+}
+function npDraftG(d) {
+  const x = npLsG('npDraft') || {};
+  if (!x.by) x.by = {};
+  if (!x.old) x.old = {};
+  if (x.d && x.d !== d) {
+    Object.keys(x.by).forEach(k => { if (String(x.by[k] || '').trim()) npOldPut(x, x.d + '｜' + k, x.by[k]); });
+    x.by = {};
+  }
+  x.d = d;
+  npLsS('npDraft', x);
+  return x;
+}
+function npDraftPut(label, value, base) {
+  const x = npLsG('npDraft') || {};
+  if (!x.by) x.by = {};
+  if (!x.old) x.old = {};
+  if (_npState) x.d = _npState.sheetDate;
+  const v = String(value || '').trim();
+  if (v && v !== String(base || '').trim()) x.by[label] = value; else delete x.by[label];
+  npLsS('npDraft', x);
+}
+function npDraftDrop(labels) {
+  const x = npLsG('npDraft');
+  if (!x || !x.by) return;
+  (labels || []).forEach(l => { delete x.by[l]; });
+  npLsS('npDraft', x);
+}
+function npOrph(x, used) {
+  const box = $('npOrph');
+  box.replaceChildren();
+  const list = [];
+  Object.keys(x.by || {}).forEach(k => { if (!used[k] && String(x.by[k] || '').trim()) list.push([k, x.by[k]]); });
+  Object.keys(x.old || {}).forEach(k => { if (String(x.old[k] || '').trim()) list.push([k, x.old[k]]); });
+  if (!list.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.appendChild(pnd('b', '', '📝 消えた項目・前の日の書きかけ（捨てていません＝必要なら写して使ってください）'));
+  list.forEach(([k, v]) => {
+    const p = pnd('div', '', '【' + k + '】\n' + v);
+    p.style.margin = '6px 0';
+    p.style.whiteSpace = 'pre-wrap';
+    box.appendChild(p);
+  });
+  const b = pnd('button', 'btn', 'この書きかけを片づける');
+  b.type = 'button';
+  b.addEventListener('click', () => {
+    const y = npLsG('npDraft') || {};
+    const by = {};
+    Object.keys(y.by || {}).forEach(q => { if (used[q]) by[q] = y.by[q]; });
+    y.by = by;
+    y.old = {};
+    npLsS('npDraft', y);
+    box.style.display = 'none';
+  });
+  box.appendChild(b);
+}
+/* 質問の欄をサーバの qs から作る（id は npQ1〜npQN＝並び順・中身の鍵は見出しの文） */
+/* 📔s76 r2（重要-1）：シートに値がある欄には書きかけを入れない＝箱へ移し、欄はシートの今の値（PC と同じ文言） */
+const NPMV = '📝 シートに値があるので書きかけは下の箱へ移しました／';
+function npBuild(r) {
+  const box = $('npQs');
+  box.replaceChildren();
+  const Q = r.qs || [], VA = r.values || [], x = npDraftG(r.sheetDate), used = {};
+  Q.forEach((q, i) => {
+    const val = String(VA[i] || ''), d = x.by[q.label];
+    used[q.label] = 1;
+    /* 📔s76 r3（軽微-2）：この画面から書いた欄（✅＝r.mine）は本人の値＝直しかけは今までどおり欄に戻す。箱へ移すのは他所の値がある欄だけ */
+    const dd = !!(d != null && String(d).trim() && String(d).trim() !== val.trim()), mvd = dd && !!val.trim() && !(r.mine && r.mine[i]);
+    if (mvd) { npOldPut(x, x.d + '｜' + q.label, d); delete x.by[q.label]; }   // 箱へ移す（今日の欄には入れない）
+    const L = pnd('label', 'field-label', q.label || ('Q' + q.n));
+    L.id = 'npL' + (i + 1);
+    L.htmlFor = 'npQ' + (i + 1);
+    const t = document.createElement('textarea');
+    t.id = 'npQ' + (i + 1);
+    t.rows = 3;
+    t.value = val;
+    t.defaultValue = val;   // 読み込んだ値は「書きかけ」に数えない（新しい版が入ったときの読み直しの判定 swDirty）
+    t.setAttribute('aria-describedby', 'npQ' + (i + 1) + 'N');
+    const cap = pnd('div', 'edit-note', '');
+    cap.id = 'npQ' + (i + 1) + 'N';
+    if (dd && !mvd) {
+      t.value = d;
+      cap.textContent = '📝 書きかけを戻しました（まだシートには書いていません）';
+      cap.style.color = 'var(--warn)';
+    } else if (val.trim() && r.mine && r.mine[i]) {
+      cap.textContent = (mvd ? NPMV : '') + '✅ この画面から書き込み済み＝直すなら書き換えて押すだけ（印は要りません）';
+      cap.style.color = 'var(--ok)';
+    } else if (val.trim()) {
+      cap.textContent = (mvd ? NPMV : '') + '⚠️ 他で書かれた値があります＝このままだと触りません（上書きするなら下の印を入れてください）';
+      cap.style.color = 'var(--warn)';
+    } else {
+      cap.textContent = '未記入＝ここに書けば ' + r.row + '行目の' + q.colA + '列に入ります';
+      cap.style.color = 'var(--sub)';
+    }
+    t.addEventListener('input', () => npDraftPut(q.label, t.value, val));
+    box.appendChild(L);
+    box.appendChild(t);
+    box.appendChild(cap);
+  });
+  npLsS('npDraft', x);
+  npOrph(x, used);
+}
 function npLock(on) {
   _npBusy = on;
   $('npLoadBtn').disabled = on;
-  $('npSaveBtn').disabled = on || !(_npState && _npState.row);
-  ['npQ1', 'npQ2', 'npQ3', 'npQ4', 'npQ5'].forEach(id => { $(id).readOnly = on; });   // b179 r9：Q5
+  $('npSaveBtn').disabled = on || !(_npState && _npState.row) || !!(_npState && _npState.ro);   // 📔s76 r2：読み込みだけのタブは押せない
+  document.querySelectorAll('#npQs textarea').forEach(t => { t.readOnly = on; });   // 📔s76：欄の数はシート次第
   $('npForce').disabled = on;
 }
 async function npLoad() {
@@ -2209,8 +2351,9 @@ async function npLoad() {
     }
     _npState = r;
     const sd = String(r.sheetDate || '').replace(/-/g, '/');
-    const st = npMessage('npStat', '✅ シートの対象日 ' + (r.sheetDate || '?') + '／あなたの行＝' + r.row + '行目' +
-      ((sd && r.today && sd !== r.today) ? ('　⚠️ シートの日付が今日(' + r.today + ')と違います。シートの更新前かもしれません') : ''));
+    const st = npMessage('npStat', '✅ シートの対象日 ' + (r.sheetDate || '?') + '／あなたの行＝' + r.row + '行目（質問 ' + (r.qs || []).length + '問）' +
+      ((sd && r.today && sd !== r.today) ? ('　⚠️ シートの日付が今日(' + r.today + ')と違います。シートの更新前かもしれません') : '') +
+      (r.ro ? ('　⚠️ ' + (r.roMsg || '読み込みだけのタブです（書き込みはしません）')) : ''));
     npLink(st, r.url, ' シートで開く →');
     const linkBox = $('npSheetLink');
     linkBox.replaceChildren();
@@ -2218,22 +2361,11 @@ async function npLoad() {
     const hint = $('npHint');
     hint.style.display = r.hint && String(r.hint).trim() ? '' : 'none';
     hint.textContent = r.hint ? '📌 参考：前回書いた「今日の一点」＝ ' + r.hint : '';
-    const labels = r.labels || [], values = r.values || [];
-    for (let i = 0; i < 5; i++) {   // b179 r9：Q1〜Q5
-      $('npL' + (i + 1)).textContent = labels[i] || ('Q' + (i + 1));
-      $('npQ' + (i + 1)).value = values[i] || '';
-      const cap = $('npQ' + (i + 1) + 'N'), value = values[i];
-      if (value && String(value).trim() && r.mine && r.mine[i]) {
-        cap.textContent = '✅ この画面から書き込み済み＝直すなら書き換えて押すだけ（印は要りません）';
-        cap.style.color = 'var(--ok)';
-      } else if (value && String(value).trim()) {
-        cap.textContent = '⚠️ 他で書かれた値があります＝このままだと触りません（上書きするなら下の印を入れてください）';
-        cap.style.color = 'var(--warn)';
-      } else {
-        cap.textContent = '未記入＝ここに書けば ' + r.row + '行目に入ります';
-        cap.style.color = 'var(--sub)';
-      }
-    }
+    const cur = { tab: r.tab, hdr: r.hdrRow, name: r.nameColA, qs: r.qs || [] }, df = npDiff(npLsG('npLay'), cur), cg = $('npChg');
+    if (df.length) { cg.style.display = ''; cg.textContent = 'ℹ️ シートの項目が変わりました（自動で合わせました）：' + df.join('／'); }
+    else cg.style.display = 'none';
+    npLsS('npLay', cur);
+    npBuild(r);
     $('npForce').checked = false;
     _npStale = false;
     $('npRes').style.display = 'none';
@@ -2254,14 +2386,14 @@ async function npSave() {
     npMessage('npStat', '先に「📥 今日のシートを読み込む」を押してください');
     return;
   }
-  const base = _npState.base || ['', '', '', '', ''];
-  const payload = { base, force: !!$('npForce').checked, allowStaleDate: !!_npStale };
+  if (_npState.ro) { npMessage('npRes', '⚠️ ' + (_npState.roMsg || '読み込みだけのタブです')); return; }   // 📔s76 r2：総当たりで見つけたタブには書かない
+  const Q = _npState.qs || [], base = _npState.base || [], ans = [];
   let changed = 0;
-  for (let i = 0; i < 5; i++) {
-    const value = String($('npQ' + (i + 1)).value || '').trim();
-    payload['q' + (i + 1)] = value !== String(base[i] || '').trim() ? value : null;
-    if (payload['q' + (i + 1)] !== null) changed++;
+  for (let i = 0; i < Q.length; i++) {
+    const el = $('npQ' + (i + 1)), value = el ? String(el.value || '').trim() : '';
+    if (el && value !== String(base[i] || '').trim()) { ans.push(value); changed++; } else ans.push(null);
   }
+  const payload = { sig: _npState.sig, base, ans, force: !!$('npForce').checked, allowStaleDate: !!_npStale };
   if (!changed) { npMessage('npRes', '直した欄がありません'); return; }
   npLock(true);
   $('npSaveBtn').textContent = '書き込み中…';
@@ -2272,6 +2404,7 @@ async function npSave() {
     const res = npMessage('npRes', (r && r.msg) || '応答なし');
     npLink(res, r && r.url, ' シートで確認する →');
     if (!r || !r.ok) return;
+    if (r.written) npDraftDrop(r.written);   // 書けた欄の書きかけは片づける（書けなかった欄は残す）
     reload = !!(r.done && r.done.length);
   } catch (e) {
     /* 🆕s60：サーバが ok:false で返した理由（日付が違う＝staleDate・シートの url）は e.data に載っている＝PC と同じ2段階の確認を続ける */
