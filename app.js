@@ -166,9 +166,9 @@ const SNDW = { taskSave: 'a', taskDelete: 'b', taskEvSave: 'a', notifReadAll: 'a
   nippoSheetSave: 'a', styleTeach: 'a', styleTeachMulti: 'a', moushiSkip: 'b',
   taskStatus: 'q', notifRead: 'q', intelStatus: 'q',
   approve: 'c', zangyoReport: 'c', shukkinReport: 'c', advSave: 'c', moushiSend: 'c', pipeFb: 'c', pipeStep: 'c', receipt: 'c',
-  calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c', nippoCoach: 'c',
+  calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c', nippoCoach: 'c', gyomuCalPut: 'c',
   kintaiFree: 'd', shokai: 'd',
-  bookScan: 'f15', robinSyncLine: 'f20', styleHarvest: 'f13', styleRefresh: 'f10' };
+  bookScan: 'f15', robinSyncLine: 'f20', gyomuCalPlan: 'f20', styleHarvest: 'f13', styleRefresh: 'f10' };
 const SNDL = { a: '保存中…', b: '保存中…', c: '送信中…', d: '受け付けています…' };
 const sndFly = new WeakMap();
 /* ⚡s72 r2（敵対監査 致命-1）：下書き・プレビューは同じ欄・同じ口から本送信の前に何度も出る＝札も二度押しの止めも付けない（付けると Enter の本送信が「二度押し」で止まる） */
@@ -2829,17 +2829,17 @@ function rvWatch() {
 let sheetFrom = 'fabChat';   // 📝s74：どちらのボタンで開いたか（閉じたらそこへ戻る）
 function sheetOpen(from, title) {
   const s = $('chatSheet'); if (!s) return;
-  sheetFrom = from === 'fabNippo' ? 'fabNippo' : 'fabChat';
+  sheetFrom = (from === 'fabNippo' || from === 'fabGcal') ? from : 'fabChat';   // 🗓s75：3つのボタン
   const tt = $('chatSheetTitle'); if (tt) tt.textContent = title || '🧠 ロビン（第二の脳）';
   s.classList.remove('hidden');
   requestAnimationFrame(() => s.classList.add('on'));
-  ['fabChat', 'fabNippo'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', String(id === sheetFrom)); });
+  ['fabChat', 'fabNippo', 'fabGcal'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', String(id === sheetFrom)); });
   const x = $('chatSheetClose'); if (x) x.focus();
 }
 function sheetClose() {
   const s = $('chatSheet'); if (!s) return;
   s.classList.remove('on'); s.classList.add('hidden');
-  ['fabChat', 'fabNippo'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', 'false'); });
+  ['fabChat', 'fabNippo', 'fabGcal'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', 'false'); });
   const f = $(sheetFrom); if (f) f.focus();
 }
 /* ==== s57 🧠ロビン（第二の脳＝Obsidian Vault）の鮮度と LINE 取込（PC 版 b158 と同格・2026-09-26 b159：②は松原の判断待ちで止める＝r.hold・説明はサーバの文）
@@ -2950,7 +2950,8 @@ function nippoOpen() {
   box.textContent = '';
   const td = npJst4(0), lo = npJst4(60 * 864e5);
   if (!npDays4) npDays4 = [td];
-  box.appendChild(pnd('div', 'muted', '日付を選んで「日報に書く」を押すと、その日の日報の松原さんの行の空欄だけを埋めます（先に入っている欄・他の方の行は触りません）。書いた後に読み直して一致を数えます。1回に7日まで・未来の日は選べません。'));
+  box.appendChild(pnd('div', 'muted', '日付を選んで「日報に書く」を押すと、その日の日報の松原さんの行の空欄だけを埋めます（KPI_目標・KPI_実績・KPI_前日比・課題・アクション・振り返り。先に入っている欄・他の方の行は触りません）。アクションは名刺の発注状況（#経費-報告-精算の発注報告の数）です。今日の KPI_実績・前日比・振り返りは19時以降に書きます。書いた後に読み直して一致を数えます。1回に7日まで・未来の日は選べません。'));
+  box.appendChild(pnd('div', 'muted', 'アクションは押した時点の発注報告で書きます（あとで出た発注は翌日の日報に載ります）'));   // b183r4 軽微-3
   const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0';
   const inp = document.createElement('input'); inp.type = 'date'; inp.id = 'npDay4'; inp.max = td; inp.min = lo; inp.value = td; inp.setAttribute('aria-label', '足す日付');
   const add = document.createElement('button'); add.type = 'button'; add.className = 'btn'; add.textContent = '＋ この日を足す';
@@ -2997,45 +2998,103 @@ function npShow4(o, r) {
       const cb = document.createElement('button'); cb.type = 'button'; cb.className = 'btn robinBtn'; cb.textContent = '📋 この日の下書きをコピー';
       cb.addEventListener('click', () => copyText(x.copy, cb)); d.appendChild(cb);
     }
-    if (x.act && x.act.items && x.act.items.length) npAct4(d, x.act);
     o.appendChild(d);
   });
   if (r.note) o.appendChild(pnd('div', 'muted', r.note));
   if (r.nokey) o.appendChild(pnd('div', 'muted', '外部コーチの方から連携の鍵が届いたら、PC のボードの同じ小窓（右下の📋）に貼って保存してください。保存すると、同じボタンで実際に書きます。'));
 }
-/* 🔴s74 r3（b182 r3・再監査 軽微-B）：網で取れない名前がある＝チェックは既定で外す（松原さんが行ごとに選んで入れる）。説明文も「網で取れない名前があります」に
- * 🔴s74 r2（b182 r2・敵対監査 致命-1）：アクションは押した瞬間に書かない＝行ごとの下書き（チェックつき）を出し、
- *   「アクションも書く」を押した行だけ同じ口 nippoCoach（act＝{d, items}）で書く。サーバは #残業報告から作り直した下書きと照合する */
-function npAct4(d, a) {
-  const bx = document.createElement('div'); bx.className = 'npAct4'; bx.style.cssText = 'margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px';
-  const t = pnd('div', '', 'アクションの下書き（まだ書いていません）'); t.style.fontWeight = '700'; bx.appendChild(t);
-  bx.appendChild(pnd('div', 'muted', '#残業報告の行です。網で取れない名前があります。名前・お客様が分かる行はチェックしないでください。チェックは最初は全部外してあります＝書く行にだけチェックを入れて「アクションも書く」を押してください。'));
-  const hd = String(a.text || '').split(String.fromCharCode(10)).slice(0, 3).join(' ');
-  if (hd) bx.appendChild(pnd('div', 'muted', '見出し：' + hd));
-  const cs = [];
-  a.items.forEach(s => {
-    const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:6px 0;min-height:36px';
-    const c = document.createElement('input'); c.type = 'checkbox'; c.checked = false; c.value = s; c.setAttribute('aria-label', s); cs.push(c);
-    lb.appendChild(c); lb.appendChild(pnd('span', '', '・' + s)); bx.appendChild(lb);
-  });
-  if (a.drop) bx.appendChild(pnd('div', 'muted', '網に当たって外した行：' + a.drop + '行（書きません）'));
-  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-primary robinBtn'; b.textContent = '✍ アクションも書く（' + (+a.d.slice(5, 7)) + '/' + (+a.d.slice(8, 10)) + '）';
-  const out = document.createElement('div');
-  b.addEventListener('click', async () => {
-    const sel = cs.filter(c => c.checked).map(c => c.value);
-    if (!sel.length) { showErr('書く行にチェックを入れてください'); return; }
-    out.textContent = '';
-    const show = (r) => {
-      out.textContent = ''; out.appendChild(pnd('div', 'muted', (r && r.msg) || '返事が空でした'));
-      ((r && r.days) || []).forEach(y => (y.lines || []).forEach(L => out.appendChild(pnd('div', 'muted', L))));
-      if (r && r.ok) { b.disabled = true; b.textContent = '✓ アクションを書きました'; }
-    };
-    try { show(await api({ api: 'nippoCoach', dates: [a.d], act: { d: a.d, items: sel } })); }
-    catch (e) { if (e && e.data) show(e.data); else { out.textContent = ''; out.appendChild(pnd('div', 'muted', e.message)); } }
-  });
-  bx.appendChild(b); bx.appendChild(out); d.appendChild(bx);
-}
+/* 🔴s75 r3（b183r3・2026-10-27 松原さんの差し戻し）：アクションの下書き（行ごとのチェック・✍アクションも書く）を撤去。
+ *   アクションは名刺の発注状況の数だけになり、同じ口 nippoCoach の「日報に書く」で他の欄と一緒に書く（PC と同じ） */
 if ($('fabNippo')) $('fabNippo').addEventListener('click', nippoOpen);
+/* ==== 🗓s75（b183）業務カレンダー＝PC の 🗓 と同じ口（gyomuCalPlan＝登録案・gyomuCalPut＝チェックした行だけ登録→読み直し）。
+ *   押した瞬間に端末の前回の結果（cp_gcal_last・pid なし＝読むだけ）を先に出す。札は共通の部品（SNDW の f20／c）。
+ *   網に当たった行はチェックを外して出す（サーバの on）・登録済みの行は押せない。本文・件名はサーバが返さない（題名は型・根拠は種類と時刻だけ） ==== */
+let gcDays4 = null;
+function gcLast4() { try { const o = JSON.parse(localStorage.getItem('cp_gcal_last') || 'null'); return o && o.days ? o : null; } catch (e) { return null; } }
+function gcalOpen4() {
+  const box = $('chatSheetBody'); if (!box) return;
+  sheetOpen('fabGcal', '🗓 業務カレンダー（記録から Google カレンダーへ）');
+  box.textContent = '';
+  const td = npJst4(0), lo = npJst4(60 * 864e5);
+  if (!gcDays4) gcDays4 = [td];
+  box.appendChild(pnd('div', 'muted', '日付を選んで「登録案を作る」を押すと、その日の業務の記録（Slack の本人の投稿・会社の送信メール・Claude Code の作業時間）から Google カレンダーの登録案を作ります。チェックした行だけ「カレンダーに入れる」で登録し、読み直して一致を数えます。既存の予定は触りません。これから先の時間の行は作りません。1回に7日まで。'));
+  const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0';
+  const inp = document.createElement('input'); inp.type = 'date'; inp.id = 'gcDay4'; inp.max = td; inp.min = lo; inp.value = td; inp.setAttribute('aria-label', '足す日付');
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn'; add.textContent = '＋ この日を足す';
+  const ch = document.createElement('div'); ch.id = 'gcChips4'; ch.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px';
+  add.addEventListener('click', () => {
+    const v = inp.value;
+    if (!v || v > td || v < lo) { showErr('今日まで・過去60日以内の日を選んでください'); return; }
+    if (gcDays4.indexOf(v) < 0) { if (gcDays4.length >= 7) { showErr('1回に7日までです'); return; } gcDays4.push(v); gcDays4.sort(); }
+    gcChips4(ch);
+  });
+  row.appendChild(inp); row.appendChild(add); box.appendChild(row); box.appendChild(ch); gcChips4(ch);
+  const go = document.createElement('button'); go.type = 'button'; go.className = 'btn btn-primary robinBtn'; go.id = 'gcGo4'; go.textContent = '🗓 登録案を作る';
+  go.addEventListener('click', () => gcSend4());
+  box.appendChild(go);
+  const o = document.createElement('div'); o.id = 'gcOut4'; box.appendChild(o);
+  const pv = gcLast4(); if (pv) gcShow4(o, pv, true);
+}
+function gcChips4(ch) {
+  ch.textContent = '';
+  gcDays4.forEach(d => {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.style.cssText = 'min-height:36px;padding:2px 12px';
+    c.textContent = (+d.slice(5, 7)) + '/' + (+d.slice(8, 10)) + ' ×'; c.setAttribute('aria-label', d + ' を外す');
+    c.addEventListener('click', () => { gcDays4 = gcDays4.filter(x => x !== d); gcChips4(ch); });
+    ch.appendChild(c);
+  });
+  if (!gcDays4.length) ch.appendChild(pnd('span', 'muted', '日付が選ばれていません'));
+}
+async function gcSend4() {
+  const o = $('gcOut4'); if (!o) return;
+  if (!gcDays4 || !gcDays4.length) { showErr('日付を選んでください'); return; }
+  const pv = gcLast4(); o.textContent = ''; if (pv) gcShow4(o, pv, true);
+  const keep = (r) => { if (r && r.days) { try { const c = JSON.parse(JSON.stringify(r)); c.pid = ''; localStorage.setItem('cp_gcal_last', JSON.stringify(c)); } catch (e) {} } gcShow4(o, r, false); };
+  try { keep(await api({ api: 'gyomuCalPlan', dates: gcDays4.slice() })); }
+  catch (e) { if (e && e.data) keep(e.data); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', e.message)); } }   // 一部読めない（ok:false）も登録案は出す
+}
+function gcShow4(o, r, ro) {
+  o.textContent = '';
+  if (!r) { o.appendChild(pnd('div', 'muted', '返事が空でした')); return; }
+  if (ro) o.appendChild(pnd('div', 'muted', '前回（' + (r.at || '') + '）の登録案です＝読むだけ。入れるときは「登録案を作る」を押してください。'));
+  o.appendChild(pnd('div', 'muted', r.msg || ''));
+  (r.notes || []).forEach(L => o.appendChild(pnd('div', 'muted', L)));
+  const cs = [];
+  (r.days || []).forEach(x => {
+    const d = document.createElement('div'); d.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--line)';
+    const h = pnd('div', '', x.head || x.d); h.style.fontWeight = '700'; d.appendChild(h);
+    (x.notes || []).forEach(L => d.appendChild(pnd('div', 'muted', L)));
+    (x.rows || []).forEach(w => {
+      const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:4px 0';
+      const c = document.createElement('input'); c.type = 'checkbox'; c.value = w.id; c.checked = w.st === 'new' && !!w.on && !ro; c.disabled = !!ro || w.st !== 'new';
+      c.setAttribute('aria-label', w.s + '〜' + w.e + ' ' + w.t); if (!c.disabled) cs.push(c);
+      const sp = document.createElement('span');
+      sp.appendChild(pnd('div', '', w.s + '〜' + w.e + '　' + w.t + (w.st === 'dup' ? '（登録済み）' : w.st === 'near' ? '（レイリー登録の予定と重なる＝入れません）' : '')));
+      sp.appendChild(pnd('div', 'muted', '根拠：' + w.why + (w.pii ? '／網に当たった行' : '') + (w.ov ? '／既存の予定と重なる' : '')));
+      lb.appendChild(c); lb.appendChild(sp); d.appendChild(lb);
+    });
+    o.appendChild(d);
+  });
+  if (ro || !r.pid || !cs.length) return;
+  o.appendChild(pnd('div', 'muted', '網に当たった行はチェックを外してあります。網で取れない名前があります。名前が分かる行は外してください。'));
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-primary robinBtn'; b.id = 'gcPut4'; b.textContent = '✔ カレンダーに入れる';
+  const res = document.createElement('div');
+  b.addEventListener('click', async () => {
+    const ids = cs.filter(c => c.checked).map(c => c.value);
+    if (!ids.length) { showErr('入れる行にチェックを入れてください'); return; }
+    res.textContent = '';
+    const show = (q) => {
+      res.textContent = '';
+      res.appendChild(pnd('div', 'muted', (q && q.msg) || '返事が空でした'));
+      ((q && q.days) || []).forEach(y => { const hh = pnd('div', '', y.head || y.d); hh.style.fontWeight = '700'; res.appendChild(hh); (y.lines || []).forEach(L => res.appendChild(pnd('div', 'muted', L))); });
+      if (q && q.ok) { b.disabled = true; b.textContent = '✓ カレンダーに入れました'; }
+    };
+    try { show(await api({ api: 'gyomuCalPut', pid: r.pid, ids })); }
+    catch (e) { if (e && e.data) show(e.data); else { res.textContent = ''; res.appendChild(pnd('div', 'muted', e.message + '（入ったか不明＝カレンダーで確かめてから押し直してください。レイリー登録の予定と時間が重なる行は入りません）')); } }
+  });
+  o.appendChild(b); o.appendChild(res);
+}
+if ($('fabGcal')) $('fabGcal').addEventListener('click', gcalOpen4);
 if ($('chatSheetClose')) $('chatSheetClose').addEventListener('click', sheetClose);
 if ($('chatSheetBd')) $('chatSheetBd').addEventListener('click', sheetClose);
 document.addEventListener('keydown', ev => {
