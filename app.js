@@ -1864,7 +1864,7 @@ async function pipeHansoku(vv, host, btn) {
   const box = pnd('div');
   box.style.marginTop = '8px';
   box.appendChild(pnd('div', 'pbody',
-    '販促物の依頼は、ブラウザ版の「🎁 販促物制作」からお願いします。\n' +
+    '販促物の依頼は、ブラウザ版の「🔎 パイプライン検索」（担当サロン様ページ）からお願いします。\n' +
     'QRの鮮度確認・フォルダ生成・完了報告の追跡まで一続きになっており、\n' +
     'スマホから出すと発送案内が作れなくなります。'));
   host.appendChild(box);
@@ -2073,16 +2073,147 @@ if ($('plKind')) $('plKind').addEventListener('change', plKindShow);
   });
 });
 
+/* ==== 🔎 即時候補 s77（2026-11-07 松原指示「入力した瞬間に表示＝VLOOKUP のように」・PC の b186 salonJs と同じ決まり） ==== */
+/* ・サロン様の索引（管理番号・サロン名だけ）＝doPost の salonIndex を最初の1回だけ。端末に 'cpSalIdx1'（{rows, at, d}）で控え、次回は即表示・10分より古ければ裏で取り直す
+ * ・1文字ごとに端末の中だけで候補（最大10件）＝サーバへ行かない。候補1件か管理番号の完全一致（続く番号が無いとき・あれば0.6秒止まってから）でその場で開く
+ * ・開く＝見出しを即表示→0.2秒後にパイプライン（pipeSearch を管理番号で）。古い問い合わせは PQM.seq で捨てる。販促物はこれまでどおりブラウザ版へ案内（pipeHansoku）
+ * ・サロン様の候補0件・2文字以上・変換中でない・0.7秒止まったら従来の横断検索（患者様名）。同じ語は2回撃たない
+ * ・患者様のお名前は索引に入れない・端末に控えない（控えるのは管理番号とサロン名だけ）。3日以内の控えより3割超少ない索引は採らない */
+const PQM = { idx: null, fetching: false, ft: 0, t: 0, k: '', last: '', sel: [], seq: 0, p: 0 };
+function pqmNk(s) {
+  s = String(s == null ? '' : s);
+  try { s = s.normalize('NFKC'); } catch (e) {}
+  s = s.toLowerCase().replace(/[\s　・･]/g, '').replace(/様$/, '');
+  return s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 96));
+}
+const pqmPrep = (rows) => (rows || []).map(r => [String(r[0]), String(r[1]), pqmNk(r[1])]);
+function pqmLoad() {
+  if (!PQM.idx) {
+    try { const o = JSON.parse(localStorage.getItem('cpSalIdx1') || 'null'); if (o && o.rows && o.rows.length) PQM.idx = { rows: pqmPrep(o.rows), n: o.rows.length, at: o.at || 0, d: o.d || '' }; } catch (e) {}
+  }
+  if (!PQM.idx || Date.now() - (PQM.idx.at || 0) > 600000) pqmFetch();
+}
+async function pqmFetch() {
+  if (PQM.fetching) return;
+  PQM.fetching = true; PQM.ft = Date.now();
+  const old = PQM.idx;
+  let r = null;
+  try { r = await api({ api: 'salonIndex' }); } catch (e) { r = null; }
+  PQM.fetching = false;
+  const el = $('pipeQ');
+  if (!(r && r.ok && r.rows && r.rows.length)) { if (!PQM.idx && el && el.value) pqmIn(); return; }
+  if (old && r.rows.length < old.n * 0.7 && Date.now() - (old.at || 0) < 3 * 864e5) return;
+  const o = { rows: r.rows.map(x => [String(x[0]), String(x[1])]), at: Date.now(), d: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10) };
+  PQM.idx = { rows: pqmPrep(o.rows), n: o.rows.length, at: o.at, d: o.d };
+  try { localStorage.setItem('cpSalIdx1', JSON.stringify(o)); } catch (e) {}
+  if (!old && el && el.value) pqmIn();
+}
+function pqmFind(q) {
+  const nq = pqmNk(q), out = { c: [], n: 0, ex: null };
+  if (!nq || !PQM.idx) return out;
+  const ex = [], pre = [], part = [], dg = /^[0-9]+$/.test(nq), m = nq.match(/^([0-9]+)[_-]?(.+)$/);
+  for (const r of PQM.idx.rows) {
+    if (dg) { if (Number(r[0]) === Number(nq)) ex.push(r); else if (r[0].indexOf(nq) === 0) pre.push(r); continue; }
+    if (m && m[2].length >= 2 && Number(r[0]) === Number(m[1]) && r[2].indexOf(m[2]) >= 0) { ex.push(r); continue; }   // 番号＋名前は登録名が2文字以上を含むときだけ（b174 監査 r2 と同じ）
+    if (r[2] === nq) ex.push(r); else if (r[2].indexOf(nq) === 0) pre.push(r); else if (r[2].indexOf(nq) > 0) part.push(r);
+  }
+  const all = ex.concat(pre, part);
+  out.n = all.length; out.c = all.slice(0, 10); out.ex = (dg && ex.length === 1) ? ex[0] : null;
+  return out;
+}
+function pqmMsg(t) { const c = $('pqCand'); if (!c) return; c.textContent = ''; if (t) c.appendChild(pnd('div', 'muted', t)); }
+function pqmDraw(f, q) {
+  const c = $('pqCand'); if (!c) return;
+  c.textContent = ''; PQM.sel = f ? f.c : [];
+  if (!f) return;
+  if (!f.n) { if (pqmNk(q).length >= 2) c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝打ち終わると患者様名で探します')); return; }
+  f.c.forEach(r => { const b = pnd('button', 'chip', r[0] + '　' + r[1]); b.type = 'button'; b.style.margin = '4px 6px 0 0'; b.addEventListener('click', () => pqmOpen(r, true)); c.appendChild(b); });
+  if (f.n > f.c.length) c.appendChild(pnd('div', 'muted', 'ほか ' + (f.n - f.c.length) + '件＝もう少し入れると絞れます'));
+  if (pqmNk(q).length >= 2) { const pb = pnd('button', 'chip', '👤 患者様名で探す'); pb.type = 'button'; pb.style.margin = '4px 6px 0 0'; pb.addEventListener('click', () => { clearTimeout(PQM.t); PQM.last = ''; pqmPat(); }); c.appendChild(pb); }
+}
+function pqmIn(ev) {
+  const el = $('pipeQ'); if (!el) return;
+  const q = el.value.trim(), cmp = !!(ev && ev.isComposing);
+  clearTimeout(PQM.t);
+  if (PQM.p) { PQM.p = 0; PQM.k = ''; const r0 = $('pipeRes'); if (r0) r0.textContent = ''; }
+  if (!q) { pqmDraw(null); return; }
+  if (!PQM.idx) {
+    if (!PQM.fetching && Date.now() - PQM.ft > 60000) pqmFetch();
+    if (PQM.fetching) { pqmMsg('サロン様の索引を読み込んでいます…'); return; }
+    pqmMsg(''); if (!cmp && pqmNk(q).length >= 2) PQM.t = setTimeout(pqmPat, 700); return;
+  }
+  const f = pqmFind(q); pqmDraw(f, q);
+  const pr = $('pipeRes'); if (pr) pr.style.opacity = (PQM.k && !f.c.some(r => r[0] === PQM.k)) ? '.45' : '';
+  if (cmp) return;
+  if (f.n === 1) { pqmOpen(f.c[0]); return; }
+  if (f.ex) { const x = f.ex; PQM.t = setTimeout(() => pqmOpen(x), 600); return; }
+  if (!f.n && !cmp && pqmNk(q).length >= 2) PQM.t = setTimeout(pqmPat, 700);
+}
+function pqmKey(ev) {
+  if (!ev || ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
+  clearTimeout(PQM.t);
+  if (PQM.sel.length) { pqmOpen(PQM.sel[0], true); return; }
+  PQM.last = ''; pqmPat();
+}
+function pqmPat() {
+  const el = $('pipeQ'); if (!el) return;
+  const q = el.value.trim();
+  if (pqmNk(q).length < 2 || q === PQM.last) return;
+  PQM.last = q; PQM.k = ''; PQM.p = 0;
+  const pr = $('pipeRes'); if (pr) pr.style.opacity = '';
+  pipeGoM(q);
+}
+function pqmOpen(r, force) {
+  if (!r) return;
+  clearTimeout(PQM.t);
+  if (!force && PQM.k === r[0]) return;
+  PQM.k = r[0]; PQM.last = '';
+  const b = $('pipeRes'); if (!b) return;
+  b.textContent = ''; b.style.opacity = '';
+  const q9 = ++PQM.seq;
+  const A = pnd('div', 'pcard'), h = pnd('h4');
+  h.appendChild(document.createTextNode(r[1])); h.appendChild(pnd('span', 'ppill', '#' + r[0])); A.appendChild(h);
+  const sk = pnd('div', 'psub', 'パイプラインを読み込んでいます…'); A.appendChild(sk); b.appendChild(A);
+  PQM.p = 1;
+  PQM.t = setTimeout(async () => {
+    PQM.p = 0;
+    if (q9 !== PQM.seq) return;
+    try {
+      const x = await api({ api: 'pipeSearch', q: r[0] });
+      if (q9 !== PQM.seq) return;
+      const w = pnd('div');
+      if (x.warn) w.appendChild(pnd('div', 'muted', '⚠️ ' + x.warn));
+      if (x.fbErr) w.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + x.fbErr));
+      if (x.partner) { x.partner._amb = !!x.ambiguous; w.appendChild(pipePartner(x.partner)); }
+      else w.appendChild(pnd('div', 'muted', x.note || 'Salesforce にこの管理番号の提携先が見つかりませんでした'));
+      if (A.parentNode) A.parentNode.replaceChild(w, A);
+    } catch (e) { if (q9 === PQM.seq) sk.textContent = e.message; }
+  }, 200);
+}
+if ($('pipeQ')) {
+  const q0 = $('pipeQ');
+  q0.addEventListener('focus', pqmLoad);
+  q0.addEventListener('input', pqmIn);
+  q0.addEventListener('compositionend', pqmIn);
+  q0.addEventListener('keydown', pqmKey);
+}
+/* ==== 🔎 即時候補 おわり ==== */
+
 if ($('btnPipeReset')) $('btnPipeReset').addEventListener('click', () => {
-  const b = $('pipeRes'); if (b) b.textContent = '';
+  clearTimeout(PQM.t); PQM.p = 0; PQM.k = ''; PQM.last = ''; PQM.sel = []; PQM.seq++; pqmMsg('');
+  const b = $('pipeRes'); if (b) { b.textContent = ''; b.style.opacity = ''; }
   const q = $('pipeQ'); if (q) { q.value = ''; q.focus(); }
 });
-if ($('btnPipeGo')) $('btnPipeGo').addEventListener('click', async () => {   // 旧キャッシュHTML対策のnullガード
-  const q = $('pipeQ').value.trim(), b = $('pipeRes');
+/* 🔎s77：検索ボタン（btnPipeGo）は撤去（打つだけで出る）。横断検索（患者様名）の本体は pipeGoM＝打つのが止まったら・Enter で呼ぶ。
+ *   index.html と app.js は同じ版（cp-shell-v77）で入れ替わる＝旧ボタンの配線は残さない（画面に無い部品を触るコードを増やさない＝v26） */
+async function pipeGoM(q) {
+  const b = $('pipeRes'); if (!b) return;
   if (!q) { b.textContent = '患者様名・提携サロン名・管理番号のいずれかを入れてください'; return; }
   b.textContent = '検索中…（Salesforceを横断）';
+  const q9 = ++PQM.seq;
   try {
     const r = await api({ api: 'pipeSearch', q });
+    if (q9 !== PQM.seq) return;   // 🔎s77：古い問い合わせは捨てる
     b.textContent = '';
     if (r.warn) b.appendChild(pnd('div', 'muted', '⚠️ ' + r.warn));
     if (r.fbErr) b.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + r.fbErr));
@@ -2094,8 +2225,8 @@ if ($('btnPipeGo')) $('btnPipeGo').addEventListener('click', async () => {   // 
       b.appendChild(s);
     }
     if (r.note) b.appendChild(pnd('div', 'muted', r.note));
-  } catch (e) { b.textContent = e.message; }
-});
+  } catch (e) { if (q9 === PQM.seq) b.textContent = e.message; }
+}
 
 /* ==== レシート ==== */
 let rcB64 = null, rcName = null;
