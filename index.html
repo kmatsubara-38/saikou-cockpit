@@ -281,7 +281,7 @@
             <label>表示</label>
             <select id="plPartnerN"><option value="50">50件</option><option value="100">100件</option><option value="200">200件</option></select>
             <label>並び順</label>
-            <select id="plPartnerO"><option value="contract">契約日（新しい順）</option><option value="kanri">管理番号順</option></select>
+            <select id="plPartnerO"><option value="contract">契約日（新しい順）</option><option value="contract_asc">契約日（古い順）</option><option value="kanri">管理番号（小さい順）</option><option value="kanri_desc">管理番号（大きい順）</option></select>
             <span class="plc" id="plPartnerCnt"></span>
           </div>
           <div id="plPartnerR"></div>
@@ -294,7 +294,7 @@
             <label>表示</label>
             <select id="plPatientN"><option value="50">50件</option><option value="100">100件</option><option value="200">200件</option></select>
             <label>並び順</label>
-            <select id="plPatientO"><option value="apply">予約申込日（新しい順）</option><option value="visit">受診日時順</option></select>
+            <select id="plPatientO"><option value="apply">予約申込日（新しい順）</option><option value="apply_asc">予約申込日（古い順）</option><option value="visit">受診日時（新しい順）</option><option value="visit_asc">受診日時（古い順）</option></select>
             <span class="plc" id="plPatientCnt"></span>
           </div>
           <div class="plctl" style="flex-wrap:wrap"><input id="plRegUrl" type="text" placeholder="一覧に無い方：SF患者リンクを貼る" aria-label="一覧に無い方：SF患者リンクを貼る" style="min-width:0;flex:1;font-size:17px;line-height:1.5"><button id="plRegBtn" type="button" class="btn" style="max-width:100%;white-space:normal;font-size:17px;line-height:1.5">📝 分析シートに登録</button></div><div id="plRegHost" role="status"></div><div id="plPatientR"></div>

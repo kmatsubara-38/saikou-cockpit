@@ -2133,10 +2133,12 @@ function pqmDraw(f, q) {
 }
 function pqmIn(ev) {
   const el = $('pipeQ'); if (!el) return;
-  const q = el.value.trim(), cmp = !!(ev && ev.isComposing);
+  /* ↕s78（b187・b186 監査 r-minor-1）：索引が後から届いた呼び出し（ev 無し）でも変換中を見る＝変換の途中の読みで開かない */
+  if (ev) PQM.cmp = ev.type === 'compositionend' ? false : !!ev.isComposing;
+  const q = el.value.trim(), cmp = ev ? !!ev.isComposing : !!PQM.cmp;
   clearTimeout(PQM.t);
   if (PQM.p) { PQM.p = 0; PQM.k = ''; const r0 = $('pipeRes'); if (r0) r0.textContent = ''; }
-  if (!q) { pqmDraw(null); return; }
+  if (!q) { pqmDraw(null); const p0 = $('pipeRes'); if (p0) p0.style.opacity = ''; return; }   // r-minor-2：空にしたら薄い表示を戻す
   if (!PQM.idx) {
     if (!PQM.fetching && Date.now() - PQM.ft > 60000) pqmFetch();
     if (PQM.fetching) { pqmMsg('サロン様の索引を読み込んでいます…'); return; }
@@ -2194,6 +2196,7 @@ if ($('pipeQ')) {
   const q0 = $('pipeQ');
   q0.addEventListener('focus', pqmLoad);
   q0.addEventListener('input', pqmIn);
+  q0.addEventListener('compositionstart', () => { PQM.cmp = true; });
   q0.addEventListener('compositionend', pqmIn);
   q0.addEventListener('keydown', pqmKey);
 }
