@@ -165,7 +165,7 @@ function r16BeginBusy() {
 const SNDW = { taskSave: 'a', taskDelete: 'b', taskEvSave: 'a', notifReadAll: 'a', undo: 'a', msgLearnForget: 'b', bookSave: 'a', bookRead: 'a',
   nippoSheetSave: 'a', styleTeach: 'a', styleTeachMulti: 'a', moushiSkip: 'b',
   taskStatus: 'q', notifRead: 'q', intelStatus: 'q',
-  approve: 'c', zangyoReport: 'c', shukkinReport: 'c', advSave: 'c', moushiSend: 'c', pipeFb: 'c', pipeStep: 'c', receipt: 'c',
+  approve: 'c', zangyoReport: 'c', shukkinReport: 'c', advSave: 'c', moushiSend: 'c', moushiRegen: 'd', pipeFb: 'c', pipeStep: 'c', receipt: 'c',
   calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c', nippoCoach: 'c', gyomuCalPut: 'c',
   kintaiFree: 'd', shokai: 'd',
   bookScan: 'f15', robinSyncLine: 'f20', gyomuCalPlan: 'f20', styleHarvest: 'f13', styleRefresh: 'f10' };
@@ -1228,6 +1228,28 @@ function msbRow(x, onGone) {
   res.setAttribute('role', 'status');
   /* made＝出した下書き（直したかの判定）／pendTs＝承認待ちの下書きを出したときの ts（送ると、その1件だけを外す・b173 r2） */
   let busy = false, done = false, made = '', pendTs = '';
+  /* 🔁s79（b188・2026-11-09 松原指示）＝「修正（再生成）」。押す→受付（moushiRegen・裏で完了）→10秒おきに結果を見る（moushiRegenPeek＝UrlFetch 0・最長4分）。
+   *   作り直しを待つ間は 編集欄を読み取り専用・承認を押せない。新しい下書きが来たら編集欄と made を差し替える（pendTs が同じときだけ）。
+   *   「↩ 前の下書きに戻す」は画面の中だけ（通知シートは新しいまま・前の本文は rv_queue の result に控え）。Salesforce には書かない。 */
+  const rgBtn = pnd('button', 'btn', '修正（再生成）');
+  rgBtn.type = 'button';
+  rgBtn.style.display = 'none';
+  const rgBack = pnd('button', 'btn', '↩ 前の下書きに戻す');
+  rgBack.type = 'button';
+  rgBack.style.display = 'none';
+  const rgNo = pnd('div', 'edit-note');
+  const rgBox = pnd('div', 'edit-form');
+  rgBox.style.display = 'none';
+  const rgHint = pnd('input');
+  rgHint.type = 'text';
+  rgHint.maxLength = 200;
+  rgHint.placeholder = '直してほしいこと（空欄でもOK・200字まで）';
+  rgHint.setAttribute('aria-label', '直してほしいこと（空欄でもOK・200字まで）');
+  const rgGo = pnd('button', 'btn btn-primary', '再生成する');
+  rgGo.type = 'button';
+  rgBox.appendChild(rgHint);
+  rgBox.appendChild(rgGo);
+  let rgPrev = null;
   const status = (t, ng) => { res.className = 'result' + (ng ? ' ng' : ''); res.textContent = t; };
   const gone = (ms) => setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); onGone(); }, ms);
   const shut = () => { body.value = made = pendTs = ''; ed.style.display = 'none'; chev.style.transform = 'rotate(-90deg)'; tg.setAttribute('aria-expanded', 'false'); status('', false); };
@@ -1245,6 +1267,12 @@ function msbRow(x, onGone) {
       const r = await api({ api: 'moushiOpen', id: x.id });
       made = body.value = String(r.text || '');
       pendTs = String(r.pendTs || '');
+      /* 🔁s79（b188）：エンジンが対応（r.regen）した、ボードで登録した下書きにだけ「修正（再生成）」。Slack の分は1行だけ言う */
+      rgBtn.style.display = r.regen ? '' : 'none';
+      rgNo.textContent = String(r.regenNo || '');
+      rgBox.style.display = 'none';
+      rgBack.style.display = 'none';
+      rgPrev = null;
       note.textContent = String(r.msg || '');
       note.style.color = r.bad ? 'var(--warn)' : '';
       ed.style.display = '';
@@ -1282,10 +1310,76 @@ function msbRow(x, onGone) {
       if (!done) { send.disabled = false; tg.disabled = false; }
     }
   });
+  const rgIdle = () => { busy = false; send.disabled = false; tg.disabled = false; body.readOnly = false; rgBtn.disabled = false; rgGo.disabled = false; rgGo.textContent = '再生成する'; };
+  const rgBad = (m) => { rgIdle(); status(m, true); };
+  const rgPoll = (q, pts, hold, dl) => setTimeout(async () => {
+    if (!c.isConnected) return;
+    let v;
+    try { v = await api({ api: 'moushiRegenPeek', qts: q, pendTs: pts }); }
+    catch (e) {
+      if (Date.now() > dl) rgBad('打ち切りました（前の下書きのままです）：' + e.message);
+      else rgPoll(q, pts, hold, dl);
+      return;
+    }
+    if (!c.isConnected) return;
+    if (v.wait) {
+      if (Date.now() > dl) rgBad('4分待っても終わりませんでした。前の下書きのままです（裏で終わったときは、開き直すと新しい下書きが出ます）');
+      else rgPoll(q, pts, hold, dl);
+      return;
+    }
+    if (v.failed) { rgBad(String(v.msg || '再生成できませんでした（前の下書きのままです）')); return; }
+    if (String(v.pendTs || '') !== pts) { rgBad('下書きの番号が変わったので置き換えませんでした（取り違え防止）'); return; }
+    rgIdle();
+    rgPrev = hold;
+    made = body.value = String(v.text || '');
+    note.textContent = String(v.msg || '');
+    note.style.color = v.bad ? 'var(--warn)' : '';
+    rgBack.style.display = '';
+    rgBox.style.display = 'none';
+    rgHint.value = '';
+    status('新しい下書きにしました', false);
+  }, 10000);
+  rgBtn.addEventListener('click', () => {
+    if (busy || done) return;
+    const o = rgBox.style.display === 'none';
+    rgBox.style.display = o ? '' : 'none';
+    if (o) rgHint.focus();
+  });
+  rgBack.addEventListener('click', () => {
+    if (busy || done || rgPrev === null) return;
+    body.value = rgPrev;
+    rgPrev = null;
+    rgBack.style.display = 'none';
+  });
+  rgGo.addEventListener('click', async () => {
+    if (busy || done || !pendTs) return;
+    if (body.value !== made && !window.confirm('直した本文を捨てて再生成しますか？')) return;
+    busy = true;
+    const hold = body.value, pts = pendTs;
+    send.disabled = true;
+    tg.disabled = true;
+    body.readOnly = true;
+    rgBtn.disabled = true;
+    rgGo.disabled = true;
+    rgGo.textContent = '受付中…';
+    status('受け付けています…', false);
+    try {
+      const r = await api({ api: 'moushiRegen', id: x.id, pendTs: pts, hint: rgHint.value });
+      rgGo.textContent = '再生成中…';
+      status('再生成中…（1〜2分）', false);
+      rgPoll(String(r.qts || ''), pts, hold, Date.now() + 240000);
+    } catch (e) {
+      rgBad(e.message);
+    }
+  });
   acts.appendChild(send);
+  acts.appendChild(rgBtn);
+  acts.appendChild(rgBack);
   ed.appendChild(body);
   ed.appendChild(note);
   ed.appendChild(acts);
+  ed.appendChild(rgNo);
+  ed.appendChild(rgBox);
   c.appendChild(tg);
   c.appendChild(ed);
   c.appendChild(res);
