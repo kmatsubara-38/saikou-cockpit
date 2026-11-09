@@ -1249,8 +1249,8 @@ function msbRow(x, onGone) {
   rgGo.type = 'button';
   rgBox.appendChild(rgHint);
   rgBox.appendChild(rgGo);
-  let rgPrev = null;
-  const status = (t, ng) => { res.className = 'result' + (ng ? ' ng' : ''); res.textContent = t; };
+  let rgPrev = null, rgNew = false;
+  const status =(t, ng) => { res.className = 'result' + (ng ? ' ng' : ''); res.textContent = t; };
   const gone = (ms) => setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); onGone(); }, ms);
   const shut = () => { body.value = made = pendTs = ''; ed.style.display = 'none'; chev.style.transform = 'rotate(-90deg)'; tg.setAttribute('aria-expanded', 'false'); status('', false); };
   tg.addEventListener('click', async () => {
@@ -1269,7 +1269,9 @@ function msbRow(x, onGone) {
       pendTs = String(r.pendTs || '');
       /* 🔁s79（b188）：エンジンが対応（r.regen）した、ボードで登録した下書きにだけ「修正（再生成）」。Slack の分は1行だけ言う */
       rgBtn.style.display = r.regen ? '' : 'none';
-      rgNo.textContent = String(r.regenNo || '');
+      /* 🔁s80（b189）：承認待ちの下書きが無い行も、エンジンが対応（r.regenNew）していれば同じボタンで新しく作る＝補足1行 */
+      rgNew = !!(r.regen && r.regenNew && !pendTs);
+      rgNo.textContent = rgNew ? '下書きを新しく作ります' : String(r.regenNo || '');
       rgBox.style.display = 'none';
       rgBack.style.display = 'none';
       rgPrev = null;
@@ -1328,8 +1330,11 @@ function msbRow(x, onGone) {
       return;
     }
     if (v.failed) { rgBad(String(v.msg || '再生成できませんでした（前の下書きのままです）')); return; }
-    if (String(v.pendTs || '') !== pts) { rgBad('下書きの番号が変わったので置き換えませんでした（取り違え防止）'); return; }
+    /* 新規作成（pts 空）のときは、新しい承認待ち 'Q'+受付番号 が返ってくるのが正＝それ以外は取り違えとして置き換えない */
+    const vp = String(v.pendTs || '');
+    if (pts ? vp !== pts : vp !== 'Q' + q) { rgBad('下書きの番号が変わったので置き換えませんでした（取り違え防止）'); return; }
     rgIdle();
+    if (!pts) { pendTs = vp; rgNew = false; rgNo.textContent = ''; }   // 承認（SF送信）はこの新しい下書きを外す
     rgPrev = hold;
     made = body.value = String(v.text || '');
     note.textContent = String(v.msg || '');
@@ -1352,7 +1357,7 @@ function msbRow(x, onGone) {
     rgBack.style.display = 'none';
   });
   rgGo.addEventListener('click', async () => {
-    if (busy || done || !pendTs) return;
+    if (busy || done || (!pendTs && !rgNew)) return;
     if (body.value !== made && !window.confirm('直した本文を捨てて再生成しますか？')) return;
     busy = true;
     const hold = body.value, pts = pendTs;
@@ -3302,65 +3307,177 @@ async function partnerPull(box, bt) {
 }
 if ($('fabChat')) $('fabChat').addEventListener('click', chatPull);
 /* ==== 📝s74（b182）日報ボタン＝PC の 📋 と同じ口 nippoCoach（日付を選ぶ→空欄だけ書く→読み直しの一致を出す・鍵が無ければ下書き）。
- *   鍵の保存は PC の小窓から（スマホに鍵を打つ欄は置かない）。札は共通の部品（SNDW の c＝送信中…） ==== */
-let npDays4 = null;
+ *   鍵の保存は PC の小窓から（スマホに鍵を打つ欄は置かない）。札は共通の部品（SNDW の c＝送信中…）
+ *   📅s80（b189・2026-11-09 松原指示）＝「＋ この日を足す」を撤去→自作カレンダーで複数日を一気に選ぶ。📝 日報／📊 週報の切替（aria-pressed）。
+ *   日報＝日をタップで選ぶ／外す（1回に7日まで・未来と60日より前は押せない）。週報＝どの日を押してもその月〜日の週（1回に4週まで・その週の月曜が今日以前・60日以内）。
+ *   描画・切替・チップの操作は端末の中だけ（通信0）。送信は {api:'nippoCoach', dates, mode}。返りの slack[] は Slack のリマインドへの ✅ の結果を1行ずつ ==== */
+let npDays4 = null, npWeeks4 = null, npMode4 = 'daily', npMon4 = '';
 const npJst4 = (ms) => new Date(Date.now() + 9 * 3600e3 - (ms || 0)).toISOString().slice(0, 10);
+const npMs4 = (d) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
+const npYmd4 = (ms) => new Date(ms).toISOString().slice(0, 10);
+const npMd4 = (d) => (+d.slice(5, 7)) + '/' + (+d.slice(8, 10));
+const npMonday4 = (d) => { const ms = npMs4(d); return npYmd4(ms - ((new Date(ms).getUTCDay() + 6) % 7) * 864e5); };
+const NP_WD4 = '日月火水木金土'.split('');   // PC の WD と同じ文字列（番人 v161 ④が文字列リテラルを突き合わせる）
+let npBusy4 = false;   // 送信中は切替を押せない（監査C minor-10）
+/* 進行中の週＝その週の日曜が今日以降（チップの「（進行中）」と送る前の確認で同じ判定を使う） */
+const npLive4 = (m) => npYmd4(npMs4(m) + 6 * 864e5) >= npJst4(0);
+/* 日曜＝赤（--bad）・土曜＝青（style.css に在る #2997ff を再利用・ダークの面 --card の上で約6:1） */
+const npWdColor4 = (w) => w === 0 ? 'var(--bad)' : (w === 6 ? '#2997ff' : '');
 function nippoOpen() {
   const box = $('chatSheetBody'); if (!box) return;
-  sheetOpen('fabNippo', '📝 日報（外部コーチの方の Notion）');
-  box.textContent = '';
-  const td = npJst4(0), lo = npJst4(60 * 864e5);
+  sheetOpen('fabNippo', '📝 日報・📊 週報（外部コーチの方の Notion）');
+  const td = npJst4(0);
   if (!npDays4) npDays4 = [td];
-  box.appendChild(pnd('div', 'muted', '日付を選んで「日報に書く」を押すと、その日の日報の松原さんの行の空欄だけを埋めます（KPI_目標・KPI_実績・KPI_前日比・課題・アクション・振り返り。先に入っている欄・他の方の行は触りません）。アクションは名刺の発注状況（#経費-報告-精算の発注報告の数）です。今日の KPI_実績・前日比・振り返りは19時以降に書きます。書いた後に読み直して一致を数えます。1回に7日まで・未来の日は選べません。'));
-  box.appendChild(pnd('div', 'muted', 'アクションは押した時点の発注報告で書きます（あとで出た発注は翌日の日報に載ります）'));   // b183r4 軽微-3
-  const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0';
-  const inp = document.createElement('input'); inp.type = 'date'; inp.id = 'npDay4'; inp.max = td; inp.min = lo; inp.value = td; inp.setAttribute('aria-label', '足す日付');
-  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn'; add.textContent = '＋ この日を足す';
-  const ch = document.createElement('div'); ch.id = 'npChips4'; ch.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px';
-  add.addEventListener('click', () => {
-    const v = inp.value;
-    if (!v || v > td || v < lo) { showErr('今日まで・過去60日以内の日を選んでください'); return; }
-    if (npDays4.indexOf(v) < 0) { if (npDays4.length >= 7) { showErr('1回に7日までです'); return; } npDays4.push(v); npDays4.sort(); }
-    npChips4(ch);
+  if (!npWeeks4) npWeeks4 = [];
+  if (!npMon4) npMon4 = td.slice(0, 7);
+  npPaint4(false);
+}
+/* keepOut＝切替のときは前の結果を残す（開き直したときは空から） */
+function npPaint4(keepOut) {
+  const box = $('chatSheetBody'); if (!box) return;
+  const old = keepOut ? $('npOut4') : null;
+  box.textContent = '';
+  const sw = document.createElement('div'); sw.setAttribute('role', 'group'); sw.setAttribute('aria-label', '日報か週報かを選ぶ');
+  sw.style.cssText = 'display:flex;gap:8px;margin-bottom:10px';
+  [['daily', '📝 日報'], ['weekly', '📊 週報']].forEach(([m, t]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (npMode4 === m ? ' on' : ''); b.textContent = t;
+    b.style.cssText = 'flex:1;justify-content:center'; b.setAttribute('aria-pressed', String(npMode4 === m));
+    b.addEventListener('click', () => { if (npMode4 === m || npBusy4) return; npMode4 = m; npPaint4(true); });
+    sw.appendChild(b);
   });
-  row.appendChild(inp); row.appendChild(add); box.appendChild(row); box.appendChild(ch); npChips4(ch);
-  const go = document.createElement('button'); go.type = 'button'; go.className = 'btn btn-primary robinBtn'; go.id = 'npGo4'; go.textContent = '📝 日報に書く';
+  box.appendChild(sw);
+  if (npMode4 === 'daily') {
+    box.appendChild(pnd('div', 'muted', 'カレンダーで日付を選んで（複数可）「日報に書く」を押すと、その日の日報の松原さんの行の空欄だけを埋めます（KPI_目標・KPI_実績・KPI_前日比・課題・アクション・振り返り。先に入っている欄・他の方の行は触りません）。アクションは名刺の発注状況（#経費-報告-精算の発注報告の数）です。今日の KPI_実績・前日比・振り返りは19時以降に書きます。書いた後に読み直して一致を数えます。6欄とも埋まった日は、Slack #法人営業室 の翌朝9時の日報リマインド（金曜の分は月曜）に ✅ を付けます。今夜書いた日の✅は翌朝9時（金曜の分は月曜）のリマインドの後にもう一度押すと付きます。1回に7日まで・未来の日は選べません。'));
+    box.appendChild(pnd('div', 'muted', 'アクションは押した時点の発注報告で書きます（あとで出た発注は翌日の日報に載ります）'));   // b183r4 軽微-3
+  } else {
+    box.appendChild(pnd('div', 'muted', 'カレンダーでどの日を押しても、その月〜日の週が選ばれます。「週報に書く」を押すと、外部コーチの方の Notion の週報（週報_yyyy/MM/dd週）の松原さんの節の空いているところだけを、その週の日報（KPI・課題・アクション・振り返り・コミットメント）から写します（AI は使いません）。ページが無ければ型どおりに作ります。他の方の節は触りません。松原さんの節が埋まった週は、翌月曜12時の Slack の週報リマインドに ✅ を付けます。1回に4週まで・60日より前は選べません。'));
+  }
+  const cal = document.createElement('div'); cal.id = 'npCal4'; cal.style.cssText = 'margin:10px 0';
+  const ch = document.createElement('div'); ch.id = 'npChips4'; ch.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px';
+  box.appendChild(cal); box.appendChild(ch);
+  npCal4(cal, ch); npChips4(ch);
+  const go = document.createElement('button'); go.type = 'button'; go.className = 'btn btn-primary robinBtn'; go.id = 'npGo4';
+  go.textContent = npMode4 === 'weekly' ? '📊 週報に書く' : '📝 日報に書く';
   go.addEventListener('click', () => npSend4());
   box.appendChild(go);
-  const o = document.createElement('div'); o.id = 'npOut4'; box.appendChild(o);
+  const o = old || document.createElement('div'); o.id = 'npOut4'; o.setAttribute('role', 'status'); box.appendChild(o);
+}
+/* 押せる日か（日報＝今日以前・60日以内／週報＝その週の月曜が今日以前・60日以内） */
+function npCan4(d) {
+  const td = npJst4(0), lo = npJst4(60 * 864e5);
+  if (npMode4 === 'weekly') { const m = npMonday4(d); return m <= td && m >= lo; }
+  return d <= td && d >= lo;
+}
+function npPick4(d, cal, ch) {
+  if (!npCan4(d)) return;
+  if (npMode4 === 'weekly') {
+    const m = npMonday4(d);
+    if (npWeeks4.indexOf(m) >= 0) npWeeks4 = npWeeks4.filter(x => x !== m);
+    else { if (npWeeks4.length >= 4) { showErr('1回に4週までです'); return; } npWeeks4.push(m); npWeeks4.sort(); }
+  } else {
+    if (npDays4.indexOf(d) >= 0) npDays4 = npDays4.filter(x => x !== d);
+    else { if (npDays4.length >= 7) { showErr('1回に7日までです'); return; } npDays4.push(d); npDays4.sort(); }
+  }
+  npCal4(cal, ch); npChips4(ch);
+}
+/* 1つの月を表示（‹ › で前後の月・60日より前の月と来月より先へは行かない）。日のボタンは button 要素・aria-pressed・aria-label */
+function npCal4(cal, ch) {
+  cal.textContent = '';
+  const td = npJst4(0), lo = npJst4(60 * 864e5);
+  const y = +npMon4.slice(0, 4), mo = +npMon4.slice(5, 7);
+  const first = Date.UTC(y, mo - 1, 1), days = new Date(Date.UTC(y, mo, 0)).getUTCDate(), lead = new Date(first).getUTCDay();
+  const hd = document.createElement('div'); hd.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+  const mvBtn = (t, lab, dlt, can) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = t; b.setAttribute('aria-label', lab);
+    b.style.cssText = 'min-width:44px;justify-content:center'; b.disabled = !can; if (!can) b.style.opacity = '.35';
+    b.addEventListener('click', () => { const nd = new Date(Date.UTC(y, mo - 1 + dlt, 1)); npMon4 = npYmd4(nd.getTime()).slice(0, 7); npCal4(cal, ch); });
+    return b;
+  };
+  hd.appendChild(mvBtn('‹', '前の月', -1, npMon4 > lo.slice(0, 7)));
+  const ttl = pnd('div', '', y + '年' + mo + '月'); ttl.style.cssText = 'flex:1;text-align:center;font-weight:700'; ttl.setAttribute('aria-live', 'polite');
+  hd.appendChild(ttl);
+  hd.appendChild(mvBtn('›', '次の月', 1, npMon4 < td.slice(0, 7)));
+  cal.appendChild(hd);
+  const gr = document.createElement('div'); gr.setAttribute('role', 'group'); gr.setAttribute('aria-label', y + '年' + mo + '月のカレンダー');
+  gr.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:4px';
+  NP_WD4.forEach((w, i) => { const h = pnd('div', 'muted', w); h.style.cssText = 'text-align:center;font-size:12px;font-weight:700' + (npWdColor4(i) ? ';color:' + npWdColor4(i) : ''); h.setAttribute('aria-hidden', 'true'); gr.appendChild(h); });
+  for (let i = 0; i < lead; i++) gr.appendChild(document.createElement('div'));
+  for (let n = 1; n <= days; n++) {
+    const d = npYmd4(Date.UTC(y, mo - 1, n)), w = (lead + n - 1) % 7, can = npCan4(d);
+    const on = npMode4 === 'weekly' ? npWeeks4.indexOf(npMonday4(d)) >= 0 : npDays4.indexOf(d) >= 0;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (on ? ' on' : ''); b.textContent = String(n);
+    b.style.cssText = 'padding:0;justify-content:center;min-width:0';
+    if (!on && npWdColor4(w)) b.style.color = npWdColor4(w);
+    if (d === td) { b.setAttribute('aria-current', 'date'); b.style.textDecoration = 'underline'; b.style.fontWeight = '800'; }
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', mo + '月' + n + '日（' + NP_WD4[w] + '）' + (npMode4 === 'weekly' ? 'の週' : '') + (on ? 'を外す' : 'を選ぶ'));
+    if (!can) { b.disabled = true; b.style.opacity = '.35'; }
+    else b.addEventListener('click', () => npPick4(d, cal, ch));
+    gr.appendChild(b);
+  }
+  cal.appendChild(gr);
 }
 function npChips4(ch) {
   ch.textContent = '';
-  npDays4.forEach(d => {
+  const list = npMode4 === 'weekly' ? npWeeks4 : npDays4;
+  list.forEach(d => {
     const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.style.cssText = 'min-height:36px;padding:2px 12px';
-    c.textContent = (+d.slice(5, 7)) + '/' + (+d.slice(8, 10)) + ' ×'; c.setAttribute('aria-label', d + ' を外す');
-    c.addEventListener('click', () => { npDays4 = npDays4.filter(x => x !== d); npChips4(ch); });
+    const wk = npMode4 === 'weekly', live = wk && npLive4(d);
+    c.textContent = npMd4(d) + (wk ? '週' + (live ? '（進行中）' : '') : '') + ' ×'; c.setAttribute('aria-label', d + (wk ? 'の週' : '') + ' を外す');
+    c.addEventListener('click', () => {
+      if (wk) npWeeks4 = npWeeks4.filter(x => x !== d); else npDays4 = npDays4.filter(x => x !== d);
+      npChips4(ch); const cal = $('npCal4'); if (cal) npCal4(cal, ch);
+    });
     ch.appendChild(c);
   });
-  if (!npDays4.length) ch.appendChild(pnd('span', 'muted', '日付が選ばれていません'));
+  if (!list.length) ch.appendChild(pnd('span', 'muted', npMode4 === 'weekly' ? '週が選ばれていません' : '日付が選ばれていません'));
 }
 async function npSend4() {
   const o = $('npOut4'); if (!o) return;
-  if (!npDays4 || !npDays4.length) { showErr('日付を選んでください'); return; }
+  const mode = npMode4, ds = (mode === 'weekly' ? npWeeks4 : npDays4).slice();
+  if (!ds.length) { showErr(mode === 'weekly' ? '週を選んでください' : '日付を選んでください'); return; }
+  if (npBusy4) return;
+  /* 📅s80 監査C major-2：進行中の週を週報に書くと途中の値で固まる（あとで押しても埋まった節には足さない）＝送る前に確かめる。いいえなら通信しない（PC の npSend と同じ文） */
+  const lv = mode === 'weekly' ? ds.filter(npLive4) : [];
+  if (lv.length && !window.confirm(npMd4(lv[0]) + '週はまだ途中です。今日までの日報だけを写します。あとで押しても埋まった節には書き足しません。書きますか？')) return;
+  const go = $('npGo4');
+  const gt = go ? go.textContent : '';
+  npBusy4 = true; if (go) { go.disabled = true; go.textContent = '書いています…'; }
   o.textContent = '';
-  try { npShow4(o, await api({ api: 'nippoCoach', dates: npDays4.slice() })); }
-  catch (e) { if (e && e.data) npShow4(o, e.data); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', e.message)); } }   // 鍵が無い（ok:false）も下書きを出す
+  try { npShow4(o, await api({ api: 'nippoCoach', dates: ds, mode }), mode); }
+  catch (e) { if (e && e.data) npShow4(o, e.data, mode); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', '通信エラー：' + e.message)); } }   // 鍵が無い（ok:false）も下書きを出す
+  finally { npBusy4 = false; if (go) { go.disabled = false; go.textContent = gt; } }
 }
-function npShow4(o, r) {
+/* Slack ✅ の結果1行（PC の npSlk と同じ文言＝番人 v161 ④が文字列リテラルを突き合わせる）。
+ *   監査C major-1：日報の ✅ は「その日」ではなく次の平日9時のリマインドに付く（週報は翌月曜12時）＝of（日報の日・週報の月曜）があれば両方の日を出す。notfound でも msg（例：まだリマインドの時刻になっていません）を出す */
+function npSlackLine4(s) {
+  const md = s && s.d ? npMd4(String(s.d)) : '';
+  const st = s && s.status, wk = !!s && s.kind === 'weekly';
+  const tag = s && s.of ? npMd4(String(s.of)) + (wk ? '週の週報→' + md + ' 12時のリマインド' : ' の日報→' + md + ' 9時のリマインド') : md;
+  const why = s && s.msg ? '：' + String(s.msg).slice(0, 120) : '';
+  if (st === 'added') return '✅ Slack の' + (wk ? '週報' : '日報') + 'リマインド（' + tag + '）に反応しました';
+  if (st === 'already') return '✅ もう反応済みでした（' + tag + '）';
+  if (st === 'notfound') return '⚠️ Slack にその日のリマインドが見つからず、✅は付けていません（まだ投稿されていない等）' + (tag ? '（' + tag + '）' : '') + why;
+  return '⚠️ Slack に✅を付けられませんでした（' + tag + '）' + why;
+}
+function npShow4(o, r, mode) {
   o.textContent = '';
   if (!r) { o.appendChild(pnd('div', 'muted', '返事が空でした')); return; }
   o.appendChild(pnd('div', 'muted', r.msg || ''));
-  (r.days || []).forEach(x => {
+  /* 週報を頼んだのに mode が返らない＝サーバが b189 より古い（週報を知らない）＝黙って日報扱いにしない */
+  if (mode === 'weekly' && r.mode !== 'weekly') { const w = pnd('div', 'muted', 'サーバ（ボード）が週報に対応する前の版でした。週報は書いていません（ボードの貼替え後にもう一度押してください）'); w.style.color = 'var(--warn)'; o.appendChild(w); }
+  (r.days || []).forEach((x, i) => {
     const d = document.createElement('div'); d.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--line)';
-    const h = pnd('div', '', x.head || x.d); h.style.fontWeight = '700'; d.appendChild(h);
+    const h = pnd('div', '', x.head || x.d); h.style.fontWeight = '700'; h.id = 'npH4_' + i; d.appendChild(h);
     (x.lines || []).forEach(L => d.appendChild(pnd('div', 'muted', L)));
     if (x.copy) {
-      const ta = document.createElement('textarea'); ta.readOnly = true; ta.value = x.copy; ta.rows = 8; ta.style.cssText = 'width:100%;font-size:15px;margin-top:6px'; d.appendChild(ta);
-      const cb = document.createElement('button'); cb.type = 'button'; cb.className = 'btn robinBtn'; cb.textContent = '📋 この日の下書きをコピー';
+      const ta = document.createElement('textarea'); ta.readOnly = true; ta.value = x.copy; ta.rows = 8; ta.style.cssText = 'width:100%;font-size:15px;margin-top:6px'; ta.setAttribute('aria-labelledby', h.id); d.appendChild(ta);
+      const cb = document.createElement('button'); cb.type = 'button'; cb.className = 'btn robinBtn'; cb.textContent = mode === 'weekly' ? '📋 この週の下書きをコピー' : '📋 この日の下書きをコピー';
       cb.addEventListener('click', () => copyText(x.copy, cb)); d.appendChild(cb);
     }
     o.appendChild(d);
   });
+  (r.slack || []).forEach(s => o.appendChild(pnd('div', 'muted', npSlackLine4(s))));
   if (r.note) o.appendChild(pnd('div', 'muted', r.note));
   if (r.nokey) o.appendChild(pnd('div', 'muted', '外部コーチの方から連携の鍵が届いたら、PC のボードの同じ小窓（右下の📋）に貼って保存してください。保存すると、同じボタンで実際に書きます。'));
 }
