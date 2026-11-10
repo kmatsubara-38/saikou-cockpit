@@ -1,7 +1,7 @@
 /* b157 R7_pwa Codex gpt-6-astra */
 /* b157 R4_sex Codex gpt-6-astra */
 /* b162 R3_pwa Codex gpt-6-astra */
-/* ===== 個人コックピット PWA app.js（依存ゼロ・PCブラウザ版パリティ 2026-07-23） ===== */
+/* 個人コックピット PWA app.js（依存ゼロ・PCブラウザ版パリティ */
 'use strict';
 
 /* ---- CONFIG（既定値。URLはセットアップ画面から上書き可能） ---- */
@@ -42,9 +42,7 @@ let APP_VER = '';
   }).catch(() => {});
 })();
 
-/* ==== 📊計測のPWA同格化（2026-08-07 第2手の第2弾）====
- * 取るのは3つだけ＝表示ms・操作（api名）・エラー数。中身は数字と名前だけ＝本文・患者様情報は最初から読まない。
- * 送りは既存の{api:'home'}に同乗＝計測のための往復はゼロ。サーバがok:trueと言った時だけ控えを消す。 */
+/* 📊計測のPWA同格化（2026-08-07 第2手の第2弾） */
 const MET_LS = 'cp_met';
 let MET = (() => { try { return JSON.parse(localStorage.getItem(MET_LS) || '{}') || {}; } catch (e) { return {}; } })();
 function metSave() {
@@ -161,7 +159,7 @@ function r16BeginBusy() {
     r16Busy.delete(element);
   };
 }
-/* ⚡s72 書く口の名簿（PC の CPW と同じ考え）。a・b＝保存中… c＝送信中…（取り消せない書き込み） d＝受け付けています… fN＝作成中…だいたいN秒 q＝楽観表示が済み（失敗だけ札） */
+/* ⚡s72 書く口の名簿（PC の CPW と同じ考え）。a・b＝保存中… */
 const SNDW = { taskSave: 'a', taskDelete: 'b', taskEvSave: 'a', notifReadAll: 'a', undo: 'a', msgLearnForget: 'b', bookSave: 'a', bookRead: 'a',
   nippoSheetSave: 'a', styleTeach: 'a', styleTeachMulti: 'a', moushiSkip: 'b',
   taskStatus: 'q', notifRead: 'q', intelStatus: 'q',
@@ -173,7 +171,7 @@ const SNDL = { a: '保存中…', b: '保存中…', c: '送信中…', d: '受�
 const sndFly = new WeakMap();
 /* ⚡s72 r2（敵対監査 致命-1）：下書き・プレビューは同じ欄・同じ口から本送信の前に何度も出る＝札も二度押しの止めも付けない（付けると Enter の本送信が「二度押し」で止まる） */
 const sndDraft4 = (n, p) => (n === 'shukkinReport' && p.draft === true) || (n === 'zangyoReport' && !!(p.payload && p.payload.draft === true)) || (n === 'robinSyncLine' && p.dry === true);
-/* 往復の秒数の控え（端末だけ・300件まで）。home の便の met に同乗して届く＝往復0増。残すのは api 名・ボタンの id・秒数・成否だけ */
+/* 往復の秒数の控え（端末だけ・300件まで）。home の便の met に */
 const LAT = 'cp_lat';
 function latAdd(o) { try { let a = JSON.parse(localStorage.getItem(LAT) || '[]'); if (!Array.isArray(a)) a = []; a.push(o); if (a.length > 300) a = a.slice(-300); localStorage.setItem(LAT, JSON.stringify(a)); } catch (e) {} }
 function latPeek() { try { const a = JSON.parse(localStorage.getItem(LAT) || '[]'); return Array.isArray(a) && a.length ? a.slice(0, 60) : null; } catch (e) { return null; } }
@@ -189,7 +187,7 @@ function sndBdg(el, tx, cl) {
   return b;
 }
 function sndOff(b, ms) { if (!b) return; clearTimeout(b._h); b._h = setTimeout(() => { if (b.parentNode) b.parentNode.removeChild(b); }, ms); }
-/* 押下から出た書く口に札を出し、二度押しを止める。返すのは終わりの関数（成否・理由）。名簿に無い口・押下から1.5秒より後の呼び出しは素通し */
+/* 押下から出た書く口に札を出し、二度押しを止める。返すのは終わりの関数（成 */
 function sndBegin(payload) {
   const nm = String(payload && payload.api === 'pair' ? (payload.w && payload.w.api) || '' : (payload && payload.api) || '');
   const m = SNDW[nm], g = r16LastClick, now = Date.now(), b0 = sndBase(g);
@@ -292,8 +290,7 @@ function showErr(msg) {
   clearTimeout(showErr._t);
   showErr._t = setTimeout(() => b.classList.add('hidden'), 8000);
 }
-/* 🔴showOk は5箇所から呼ばれていたのに定義が無く、成功時に例外で止まっていた（2026-08-02 発見・修正）。
- *   同じ枠を使い、色だけ変えて「できた」を伝える。 */
+/* 🔴showOk は5箇所から呼ばれていたのに定義が無く、成功時に例外で */
 /* ↩️「元に戻す」付きの成功表示（2026-08-05 第1手＝回復性）。切符が無ければ普通の表示 */
 function showUndo(msg, token, after) {
   if (!token) { showOk(msg); return; }
@@ -363,10 +360,7 @@ document.querySelectorAll('.tab').forEach(btn => {
   });
 });
 
-/* ==== s12 報告タブ再設計（松原指示・世界一のダッシュボードへ）====
- * 全セクション=既定で閉じたアコーディオン（タイトルだけの一覧＝スクロール不要）＋
- * 並び=松原式二層【🔥日本一への一手】紹介→議事録→候補日時→カレンダー【🛡毎日の運用】出勤→勤怠→レシート。
- * HTMLは無傷＝JSで並び替え・開閉化（IDと既存リスナーは全て不変） */
+/* s12 報告タブ再設計（松原指示・世界一のダッシュボードへ） */
 (function () {
   const rep = document.getElementById('view-report');
   if (!rep) return;
@@ -570,7 +564,7 @@ async function loadHomeMonth() {
     if (seq === loadHomeMonth._seq) setSkeleton(false);
   }
 }
-/* 月セレクタ＝プルダウン（2026-07-27 松原指示）。2024-01起点＝ブラウザ版アーカイブと同じ遡り */
+/* 月セレクタ＝プルダウン（2026-07-27 松原指示）。2024-01 */
 function hmSelFill() {
   const sel = $('hmSel');
   if (!sel || sel.options.length) return;
@@ -876,8 +870,7 @@ if ($('btnSkSend')) $('btnSkSend').addEventListener('click', async () => {
   }
 });
 
-/* ==== 📚2026-07-31 覚えた言い回し＝いつでも見て、いつでも忘れさせられる ====
- * 覚えっぱなしで見えないのは怖い。ブラウザ版と同じ操作をアプリにも置く。 */
+/* 📚2026-07-31 覚えた言い回し＝いつでも見て、いつでも忘れさせ */
 /* 🔴箱は残業カードと出勤カードの両方にある。押した方の箱を開く（2026-07-31 監査）。 */
 async function mlOpen(id) {
   const b = $(id || 'mlBox');
@@ -930,8 +923,7 @@ if ($('skLearn')) $('skLearn').addEventListener('click', () => mlOpen('mlBox2'))
 if ($('zhoReset')) $('zhoReset').addEventListener('click', () => { if (zhoFields) { zhoFill(zhoText(zhoFields)); zhoDraft(true); } });
 if ($('skReset')) $('skReset').addEventListener('click', () => skPrev(true));
 
-/* ==== 🧠2026-07-24 第二の脳（Plaud×Obsidian×Notion横断・読取専用・s9）====
- * 検索/ブリーフ/作戦盤＝サーバのapiBrain*へ委譲。結果はDOMノード+textContentで組立（エスケープ事故ゼロ） */
+/* 🧠2026-07-24 第二の脳（Plaud×Obsidian×Not */
 function brNode(tag, cls, txt) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -1002,21 +994,8 @@ if ($('btnBrBrief')) $('btnBrBrief').addEventListener('click', async () => {
 
 /* 🗑s67（2026-10-16 松原「不要なので削除」）＝📝 議事録取込の入口を外した（PC 版 b172 と同格）。サーバの plaudPull は残す＝戻すときは s66 から戻す */
 
-let brBoardDone = false;
-async function brLoadBoard() {
-  const b = $('brBoardBody');
-  if (!b) return;
-  try {
-    const r = await api({ api: 'brainBoard' });
-    b.textContent = '';
-    b.appendChild(brNode('pre', 'draft-pre', r.board));
-    if ($('brMeta') && r.meta) $('brMeta').textContent = 'データ鮮度：' + r.meta;
-    brBoardDone = true;
-  } catch (e) { b.textContent = e.message; }
-}
 
-/* ==== 🔎2026-07-26 v6.0 パイプライン（患者CV × 提携先ライフサイクル）＝PC版と同一契約 ====
- * 表示は全てDOMノード+textContent（エスケープ事故ゼロ）。書込はSF活動記録のみ */
+/* 🔎2026-07-26 v6.0 パイプライン（患者CV × 提携先ラ */
 /* b157 R7_pwa: Notion CRM drafts */
 function regDraftControls(reg) {
   const root = pnd('div', 'edit-form');
@@ -1208,7 +1187,7 @@ function msbRow(x, onGone) {
   if (x.pending) hh.appendChild(pnd('span', 'ppill', '承認待ちあり'));
   c.appendChild(hh);
   if (x.salon) c.appendChild(pnd('div', 'pmeta', '紹介元 ' + x.salon));
-  /* 🆕s69：開閉＝既存の ▾（.accv・閉じているときは -90°＝tkChev と同じ回し方）。開いても Gemini は呼ばない */
+  /* 🆕s69：開閉＝既存の ▾（.accv・閉じているときは -90°＝t */
   const tg = pnd('button', 'pmini', '申し送りを開く ');
   tg.type = 'button';
   tg.setAttribute('aria-expanded', 'false');
@@ -1226,8 +1205,15 @@ function msbRow(x, onGone) {
   send.type = 'button';
   const res = pnd('div', 'result');
   res.setAttribute('role', 'status');
-  /* made＝出した下書き（直したかの判定）／pendTs＝承認待ちの下書きを出したときの ts（送ると、その1件だけを外す・b173 r2） */
+  /* made＝出した下書き（直したかの判定）／pendTs＝承認待ちの下書き */
   let busy = false, done = false, made = '', pendTs = '';
+  /* 🖋s81（b191・申し送り README §3-8）：plOn のときだけ清書を20秒おき・最長+4分追いかける（直していたら差し替えずに聞く・fail は止める・skip は本文そのまま） */
+  let plOn = false, plSt = '', plTk = 0;
+  const PLW = { wait: '清書待ち', done: '清書済み', fail: '清書できず' };
+  const plTag = pnd('span', 'ppill', ''); plTag.style.display = 'none';
+  const plSet = (v) => { plSt = PLW[v] ? v : ''; plTag.textContent = PLW[plSt] || ''; plTag.style.display = plSt ? '' : 'none'; };
+  const plBox = pnd('div', 'edit-note'); plBox.style.display = 'none'; plBox.setAttribute('role', 'status');
+  note.style.whiteSpace = 'pre-line';
   /* 🔁s79（b188・2026-11-09 松原指示）＝「修正（再生成）」。押す→受付（moushiRegen・裏で完了）→10秒おきに結果を見る（moushiRegenPeek＝UrlFetch 0・最長4分）。
    *   作り直しを待つ間は 編集欄を読み取り専用・承認を押せない。新しい下書きが来たら編集欄と made を差し替える（pendTs が同じときだけ）。
    *   「↩ 前の下書きに戻す」は画面の中だけ（通知シートは新しいまま・前の本文は rv_queue の result に控え）。Salesforce には書かない。 */
@@ -1252,7 +1238,7 @@ function msbRow(x, onGone) {
   let rgPrev = null, rgNew = false;
   const status =(t, ng) => { res.className = 'result' + (ng ? ' ng' : ''); res.textContent = t; };
   const gone = (ms) => setTimeout(() => { if (c.parentNode) c.parentNode.removeChild(c); onGone(); }, ms);
-  const shut = () => { body.value = made = pendTs = ''; ed.style.display = 'none'; chev.style.transform = 'rotate(-90deg)'; tg.setAttribute('aria-expanded', 'false'); status('', false); };
+  const shut = () => { plTk++; plSet(''); plBox.style.display = 'none'; body.value = made = pendTs = ''; ed.style.display = 'none'; chev.style.transform = 'rotate(-90deg)'; tg.setAttribute('aria-expanded', 'false'); status('', false); };
   tg.addEventListener('click', async () => {
     if (busy || done) return;
     if (ed.style.display !== 'none') {
@@ -1267,9 +1253,10 @@ function msbRow(x, onGone) {
       const r = await api({ api: 'moushiOpen', id: x.id });
       made = body.value = String(r.text || '');
       pendTs = String(r.pendTs || '');
-      /* 🔁s79（b188）：エンジンが対応（r.regen）した、ボードで登録した下書きにだけ「修正（再生成）」。Slack の分は1行だけ言う */
+      plOn = !!r.plOn; plSet(r.pl);
+      /* 🔁s79（b188）：エンジンが対応（r.regen）した、ボードで登 */
       rgBtn.style.display = r.regen ? '' : 'none';
-      /* 🔁s80（b189）：承認待ちの下書きが無い行も、エンジンが対応（r.regenNew）していれば同じボタンで新しく作る＝補足1行 */
+      /* 🔁s80（b189）：承認待ちの下書きが無い行も、エンジンが対応（r. */
       rgNew = !!(r.regen && r.regenNew && !pendTs);
       rgNo.textContent = rgNew ? '下書きを新しく作ります' : String(r.regenNo || '');
       rgBox.style.display = 'none';
@@ -1292,6 +1279,7 @@ function msbRow(x, onGone) {
     if (busy || done) return;
     const text = body.value.trim();
     if (!text) { body.focus(); return; }
+    if (plSt === 'wait' && !window.confirm('清書待ちです。今の本文（AI の聞き取りの文）で送りますか')) return;
     if (!window.confirm('「' + (x.name || '') + '」様の申し送りを Salesforce へ送ります。よろしいですか？\n（送ると申し送りシート・診療チームに出ます。ここからは取り消せません）')) return;
     busy = true;
     send.disabled = true;
@@ -1330,7 +1318,7 @@ function msbRow(x, onGone) {
       return;
     }
     if (v.failed) { rgBad(String(v.msg || '再生成できませんでした（前の下書きのままです）')); return; }
-    /* 新規作成（pts 空）のときは、新しい承認待ち 'Q'+受付番号 が返ってくるのが正＝それ以外は取り違えとして置き換えない */
+    /* 新規作成（pts 空）のときは、新しい承認待ち 'Q'+受付番号 が返っ */
     const vp = String(v.pendTs || '');
     if (pts ? vp !== pts : vp !== 'Q' + q) { rgBad('下書きの番号が変わったので置き換えませんでした（取り違え防止）'); return; }
     rgIdle();
@@ -1343,7 +1331,27 @@ function msbRow(x, onGone) {
     rgBox.style.display = 'none';
     rgHint.value = '';
     status('新しい下書きにしました', false);
+    plSet(v.polish);
+    if (plOn && v.polish === 'wait') plGo(q, pts, Date.now() + 240000);
   }, 10000);
+  const plGo = (q, pts, dl) => { const tk = ++plTk; const f = () => setTimeout(async () => {
+    if (tk !== plTk || done || !c.isConnected) return;
+    let v = null;
+    try { v = await api({ api: 'moushiRegenPeek', qts: q, pendTs: pts }); } catch (e) {}
+    if (tk !== plTk || done || !c.isConnected) return;
+    if (!v || v.wait || v.polish === 'wait') { if (Date.now() < dl) f(); return; }
+    if (!v.done || String(v.pendTs || '') !== pendTs) return;   // 取り違え防止
+    plSet(v.polish);
+    if (v.polish === 'done') {
+      const nt = String(v.text || ''), nm = String(v.msg || '');
+      const put = (keep) => { if (!keep) body.value = nt; made = nt; note.textContent = nm; plBox.style.display = 'none'; };
+      if (body.value === made) { put(); status('清書が入りました', false); return; }
+      plBox.textContent = '清書が入りました（今の手直しを残す／清書に差し替える）';
+      const k1 = pnd('button', 'btn', '今の手直しを残す'), k2 = pnd('button', 'btn', '清書に差し替える'); k1.type = k2.type = 'button';
+      k1.addEventListener('click', () => put(true)); k2.addEventListener('click', () => put(false));
+      plBox.appendChild(k1); plBox.appendChild(k2); plBox.style.display = '';
+    } else if (v.polish === 'fail') note.textContent = String(v.msg || '');
+  }, 20000); f(); };
   rgBtn.addEventListener('click', () => {
     if (busy || done) return;
     const o = rgBox.style.display === 'none';
@@ -1359,7 +1367,7 @@ function msbRow(x, onGone) {
   rgGo.addEventListener('click', async () => {
     if (busy || done || (!pendTs && !rgNew)) return;
     if (body.value !== made && !window.confirm('直した本文を捨てて再生成しますか？')) return;
-    busy = true;
+    busy = true; plTk++; plBox.style.display = 'none';
     const hold = body.value, pts = pendTs;
     send.disabled = true;
     tg.disabled = true;
@@ -1372,6 +1380,7 @@ function msbRow(x, onGone) {
       const r = await api({ api: 'moushiRegen', id: x.id, pendTs: pts, hint: rgHint.value });
       rgGo.textContent = '再生成中…';
       status('再生成中…（1〜2分）', false);
+      if (+r.plOn === 1) plOn = true;
       rgPoll(String(r.qts || ''), pts, hold, Date.now() + 240000);
     } catch (e) {
       rgBad(e.message);
@@ -1380,9 +1389,11 @@ function msbRow(x, onGone) {
   acts.appendChild(send);
   acts.appendChild(rgBtn);
   acts.appendChild(rgBack);
+  ed.appendChild(plTag);
   ed.appendChild(body);
   ed.appendChild(note);
   ed.appendChild(acts);
+  ed.appendChild(plBox);
   ed.appendChild(rgNo);
   ed.appendChild(rgBox);
   c.appendChild(tg);
@@ -1413,7 +1424,7 @@ function pipeOpen(host, btn, label, text) {
 /* b157 R16_pwa_instant_BC Codex gpt-6-astra */
 function regBox(reg, opt) {
   const t = document.createDocumentFragment();
-      /* 🔴b162 監査 critical-1／major-2：登録済み・受付済みの行はサーバが reg を渡さない（送り直すとエンジンで SF 注意事項・申し送りが二重になる）＝「更新」の文言は出さない */
+      /* 🔴b162 監査 critical-1／major-2：登録済み・受付 */
       const toggle = pnd('button', 'pmini', '📝 分析シートに登録');
       toggle.type = 'button';
       toggle.style.fontSize = '17px';
@@ -1615,7 +1626,7 @@ function regBox(reg, opt) {
                 error.data = response;
                 throw error;
               }
-              // Keep a successfully received record if storage removal itself fails.
+              // Keep a successfully received record
               try { localStorage.removeItem(draftKey); } catch (e) {}
               box.replaceChildren(pnd('div', 'muted', '✅ 受け付けました（1分以内に分析シートへ・結果は🔔通知センター）'));
             } catch (e) {
@@ -1623,7 +1634,7 @@ function regBox(reg, opt) {
               result.textContent = e.message;
               send.disabled = false;
               if (!sent || (e.data && e.data.ok === false)) {
-                // A definite rejection allows editing; an uncertain delivery keeps the exact snapshot.
+                // A definite rejection allows editing;
                 const draft = pending && Object.assign({}, pending);
                 if (draft) { delete draft.rid; delete draft.rebook; }   // b172 監査 major-1：断られた再予約の印は控えに残さない
                 pending = null;
@@ -1708,7 +1719,7 @@ function pipePatient(p) {
       pipeOpen(t, pnd('button', 'pmini', lb), lb, s.body);
     }
     if (s.isReg && s.reg) {
-      t.appendChild(regBox(s.reg, Object.assign({ noDraft: true }, (s.reg.sex === undefined && s.reg.sfp) ? { peek: () => api({ api: 'cvPeek', url: s.reg.sfp }) } : {})));   /* s66：一覧から開くとき性別が無ければ1回だけ照会（2回目の照会は無くした）。b171e：開いたときに呼ぶ（描いただけでは送らない） */
+      t.appendChild(regBox(s.reg, Object.assign({ noDraft: true }, (s.reg.sex === undefined && s.reg.sfp) ? { peek: () => api({ api: 'cvPeek', url: s.reg.sfp }) } : {})));   /* s66：一覧から開くとき性別が無ければ1回だけ照会（2回目の照会は無くし */
     }
     if (s.crmd) {
       const toggle = pnd('button', 'pmini', '🧾 Notion CRM からつくる');
@@ -1970,56 +1981,6 @@ async function pipeHansoku(vv, host, btn) {
   return;
 }
 
-async function pipeHansokuLegacy_(vv, host, btn) {
-  btn.disabled = true;
-  btn.textContent = '作成中…';
-  let r;
-  try { r = await api({ api: 'hansokuDraft', kanri: vv.kanri, partnerName: vv.name }); }
-  catch (e) { btn.disabled = false; btn.textContent = '📮 依頼文を作る'; showErr(e.message); return; }
-  btn.disabled = false;
-  btn.textContent = '📮 依頼文を作る';
-  const box = pnd('div');
-  box.style.marginTop = '8px';
-  const pv = pnd('div', 'pbody', r.text || '');
-  box.appendChild(pv);
-  box.appendChild(pnd('div', 'psub', '補足（任意・この内容だけが依頼文に差し込まれます）'));
-  const ta = document.createElement('textarea');
-  ta.placeholder = '例）A5サイズ・両面／ロゴは既存データで';
-  ta.rows = 3;
-  box.appendChild(ta);
-  const cp = pnd('button', 'pmini', '📋 依頼文をコピー');
-  cp.addEventListener('click', () => { try { navigator.clipboard.writeText(pv.textContent); } catch (e) {} });
-  box.appendChild(cp);
-  const sd = pnd('button', 'pmini go', '✅ Slackへ投稿して記録');
-  sd.style.marginLeft = '6px';
-  sd.disabled = !r.hasCh;
-  sd.addEventListener('click', async () => {
-    sd.disabled = true;
-    sd.textContent = '送信中…';
-    try {
-      const x = await api({ api: 'hansokuSend', id: vv.id, kanri: vv.kanri, partnerName: vv.name, extra: ta.value });
-      sd.textContent = '送信済み';
-      showErr(x.msg || '送信しました');
-    } catch (e) {
-      sd.disabled = false;
-      sd.textContent = '✅ Slackへ投稿して記録';
-      showErr(e.message);
-    }
-  });
-  box.appendChild(sd);
-  const rs = pnd('button', 'pmini', '↻ 作り直す');
-  rs.style.marginLeft = '6px';
-  rs.addEventListener('click', () => {
-    host.removeChild(box);
-    btn.style.display = '';
-    btn.disabled = false;
-    btn.textContent = '📮 依頼文を作る';
-  });
-  box.appendChild(rs);
-  if (r.note) box.appendChild(pnd('div', 'muted', r.note));
-  host.appendChild(box);
-  btn.style.display = 'none';
-}
 
 /* 🆕2026-07-26 リスト行：既定は閉じた1行、ボタンでその場展開（リロードなし） */
 function plPatientRow(p) {
@@ -2105,7 +2066,7 @@ async function plLoad(kind) {
     if (r.fbErr) host.appendChild(pnd('div', 'muted', '⚠️ フィードバック実施の取得に失敗：' + r.fbErr));
     if (!r.items || !r.items.length) { host.appendChild(pnd('div', 'muted', '該当がありません')); return; }
     r.items.forEach(it => host.appendChild(kind === 'Partner' ? plPartnerRow(it) : plPatientRow(it)));
-    /* 🆕b163（PC と同格）：②の索引が無い・古い＝裏で作らせ、できたら一覧を描き直す（1回だけ＝作れなくても繰り返さない） */
+    /* 🆕b163（PC と同格）：②の索引が無い・古い＝裏で作らせ、できたら */
     if (kind !== 'Partner' && r.regIdxNeed && !window._riW) {
       window._riW = 1;
       const rn = pnd('div', 'muted', '📝 ② 分析シート登録の索引を作っています（10秒ほど）…');
@@ -2455,8 +2416,8 @@ function npDiff(a, b) {
   for (let i = 0; i < gone.length; i++) o.push('Q' + gone[i].n + '『' + npQt(gone[i].label) + '』が無くなりました');
   return o;
 }
-/* 書きかけ＝{d:シートの対象日, by:{見出しの文:書きかけ}, old:{"日付｜見出しの文":書きかけ}}。対象日が変わったら by を old へ移す */
-/* 📔s76 r3（軽微-1）：箱へ入れるとき、同じ鍵に違う中身が既にあれば「（2）」「（3）」…を付けて足す（黙って上書きしない） */
+/* 書きかけ＝{d:シートの対象日, by:{見出しの文:書きかけ}, ol */
+/* 📔s76 r3（軽微-1）：箱へ入れるとき、同じ鍵に違う中身が既にあれ */
 function npOldPut(x, k, v) {
   let k2 = k, n = 1;
   while (Object.prototype.hasOwnProperty.call(x.old, k2) && x.old[k2] !== v) k2 = k + '（' + (++n) + '）';
@@ -2527,7 +2488,7 @@ function npBuild(r) {
   Q.forEach((q, i) => {
     const val = String(VA[i] || ''), d = x.by[q.label];
     used[q.label] = 1;
-    /* 📔s76 r3（軽微-2）：この画面から書いた欄（✅＝r.mine）は本人の値＝直しかけは今までどおり欄に戻す。箱へ移すのは他所の値がある欄だけ */
+    /* 📔s76 r3（軽微-2）：この画面から書いた欄（✅＝r.mine）は */
     const dd = !!(d != null && String(d).trim() && String(d).trim() !== val.trim()), mvd = dd && !!val.trim() && !(r.mine && r.mine[i]);
     if (mvd) { npOldPut(x, x.d + '｜' + q.label, d); delete x.by[q.label]; }   // 箱へ移す（今日の欄には入れない）
     const L = pnd('label', 'field-label', q.label || ('Q' + q.n));
@@ -2605,7 +2566,7 @@ async function npLoad() {
     $('npForm').style.display = '';
   } catch (e) {
     _npState = null;
-    /* 🆕s60：ok:false の理由と、シートを開くリンク（url）は e.data に載っている＝PC と同じく出す */
+    /* 🆕s60：ok:false の理由と、シートを開くリンク（url）は */
     const d = e && e.data;
     const st = npMessage('npStat', d && d.msg ? d.msg : '通信エラー：' + e.message);
     if (d && d.url) npLink(st, d.url, ' シートを開く →');
@@ -2640,7 +2601,7 @@ async function npSave() {
     if (r.written) npDraftDrop(r.written);   // 書けた欄の書きかけは片づける（書けなかった欄は残す）
     reload = !!(r.done && r.done.length);
   } catch (e) {
-    /* 🆕s60：サーバが ok:false で返した理由（日付が違う＝staleDate・シートの url）は e.data に載っている＝PC と同じ2段階の確認を続ける */
+    /* 🆕s60：サーバが ok:false で返した理由（日付が違う＝sta */
     const d = e && e.data;
     _npStale = !!(d && d.staleDate);
     const res = npMessage('npRes', d && d.msg ? d.msg : '通信エラー：' + e.message);
@@ -2664,7 +2625,7 @@ if ($('view-nippo')) {
   $('npSaveBtn').addEventListener('click', npSave);
 }
 
-/* ==== 🆕カレンダー登録（calParse→下書きカード→承認→calCreate。Meet URL表示＋コピー） ==== */
+/* 🆕カレンダー登録（calParse→下書きカード→承認→calCrea */
 let calDraftData = null;
 
 async function copyText(text, btn) {
@@ -2821,7 +2782,7 @@ function renderBooks() {
       (b.pages ? '<div class="bk-bar"><i style="width:' + (b.pct || 0) + '%"></i></div>' : '') +
       '<div class="bk-row">' +
       '<input type="number" min="0" value="' + (parseInt(b.read, 10) || 0) + '" id="bkR_' + escAttr(b.ts) + '">' +
-      /* 📅b144（松原指示③）：期限は**登録のあと**にここで入れる。選んだ瞬間に保存＝押すボタンを増やさない */
+      /* 📅b144（松原指示③）：期限は**登録のあと**にここで入れる。選ん */
       '<input type="date" value="' + escAttr(b.due || '') + '" id="bkD_' + escAttr(b.ts) + '" title="読み切る期限" data-bk="due" data-ts="' + escAttr(b.ts) + '">' +
       '<button class="btn btn-small" data-bk="go" data-ts="' + escAttr(b.ts) + '">ここまで読んだ</button>' +
       '<button class="btn btn-small" data-bk="fin" data-ts="' + escAttr(b.ts) + '">📗 読了にする</button>' +
@@ -2870,7 +2831,7 @@ async function loadBooks() {
 }
 if ($('btnBookReload')) $('btnBookReload').addEventListener('click', loadBooks);
 
-/* ⚡s72（A）：読書の書き込みは押した瞬間に一覧へ描く。サーバの返事の本（r.book）で確定、失敗＝押す前の一覧へ戻して理由 */
+/* ⚡s72（A）：読書の書き込みは押した瞬間に一覧へ描く。サーバの返事の本 */
 const bkSnap4 = () => JSON.stringify({ n: bkBooks.now || [], d: bkBooks.done || [] });
 const bkBack4 = s => { try { const o = JSON.parse(s); bkBooks.now = o.n; bkBooks.done = o.d; renderBooks(); } catch (e) {} };
 const bkFind4 = ts => { const x = (bkBooks.now || []).concat(bkBooks.done || []).find(y => String(y.ts) === String(ts)); return x ? JSON.parse(JSON.stringify(x)) : null; };
@@ -3015,7 +2976,7 @@ if ($('bkAddBtn')) $('bkAddBtn').addEventListener('click', async () => {
   } finally { btn.disabled = false; btn.textContent = 'この本を登録する'; }
 });
 
-/* ==== 🆕学びのアーカイブ（{api:'intel'}一覧＋未読/閲覧済/導入済チップ＋{api:'intelStatus'}） ==== */
+/* 🆕学びのアーカイブ（{api:'intel'}一覧＋未読/閲覧済/導入 */
 let intelItems = [], intelFilterV = 'all';
 
 function renderIntel() {
@@ -3077,7 +3038,7 @@ async function loadIntel() {
   box.innerHTML = '<div class="muted pad">読み込み中…</div>';
   try {
     const d = await api({ api: 'intel' });
-    // 🔴doPost契約は {ts,date,kind,head,body,status}（ブラウザ版内部形は full/st）＝両形を st/full へ正規化して描画・フィルタを成立させる
+    // 🔴doPost契約は {ts,date,kind,head,body,
     intelItems = (d.items || (d.learn && d.learn.items) || []).map(x => ({
       ts: x.ts, date: x.date, kind: x.kind, head: x.head,
       full: x.body != null ? x.body : (x.full || ''),
@@ -3097,11 +3058,7 @@ async function loadIntel() {
 }
 if ($('btnIntelReload')) $('btnIntelReload').addEventListener('click', loadIntel);
 
-/* 🔑合鍵の正規化（2026-08-20 s42・iPhone実機「合鍵が一致しません」の根治）：
- *   iOSはホーム画面アプリがSafariと**別の保存領域**＝URLで開いた時の合鍵が引き継がれない（OS仕様）。
- *   だから初回画面での手貼りが本線になる。その手貼りを壊す3つの罠を全部ここで吸収する＝
- *   ①合鍵付きURLを丸ごと貼った（?k=を取り出して使う）②%エンコードのまま写した（復号する）
- *   ③コピーに改行・空白・不可視文字が混ざった（全部落とす。合鍵は空白を含まない前提）。 */
+/* 🔑合鍵の正規化（2026-08-20 s42・iPhone実機「合鍵が */
 function normKey(raw) {
   let s = String(raw || '').trim();
   try {
@@ -3167,7 +3124,7 @@ function rvBind() {
   const fresh = [];
   document.querySelectorAll(RV_SEL).forEach(el => {
     if (el.classList.contains('rv')) return;
-    /* 控え→本番の描き直し（renderNotifs 等は innerHTML='' で作り直す）＝一度出た器の中は静かに出す（PC 版の cpSilent と同じ意図） */
+    /* 控え→本番の描き直し（renderNotifs 等は innerHTML */
     if (el.parentElement && el.parentElement.dataset.rvdone === '1') { el.classList.add('rv', 'in'); return; }
     el.classList.add('rv'); fresh.push(el);
   });
@@ -3319,9 +3276,12 @@ const npMd4 = (d) => (+d.slice(5, 7)) + '/' + (+d.slice(8, 10));
 const npMonday4 = (d) => { const ms = npMs4(d); return npYmd4(ms - ((new Date(ms).getUTCDay() + 6) % 7) * 864e5); };
 const NP_WD4 = '日月火水木金土'.split('');   // PC の WD と同じ文字列（番人 v161 ④が文字列リテラルを突き合わせる）
 let npBusy4 = false;   // 送信中は切替を押せない（監査C minor-10）
+/* B3（s81・監査C minor-C・minor-2）：送信中の切替は disabled＋aria-disabled／描き直した後は押した日・ボタンへフォーカスを戻す */
+const npSwLock4 = (on) => { const s = $('npSw4'); if (s) Array.from(s.children).forEach(b => { b.disabled = on; b.setAttribute('aria-disabled', String(on)); }); };
+function npFocus4(k) { const r = $('chatSheetBody'), b = r && r.querySelector ? r.querySelector('[data-k="' + k + '"]') : null; if (b && !b.disabled && b.focus) b.focus(); }
 /* 進行中の週＝その週の日曜が今日以降（チップの「（進行中）」と送る前の確認で同じ判定を使う） */
 const npLive4 = (m) => npYmd4(npMs4(m) + 6 * 864e5) >= npJst4(0);
-/* 日曜＝赤（--bad）・土曜＝青（style.css に在る #2997ff を再利用・ダークの面 --card の上で約6:1） */
+/* 日曜＝赤（--bad）・土曜＝青（style.css に在る #2997 */
 const npWdColor4 = (w) => w === 0 ? 'var(--bad)' : (w === 6 ? '#2997ff' : '');
 function nippoOpen() {
   const box = $('chatSheetBody'); if (!box) return;
@@ -3332,17 +3292,17 @@ function nippoOpen() {
   if (!npMon4) npMon4 = td.slice(0, 7);
   npPaint4(false);
 }
-/* keepOut＝切替のときは前の結果を残す（開き直したときは空から） */
+/* keepOut＝切替のときは前の結果を残す（開き直したときは空から）。B3 minor-B：送信中に開き直したら押せない形で描く */
 function npPaint4(keepOut) {
   const box = $('chatSheetBody'); if (!box) return;
   const old = keepOut ? $('npOut4') : null;
   box.textContent = '';
-  const sw = document.createElement('div'); sw.setAttribute('role', 'group'); sw.setAttribute('aria-label', '日報か週報かを選ぶ');
+  const sw = document.createElement('div'); sw.id = 'npSw4'; sw.setAttribute('role', 'group'); sw.setAttribute('aria-label', '日報か週報かを選ぶ');
   sw.style.cssText = 'display:flex;gap:8px;margin-bottom:10px';
   [['daily', '📝 日報'], ['weekly', '📊 週報']].forEach(([m, t]) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (npMode4 === m ? ' on' : ''); b.textContent = t;
-    b.style.cssText = 'flex:1;justify-content:center'; b.setAttribute('aria-pressed', String(npMode4 === m));
-    b.addEventListener('click', () => { if (npMode4 === m || npBusy4) return; npMode4 = m; npPaint4(true); });
+    b.style.cssText = 'flex:1;justify-content:center'; b.setAttribute('aria-pressed', String(npMode4 === m)); b.setAttribute('data-k', m);
+    b.addEventListener('click', () => { if (npMode4 === m || npBusy4) return; npMode4 = m; npPaint4(true); npFocus4(m); });
     sw.appendChild(b);
   });
   box.appendChild(sw);
@@ -3360,17 +3320,22 @@ function npPaint4(keepOut) {
   go.textContent = npMode4 === 'weekly' ? '📊 週報に書く' : '📝 日報に書く';
   go.addEventListener('click', () => npSend4());
   box.appendChild(go);
+  if (npBusy4) { npSwLock4(true); go.disabled = true; go.textContent = '書いています…'; }
   const o = old || document.createElement('div'); o.id = 'npOut4'; o.setAttribute('role', 'status'); box.appendChild(o);
 }
-/* 押せる日か（日報＝今日以前・60日以内／週報＝その週の月曜が今日以前・60日以内） */
-function npCan4(d) {
+/* 押せる日か（日報＝今日以前・60日以内／週報＝その週の月曜が今日以前・60日以内）。🗓s81：st＝状態袋（省略＝日報・業務カレンダーは gcSt4） */
+function npCan4(d, st) {
   const td = npJst4(0), lo = npJst4(60 * 864e5);
-  if (npMode4 === 'weekly') { const m = npMonday4(d); return m <= td && m >= lo; }
+  if (!st && npMode4 === 'weekly') { const m = npMonday4(d); return m <= td && m >= lo; }
   return d <= td && d >= lo;
 }
-function npPick4(d, cal, ch) {
-  if (!npCan4(d)) return;
-  if (npMode4 === 'weekly') {
+function npPick4(d, cal, ch, st) {
+  if (!npCan4(d, st)) return;
+  if (st) {
+    const a = st.get();
+    if (a.indexOf(d) >= 0) st.set(a.filter(x => x !== d));
+    else { if (a.length >= st.max) { showErr('1回に7日までです'); return; } st.set(a.concat([d]).sort()); }
+  } else if (npMode4 === 'weekly') {
     const m = npMonday4(d);
     if (npWeeks4.indexOf(m) >= 0) npWeeks4 = npWeeks4.filter(x => x !== m);
     else { if (npWeeks4.length >= 4) { showErr('1回に4週までです'); return; } npWeeks4.push(m); npWeeks4.sort(); }
@@ -3378,62 +3343,69 @@ function npPick4(d, cal, ch) {
     if (npDays4.indexOf(d) >= 0) npDays4 = npDays4.filter(x => x !== d);
     else { if (npDays4.length >= 7) { showErr('1回に7日までです'); return; } npDays4.push(d); npDays4.sort(); }
   }
-  npCal4(cal, ch); npChips4(ch);
+  npCal4(cal, ch, st); npChips4(ch, st); npFocus4(d);
+  if (st && st.chg) st.chg();
 }
-/* 1つの月を表示（‹ › で前後の月・60日より前の月と来月より先へは行かない）。日のボタンは button 要素・aria-pressed・aria-label */
-function npCal4(cal, ch) {
-  cal.textContent = '';
-  const td = npJst4(0), lo = npJst4(60 * 864e5);
-  const y = +npMon4.slice(0, 4), mo = +npMon4.slice(5, 7);
-  const first = Date.UTC(y, mo - 1, 1), days = new Date(Date.UTC(y, mo, 0)).getUTCDate(), lead = new Date(first).getUTCDay();
-  const hd = document.createElement('div'); hd.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
-  const mvBtn = (t, lab, dlt, can) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = t; b.setAttribute('aria-label', lab);
-    b.style.cssText = 'min-width:44px;justify-content:center'; b.disabled = !can; if (!can) b.style.opacity = '.35';
-    b.addEventListener('click', () => { const nd = new Date(Date.UTC(y, mo - 1 + dlt, 1)); npMon4 = npYmd4(nd.getTime()).slice(0, 7); npCal4(cal, ch); });
-    return b;
-  };
-  hd.appendChild(mvBtn('‹', '前の月', -1, npMon4 > lo.slice(0, 7)));
-  const ttl = pnd('div', '', y + '年' + mo + '月'); ttl.style.cssText = 'flex:1;text-align:center;font-weight:700'; ttl.setAttribute('aria-live', 'polite');
-  hd.appendChild(ttl);
-  hd.appendChild(mvBtn('›', '次の月', 1, npMon4 < td.slice(0, 7)));
-  cal.appendChild(hd);
+/* 1つの月を表示（‹ › で前後の月・60日より前の月と来月より先へは行かない）。日のボタンは button 要素・aria-pressed・aria-label。
+ *   B3：週報は月曜始まり（1行＝1週・監査C minor-1）／月送りと見出しは作り直さない（aria-live とフォーカス・minor-2） */
+function npCal4(cal, ch, st) {
+  const td = npJst4(0), lo = npJst4(60 * 864e5), mon = st ? st.mon : npMon4, wk = !st && npMode4 === 'weekly', ws = wk ? 1 : 0;
+  const y = +mon.slice(0, 4), mo = +mon.slice(5, 7);
+  const first = Date.UTC(y, mo - 1, 1), days = new Date(Date.UTC(y, mo, 0)).getUTCDate(), fd = new Date(first).getUTCDay(), lead = (fd + 7 - ws) % 7;
+  if (!cal._hd4) {
+    cal.textContent = '';
+    const hd = document.createElement('div'); hd.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+    const mvBtn = (t, lab, dlt) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = t; b.setAttribute('aria-label', lab);
+      b.style.cssText = 'min-width:44px;justify-content:center';
+      b.addEventListener('click', () => { const m = st ? st.mon : npMon4, nm = npYmd4(Date.UTC(+m.slice(0, 4), +m.slice(5, 7) - 1 + dlt, 1)).slice(0, 7); if (st) st.mon = nm; else npMon4 = nm; npCal4(cal, ch, st); });
+      return b;
+    };
+    const ttl = pnd('div', '', ''); ttl.style.cssText = 'flex:1;text-align:center;font-weight:700'; ttl.setAttribute('aria-live', 'polite');
+    hd.appendChild(mvBtn('‹', '前の月', -1)); hd.appendChild(ttl); hd.appendChild(mvBtn('›', '次の月', 1));
+    cal.appendChild(hd); cal._hd4 = hd;
+  } else while (cal.children.length > 1) cal.removeChild(cal.children[1]);
+  const hc = cal._hd4.children, en = (b, c) => { b.disabled = !c; b.style.opacity = c ? '' : '.35'; };
+  en(hc[0], mon > lo.slice(0, 7)); en(hc[2], mon < td.slice(0, 7));
+  if (hc[1].textContent !== y + '年' + mo + '月') hc[1].textContent = y + '年' + mo + '月';
   const gr = document.createElement('div'); gr.setAttribute('role', 'group'); gr.setAttribute('aria-label', y + '年' + mo + '月のカレンダー');
   gr.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:4px';
-  NP_WD4.forEach((w, i) => { const h = pnd('div', 'muted', w); h.style.cssText = 'text-align:center;font-size:12px;font-weight:700' + (npWdColor4(i) ? ';color:' + npWdColor4(i) : ''); h.setAttribute('aria-hidden', 'true'); gr.appendChild(h); });
+  for (let i = 0; i < 7; i++) { const w = (i + ws) % 7, h = pnd('div', 'muted', NP_WD4[w]); h.style.cssText = 'text-align:center;font-size:12px;font-weight:700' + (npWdColor4(w) ? ';color:' + npWdColor4(w) : ''); h.setAttribute('aria-hidden', 'true'); gr.appendChild(h); }
   for (let i = 0; i < lead; i++) gr.appendChild(document.createElement('div'));
+  const sel = st ? st.get() : null;
   for (let n = 1; n <= days; n++) {
-    const d = npYmd4(Date.UTC(y, mo - 1, n)), w = (lead + n - 1) % 7, can = npCan4(d);
-    const on = npMode4 === 'weekly' ? npWeeks4.indexOf(npMonday4(d)) >= 0 : npDays4.indexOf(d) >= 0;
+    const d = npYmd4(Date.UTC(y, mo - 1, n)), w = (fd + n - 1) % 7, can = npCan4(d, st);
+    const on = sel ? sel.indexOf(d) >= 0 : wk ? npWeeks4.indexOf(npMonday4(d)) >= 0 : npDays4.indexOf(d) >= 0;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (on ? ' on' : ''); b.textContent = String(n);
     b.style.cssText = 'padding:0;justify-content:center;min-width:0';
     if (!on && npWdColor4(w)) b.style.color = npWdColor4(w);
     if (d === td) { b.setAttribute('aria-current', 'date'); b.style.textDecoration = 'underline'; b.style.fontWeight = '800'; }
-    b.setAttribute('aria-pressed', String(on));
-    b.setAttribute('aria-label', mo + '月' + n + '日（' + NP_WD4[w] + '）' + (npMode4 === 'weekly' ? 'の週' : '') + (on ? 'を外す' : 'を選ぶ'));
+    b.setAttribute('aria-pressed', String(on)); b.setAttribute('data-k', d);
+    b.setAttribute('aria-label', mo + '月' + n + '日（' + NP_WD4[w] + '）' + (wk ? 'の週' : '') + (on ? 'を外す' : 'を選ぶ'));
     if (!can) { b.disabled = true; b.style.opacity = '.35'; }
-    else b.addEventListener('click', () => npPick4(d, cal, ch));
+    else b.addEventListener('click', () => npPick4(d, cal, ch, st));
     gr.appendChild(b);
   }
   cal.appendChild(gr);
 }
-function npChips4(ch) {
+function npChips4(ch, st) {
   ch.textContent = '';
-  const list = npMode4 === 'weekly' ? npWeeks4 : npDays4;
+  const wk = !st && npMode4 === 'weekly', list = st ? st.get() : wk ? npWeeks4 : npDays4;
   list.forEach(d => {
     const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.style.cssText = 'min-height:36px;padding:2px 12px';
-    const wk = npMode4 === 'weekly', live = wk && npLive4(d);
+    const live = wk && npLive4(d);
     c.textContent = npMd4(d) + (wk ? '週' + (live ? '（進行中）' : '') : '') + ' ×'; c.setAttribute('aria-label', d + (wk ? 'の週' : '') + ' を外す');
     c.addEventListener('click', () => {
-      if (wk) npWeeks4 = npWeeks4.filter(x => x !== d); else npDays4 = npDays4.filter(x => x !== d);
-      npChips4(ch); const cal = $('npCal4'); if (cal) npCal4(cal, ch);
+      if (st) st.set(st.get().filter(x => x !== d)); else if (wk) npWeeks4 = npWeeks4.filter(x => x !== d); else npDays4 = npDays4.filter(x => x !== d);
+      npChips4(ch, st); const cal = $(st ? st.cal : 'npCal4'); if (cal) npCal4(cal, ch, st); npFocus4(d);
+      if (st && st.chg) st.chg();
     });
     ch.appendChild(c);
   });
-  if (!list.length) ch.appendChild(pnd('span', 'muted', npMode4 === 'weekly' ? '週が選ばれていません' : '日付が選ばれていません'));
+  if (!list.length) ch.appendChild(pnd('span', 'muted', wk ? '週が選ばれていません' : '日付が選ばれていません'));
 }
 async function npSend4() {
-  const o = $('npOut4'); if (!o) return;
+  let o = $('npOut4'); if (!o) return;
   const mode = npMode4, ds = (mode === 'weekly' ? npWeeks4 : npDays4).slice();
   if (!ds.length) { showErr(mode === 'weekly' ? '週を選んでください' : '日付を選んでください'); return; }
   if (npBusy4) return;
@@ -3442,11 +3414,12 @@ async function npSend4() {
   if (lv.length && !window.confirm(npMd4(lv[0]) + '週はまだ途中です。今日までの日報だけを写します。あとで押しても埋まった節には書き足しません。書きますか？')) return;
   const go = $('npGo4');
   const gt = go ? go.textContent : '';
-  npBusy4 = true; if (go) { go.disabled = true; go.textContent = '書いています…'; }
+  npBusy4 = true; npSwLock4(true); if (go) { go.disabled = true; go.textContent = '書いています…'; }
   o.textContent = '';
-  try { npShow4(o, await api({ api: 'nippoCoach', dates: ds, mode }), mode); }
-  catch (e) { if (e && e.data) npShow4(o, e.data, mode); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', '通信エラー：' + e.message)); } }   // 鍵が無い（ok:false）も下書きを出す
-  finally { npBusy4 = false; if (go) { go.disabled = false; go.textContent = gt; } }
+  const out = () => { o = $('npOut4') || o; };   // B3 minor-B：送信中に開き直したら結果は新しい欄へ
+  try { const r = await api({ api: 'nippoCoach', dates: ds, mode }); out(); npShow4(o, r, mode); }
+  catch (e) { out(); if (e && e.data) npShow4(o, e.data, mode); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', '通信エラー：' + e.message)); } }   // 鍵が無い（ok:false）も下書きを出す
+  finally { npBusy4 = false; npSwLock4(false); const g = $('npGo4') || go; if (g) { g.disabled = false; g.textContent = gt; } }
 }
 /* Slack ✅ の結果1行（PC の npSlk と同じ文言＝番人 v161 ④が文字列リテラルを突き合わせる）。
  *   監査C major-1：日報の ✅ は「その日」ではなく次の平日9時のリマインドに付く（週報は翌月曜12時）＝of（日報の日・週報の月曜）があれば両方の日を出す。notfound でも msg（例：まだリマインドの時刻になっていません）を出す */
@@ -3464,7 +3437,7 @@ function npShow4(o, r, mode) {
   o.textContent = '';
   if (!r) { o.appendChild(pnd('div', 'muted', '返事が空でした')); return; }
   o.appendChild(pnd('div', 'muted', r.msg || ''));
-  /* 週報を頼んだのに mode が返らない＝サーバが b189 より古い（週報を知らない）＝黙って日報扱いにしない */
+  /* 週報を頼んだのに mode が返らない＝サーバが b189 より古い（週 */
   if (mode === 'weekly' && r.mode !== 'weekly') { const w = pnd('div', 'muted', 'サーバ（ボード）が週報に対応する前の版でした。週報は書いていません（ボードの貼替え後にもう一度押してください）'); w.style.color = 'var(--warn)'; o.appendChild(w); }
   (r.days || []).forEach((x, i) => {
     const d = document.createElement('div'); d.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--line)';
@@ -3484,71 +3457,92 @@ function npShow4(o, r, mode) {
 /* 🔴s75 r3（b183r3・2026-10-27 松原さんの差し戻し）：アクションの下書き（行ごとのチェック・✍アクションも書く）を撤去。
  *   アクションは名刺の発注状況の数だけになり、同じ口 nippoCoach の「日報に書く」で他の欄と一緒に書く（PC と同じ） */
 if ($('fabNippo')) $('fabNippo').addEventListener('click', nippoOpen);
-/* ==== 🗓s75（b183）業務カレンダー＝PC の 🗓 と同じ口（gyomuCalPlan＝登録案・gyomuCalPut＝チェックした行だけ登録→読み直し）。
- *   押した瞬間に端末の前回の結果（cp_gcal_last・pid なし＝読むだけ）を先に出す。札は共通の部品（SNDW の f20／c）。
- *   網に当たった行はチェックを外して出す（サーバの on）・登録済みの行は押せない。本文・件名はサーバが返さない（題名は型・根拠は種類と時刻だけ） ==== */
+/* ==== 🗓s75（b183）業務カレンダー＝PC の 🗓 と同じ口（gyomuCalPlan・gyomuCalPut）。札は SNDW の f20／c。
+ *   🗓s81（b191・設計 r3 §3-1・§3-4・§3-9-2・§6-2）：日付は npCal4 群を状態袋 gcSt4 で共用。日を押した瞬間に前回の登録案を読むだけで出す（往復0）。
+ *     端末の控え cp_gcal_day_<日付>＝伏せた形だけ・直近7日・版が変わったら捨てる・登録したら消す。文は §3-4-9（PC と同じ字） ==== */
 let gcDays4 = null;
-function gcLast4() { try { const o = JSON.parse(localStorage.getItem('cp_gcal_last') || 'null'); return o && o.days ? o : null; } catch (e) { return null; } }
+const gcSt4 = { get: () => gcDays4, set: (a) => { gcDays4 = a; }, mode: 'daily', max: 7, mon: '', cal: 'gcCal4', chg: () => gcPre4() };
+try { localStorage.removeItem('cp_gcal_last'); } catch (e) {}   // s80 の控え（題名を丸ごと）を消す
+const GC_PK4 = 'cp_gcal_day_';
+function gcLsGet4(d) { try { const x = JSON.parse(localStorage.getItem(GC_PK4 + d) || 'null'); return x && x.d === d && Array.isArray(x.rows) ? x : null; } catch (e) { return null; } }
+function gcLsGc4(b) {
+  const lo = npJst4(6 * 864e5);
+  try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (!k || k.indexOf(GC_PK4) !== 0) continue; const x = gcLsGet4(k.slice(GC_PK4.length)); if (!x || x.d < lo || (b && x.b !== b)) localStorage.removeItem(k); } } catch (e) {}
+}
+/* 伏せた形（§6-2）：網の行の題名・名簿一致か社内と分からない相手欄・残業報告の見出しを置かない */
+function gcMask4(w, k) {
+  let t = String(w.t || '');
+  const j = t.indexOf('】'), i = t.indexOf('｜', j);
+  if (w.pii) t = '（網に当たった行）';
+  else if (j >= 0 && i > j) {
+    const who = t.slice(j + 1, i), keep = w.kind === 'slack' || w.kind === 'mail' || w.kind === 'plaud' || w.kind === 'zan' || (w.kind === 'cc' && !w.off) || who === '社内' || who.indexOf('提携先・関係者様') === 0;
+    t = t.slice(0, j + 1) + (keep ? who : '…') + '｜' + (w.kind === 'zan' && w.off ? '残業報告の項目 ' + (++k.z) : t.slice(i + 1));
+  }
+  return { s: w.s, e: w.e, t, why: String(w.why || ''), kind: w.kind, pii: !!w.pii, st: w.st, sr: w.sr || '', ov: w.ov || '', cut: !!w.cut, off: !!w.off, offw: w.offw || '' };
+}
+function gcLsPut4(r) {
+  const lo = npJst4(6 * 864e5);
+  gcLsGc4(r.build || '');
+  (r.days || []).forEach(x => {
+    if (!x || !x.d || x.d < lo || !Array.isArray(x.rows)) return;
+    const k = { z: 0 };
+    try { localStorage.setItem(GC_PK4 + x.d, JSON.stringify({ d: x.d, at: r.at || '', b: r.build || '', head: String(x.head || ''), notes: (x.notes || []).map(String), rows: x.rows.map(w => gcMask4(w, k)) })); } catch (e) {}
+  });
+}
 function gcalOpen4() {
   const box = $('chatSheetBody'); if (!box) return;
   sheetOpen('fabGcal', '🗓 業務カレンダー（記録から Google カレンダーへ）');
   box.textContent = '';
-  const td = npJst4(0), lo = npJst4(60 * 864e5);
+  const td = npJst4(0);
   if (!gcDays4) gcDays4 = [td];
-  box.appendChild(pnd('div', 'muted', '日付を選んで「登録案を作る」を押すと、その日の業務の記録（Slack の本人の投稿・会社の送信メール・Claude Code の作業時間）から Google カレンダーの登録案を作ります。チェックした行だけ「カレンダーに入れる」で登録し、読み直して一致を数えます。既存の予定は触りません。これから先の時間の行は作りません。1回に7日まで。'));
-  const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0';
-  const inp = document.createElement('input'); inp.type = 'date'; inp.id = 'gcDay4'; inp.max = td; inp.min = lo; inp.value = td; inp.setAttribute('aria-label', '足す日付');
-  const add = document.createElement('button'); add.type = 'button'; add.className = 'btn'; add.textContent = '＋ この日を足す';
+  if (!gcSt4.mon) gcSt4.mon = td.slice(0, 7);
+  box.appendChild(pnd('div', 'muted', 'カレンダーで日付を選んで（複数可）「登録案を作る」を押すと、その日の業務の記録（Slack の本人の投稿・会社の送信メール・Claude Code の作業時間・LINE の書き出し・Plaud の録音）から Google カレンダーの登録案を作ります。チェックした行だけ「カレンダーに入れる」で登録し、読み直して一致を数えます。既存の予定は触りません。これから先の時間の行は作りません。1回に7日まで。'));
+  const cal = document.createElement('div'); cal.id = 'gcCal4'; cal.style.cssText = 'margin:10px 0';
   const ch = document.createElement('div'); ch.id = 'gcChips4'; ch.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px';
-  add.addEventListener('click', () => {
-    const v = inp.value;
-    if (!v || v > td || v < lo) { showErr('今日まで・過去60日以内の日を選んでください'); return; }
-    if (gcDays4.indexOf(v) < 0) { if (gcDays4.length >= 7) { showErr('1回に7日までです'); return; } gcDays4.push(v); gcDays4.sort(); }
-    gcChips4(ch);
-  });
-  row.appendChild(inp); row.appendChild(add); box.appendChild(row); box.appendChild(ch); gcChips4(ch);
+  box.appendChild(cal); box.appendChild(ch);
+  npCal4(cal, ch, gcSt4); npChips4(ch, gcSt4);
   const go = document.createElement('button'); go.type = 'button'; go.className = 'btn btn-primary robinBtn'; go.id = 'gcGo4'; go.textContent = '🗓 登録案を作る';
   go.addEventListener('click', () => gcSend4());
   box.appendChild(go);
   const o = document.createElement('div'); o.id = 'gcOut4'; box.appendChild(o);
-  const pv = gcLast4(); if (pv) gcShow4(o, pv, true);
+  gcLsGc4(''); gcPre4();
 }
-function gcChips4(ch) {
-  ch.textContent = '';
-  gcDays4.forEach(d => {
-    const c = document.createElement('button'); c.type = 'button'; c.className = 'btn'; c.style.cssText = 'min-height:36px;padding:2px 12px';
-    c.textContent = (+d.slice(5, 7)) + '/' + (+d.slice(8, 10)) + ' ×'; c.setAttribute('aria-label', d + ' を外す');
-    c.addEventListener('click', () => { gcDays4 = gcDays4.filter(x => x !== d); gcChips4(ch); });
-    ch.appendChild(c);
-  });
-  if (!gcDays4.length) ch.appendChild(pnd('span', 'muted', '日付が選ばれていません'));
+/* 先出し（api を通さない＝往復0） */
+function gcPre4() {
+  const o = $('gcOut4'); if (!o) return;
+  o.textContent = '';
+  const ds = (gcDays4 || []).map(gcLsGet4).filter(Boolean);
+  if (ds.length) gcShow4(o, { days: ds }, true);
 }
 async function gcSend4() {
   const o = $('gcOut4'); if (!o) return;
   if (!gcDays4 || !gcDays4.length) { showErr('日付を選んでください'); return; }
-  const pv = gcLast4(); o.textContent = ''; if (pv) gcShow4(o, pv, true);
-  const keep = (r) => { if (r && r.days) { try { const c = JSON.parse(JSON.stringify(r)); c.pid = ''; localStorage.setItem('cp_gcal_last', JSON.stringify(c)); } catch (e) {} } gcShow4(o, r, false); };
+  gcPre4();
+  const keep = (r) => { if (r && r.days) gcLsPut4(r); gcShow4($('gcOut4') || o, r, false); };
   try { keep(await api({ api: 'gyomuCalPlan', dates: gcDays4.slice() })); }
   catch (e) { if (e && e.data) keep(e.data); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', e.message)); } }   // 一部読めない（ok:false）も登録案は出す
 }
+const gcLn4 = (o, a) => (a || []).forEach(L => String(L).split('\n').forEach(s => { if (s) o.appendChild(pnd('div', 'muted', s)); }));
 function gcShow4(o, r, ro) {
   o.textContent = '';
   if (!r) { o.appendChild(pnd('div', 'muted', '返事が空でした')); return; }
-  if (ro) o.appendChild(pnd('div', 'muted', '前回（' + (r.at || '') + '）の登録案です＝読むだけ。入れるときは「登録案を作る」を押してください。'));
-  o.appendChild(pnd('div', 'muted', r.msg || ''));
-  (r.notes || []).forEach(L => o.appendChild(pnd('div', 'muted', L)));
+  if (ro) o.appendChild(pnd('div', 'muted', '前回の登録案です＝読むだけ。入れるときは「登録案を作る」を押してください。'));
+  if (r.msg) o.appendChild(pnd('div', 'muted', r.msg));
+  gcLn4(o, r.notes);
   const cs = [];
   (r.days || []).forEach(x => {
     const d = document.createElement('div'); d.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--line)';
     const h = pnd('div', '', x.head || x.d); h.style.fontWeight = '700'; d.appendChild(h);
-    (x.notes || []).forEach(L => d.appendChild(pnd('div', 'muted', L)));
+    if (ro && x.at) d.appendChild(pnd('div', 'muted', '前回（' + x.at + '）＝読むだけ'));
+    gcLn4(d, x.notes);
     (x.rows || []).forEach(w => {
-      const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:4px 0';
-      const c = document.createElement('input'); c.type = 'checkbox'; c.value = w.id; c.checked = w.st === 'new' && !!w.on && !ro; c.disabled = !!ro || w.st !== 'new';
+      const lb = document.createElement('label'); lb.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:4px 0' + (w.cut ? ';padding-left:1.5em' : '');
+      const c = document.createElement('input'); c.type = 'checkbox'; c.value = w.id || ''; c.checked = w.st === 'new' && !!w.on && !ro; c.disabled = !!ro || w.st !== 'new';
+      if (w.pii || w.off) c.checked = false;
       c.setAttribute('aria-label', w.s + '〜' + w.e + ' ' + w.t); if (!c.disabled) cs.push(c);
       const sp = document.createElement('span');
-      sp.appendChild(pnd('div', '', w.s + '〜' + w.e + '　' + w.t + (w.st === 'dup' ? '（登録済み）' : w.st === 'near' ? '（レイリー登録の予定と重なる＝入れません）' : '')));
-      sp.appendChild(pnd('div', 'muted', '根拠：' + w.why + (w.pii ? '／網に当たった行' : '') + (w.ov ? '／既存の予定と重なる' : '')));
+      sp.appendChild(pnd('div', '', (w.cut ? '↳ ' : '') + w.s + '〜' + w.e + '　' + w.t + (w.st === 'dup' ? '（登録済み）' : w.st === 'same' ? (w.sr === 'mtg' ? '（同じ会議の予定があります＝入れません。別の会議なら、Google カレンダーで直接足してください）' : '（同じ記録がレイリー登録済み＝入れません）') : w.cut ? '（既存の予定の外の分だけ足します）' : '') + (w.off && w.offw ? w.offw : '')));
+      sp.appendChild(pnd('div', 'muted', '根拠：' + w.why + (w.pii ? '／網に当たった行' : '') + (w.ov === 'mine' ? '／レイリー登録の別の記録と重なる（入れます）' : w.ov === 'busy' ? '／既存の予定と重なる（入れます）' : '')));
       lb.appendChild(c); lb.appendChild(sp); d.appendChild(lb);
     });
     o.appendChild(d);
@@ -3561,6 +3555,7 @@ function gcShow4(o, r, ro) {
     const ids = cs.filter(c => c.checked).map(c => c.value);
     if (!ids.length) { showErr('入れる行にチェックを入れてください'); return; }
     res.textContent = '';
+    (r.days || []).forEach(x => { try { localStorage.removeItem(GC_PK4 + x.d); } catch (e) {} });   // 登録する日の先出しは消す（行が登録済みに変わる・入ったか不明のときも）
     const show = (q) => {
       res.textContent = '';
       res.appendChild(pnd('div', 'muted', (q && q.msg) || '返事が空でした'));
@@ -3568,7 +3563,7 @@ function gcShow4(o, r, ro) {
       if (q && q.ok) { b.disabled = true; b.textContent = '✓ カレンダーに入れました'; }
     };
     try { show(await api({ api: 'gyomuCalPut', pid: r.pid, ids })); }
-    catch (e) { if (e && e.data) show(e.data); else { res.textContent = ''; res.appendChild(pnd('div', 'muted', e.message + '（入ったか不明＝カレンダーで確かめてから押し直してください。レイリー登録の予定と時間が重なる行は入りません）')); } }
+    catch (e) { if (e && e.data) show(e.data); else { res.textContent = ''; res.appendChild(pnd('div', 'muted', e.message + '（入ったか不明＝カレンダーで確かめてから押し直してください。同じ記録・同じ会議の行は入りません（重なるだけの行は入ります））')); } }
   });
   o.appendChild(b); o.appendChild(res);
 }
@@ -3638,8 +3633,7 @@ else loadHome();
 rvWatch(); rvBind();
 
 
-/* ==== 🗓 予定を登録（4モード・2026-07-29）＝ブラウザ版と同じ決定論ロジック ====
-   🔴件名に管理番号が入らないと「定期MTG n/20」に計上されない。だからAI任せにせず型で組む。 */
+/* 🗓 予定を登録（4モード・2026-07-29）＝ブラウザ版と同じ決定 */
 let calMode4 = 'free', calDrafts4 = null;
 
 function calHM4(x) {
@@ -3815,8 +3809,7 @@ function stReason4(msg) {
 }
 
 let stCh4 = 'line', stTone4 = 'normal';   // ✍️s73：既定は LINE（アプリ版と同じ）
-/* 🔴チップの見た目と送信値がズレる事故（PC版 stReset のコメント参照）を防ぐため、
- *   選択は必ずこの関数を通す＝状態と塗りが同じ1行で動く。番人はこれを直接叩いて payload を検める。 */
+/* 🔴チップの見た目と送信値がズレる事故（PC版 stReset のコメン */
 function stCh4Set(v) {
   stCh4 = (['slack', 'line', 'mail'].indexOf(v) >= 0) ? v : 'slack';
   const w = $('stChChips');
@@ -3831,8 +3824,7 @@ function stEta4() {
   const e = $('stEta');
   if (e) e.textContent = '打つのが止まって0.8秒で自動で整え始めます（' + ST_MIN4 + '字から・生成はだいたい' + ST_ETA_SEC + '秒＝AIに1往復）。送り先・温度感を変えるとすぐ作り直し、同じ内容はすぐ出ます';
 }
-/* 押した瞬間から「だいたい何秒／いま何秒」を出す＝無反応の時間を作らない。
- *   戻り値は止める関数。呼んだ側は成功でも失敗でも必ず止める（止め忘れると数字が動き続ける）。 */
+/* 押した瞬間から「だいたい何秒／いま何秒」を出す＝無反応の時間を作らない。 */
 function stWait4(el, sec, label) {
   if (!el) return () => {};
   const t0 = Date.now();
@@ -3849,7 +3841,7 @@ function stWait4(el, sec, label) {
  *   表示は stLive の5状態（PC と同じ文面）。サーバが上限（1日15回・外部通信の日次予算・Gemini の生成枠切れ＝429）で断ったら off＝「✍️ この内容で作る」（stWrite4）へ戻る。
  *   タブを開いたら stWarm4（{api:'styleWarm'}＝読むだけ）で手本を温め、今日の残り回数を聞く。 */
 const ST_MIN4 = 12, ST_WAIT4 = 800, ST_DELTA4 = 6;   // Gemini の無料枠はモデルごとに1日20回＝話した内容だけが6字未満しか変わらない小さな直しは自動で作り直さない
-/* r6（最終見直し）：サーバに上限の口（styleWarm）があると分かるまで自動にしない＝b178 のサーバ相手に上限なしで生成しない。温めが通ったら外す */
+/* r6（最終見直し）：サーバに上限の口（styleWarm）があると分かる */
 let stV4 = '', stOffM4 = '自動の準備中（サーバの上限の口を確かめています）', stSeq4 = 0, stBusy4 = 0, stDirty4 = false, stOff4 = true, stKey4 = '', stT4 = 0;
 const stMemo4 = new Map();
 const ST_LIVE4 = {
@@ -3871,7 +3863,7 @@ function stMemo4Put(k, r) {
   stMemo4.delete(k); stMemo4.set(k, r);
   if (stMemo4.size > 30) stMemo4.delete(stMemo4.keys().next().value);
 }
-/* できあがりを描く（自動と押したときで共用）。c＝その生成を頼んだときの送り先（途中で選び直しても「⚠️選んだのは」を誤って出さない） */
+/* できあがりを描く（自動と押したときで共用）。c＝その生成を頼んだときの送 */
 function stPaint4(r, c) {
   c = c || stCh4;
   const res = $('stResult');
@@ -3881,8 +3873,7 @@ function stPaint4(r, c) {
    *   万一ズレたら黙って直さずに、ズレたことを言う。 */
   const srvCh = r.ch || c;
   $('stOutCh').textContent = stChName(srvCh) + (srvCh !== c ? '　⚠️選んだのは' + stChName(c) + 'でした' : '');
-  /* 🔴手本の代用申告。サーバが myvoiceNote を載せてくればそれを、無ければ同じ意味の文をこちらで組む＝
-   *   「無言で別チャネルの手本に落ちる」を画面側でも復活させない。 */
+  /* 🔴手本の代用申告。サーバが myvoiceNote を載せてくればそれ */
   const fb = $('stFall');
   if (r.myvoiceFallback) {
     fb.textContent = '📌 ' + (r.myvoiceNote ||
@@ -3923,7 +3914,7 @@ async function stGen4(fresh) {
   if (!fresh && k === stKey4 && o && o.value) { stLive4('new'); return; }
   if (!fresh && stMemo4.has(k)) { stKey4 = k; stPaint4(stMemo4.get(k), c); stLive4('new', '（同じ内容＝すぐ表示）'); return; }
   const pre = (x) => x.slice(0, x.lastIndexOf('|'));
-  /* r2（監査 major-1）：字数でなく中身＝数字・カタカナ・漢字・英字（stSig4）が1つでも変わったら必ず作り直す */
+  /* r2（監査 major-1）：字数でなく中身＝数字・カタカナ・漢字・英字 */
   if (!fresh && stKey4 && pre(k) === pre(stKey4) && Math.abs(v.length - stV4.length) < ST_DELTA4 && stSig4(v) === stSig4(stV4)) {
     stLive4('old', '（小さな直しでは自動で作り直しません＝「言い直す」で作れます）'); return;
   }
@@ -3943,7 +3934,7 @@ async function stGen4(fresh) {
   stAfter4();
 }
 function stAfter4() { if (stDirty4 && !stBusy4) { stDirty4 = false; stGen4(false); } }
-/* ↺リセット＝送り先・温度感を既定（LINE・いつも通り）へ・相手・直前のやり取り・話した内容・結果を空に。走っている生成は連番で捨てる */
+/* ↺リセット＝送り先・温度感を既定（LINE・いつも通り）へ・相手・直前の */
 function stClear4() {
   stCh4Set('line'); stTone4Set('normal');
   stWipe4();
@@ -3971,8 +3962,7 @@ async function stWarm4() {
 }
 /* ==== /b179 ==== */
 
-/* 押したときの生成（自動を止めた日の「✍️ この内容で作る」・もっと丁寧に／短く／言い直す）。上限は見ない＝道具が仕事を拒否しない。
- *   fresh＝言い直す（サーバの控えを使わない）。ボタンに直接つなぐとイベントが来るので「=== true」で見る。 */
+/* 押したときの生成（自動を止めた日の「✍️ この内容で作る」・もっと丁寧に */
 async function stWrite4() {
   const fresh = arguments[0];
   const v = ($('stIn').value || '').trim();
@@ -4043,7 +4033,7 @@ async function stWrite4() {
 const ST_TMAX = 10;   // サーバ側 apiStyleTeachMulti の上限と同値。超えたら押す前に止める＝通らない往復を投げない
 let stTMore4 = [];    // 2枚目以降の欄（1枚目は index.html の #stTeachIn / #stTeachCh が固定で担当）
 
-/* ＋ 貼り付け欄を足す。新しいCSSは作らず、既存の .chips / .chip / 素の textarea だけで組む。 */
+/* ＋ 貼り付け欄を足す。新しいCSSは作らず、既存の .chips / . */
 function stTAdd4() {
   const box = $('stTeachMore');
   if (!box) return;
@@ -4082,8 +4072,7 @@ function stTAdd4() {
 async function stTeach4() {
   const r9 = $('stTeachRes');
   r9.classList.remove('hidden');
-  /* 🔴s44：欄を集める。1枚目＝index.htmlの固定欄／2枚目以降＝「＋ 貼り付け欄を足す」で生えた欄。
-   *   空欄は送らない＝サーバが返す「欄◯」の番号と、こちらの欄が1対1で対応する（ズレると別の欄の貼り付けを消す）。 */
+  /* 🔴s44：欄を集める。1枚目＝index.htmlの固定欄／2枚目以降 */
   const items = [], els = [];
   const t0 = ($('stTeachIn').value || '').trim();
   if (t0) { items.push({ text: t0, ch: ($('stTeachCh').value || 'line') }); els.push($('stTeachIn')); }
@@ -4139,15 +4128,14 @@ async function stHarvest4() {
   const st = $('stStat');
   const b = $('btnStHarvest');
   b.disabled = true;
-  /* ⏱実測 cold 9.0秒（Slack×8＋GitHub×2＋Notion×1）。3秒には出来ないので黙らずに秒数を言う */
+  /* ⏱実測 cold 9.0秒（Slack×8＋GitHub×2＋Notio */
   const stop = stWait4(st, ST_ETA.harvest, '📥 SlackとCRMから手本を集め直しています…');
   try {
     const r = await api({ api: 'styleHarvest' });
     stop();
     st.textContent = r.ok ? (r.msg || '✅ 収穫しました') : ('⚠️ ' + (r.msg || '収穫できませんでした'));
     if (r.ok) stStatus4._once = 0;   // 🔴ここでも自動の取り直しはしない（往復を増やさない）
-    /* 🔴s44：'APIエラー: ' はPWA内部の目印なので剥がしてサーバの言い分だけを出す（PC版と同じ文面）。
-     *   「収穫はしていません」は原因に関わらず真なので、ここは通信/拒否で言い分けない。 */
+    /* 🔴s44：'APIエラー: ' はPWA内部の目印なので剥がしてサーバ */
   } catch (e) { stop(); st.textContent = '⚠️ ' + stReason4(e.message) + '（収穫はしていません）'; }
   b.disabled = false;
 }
@@ -4359,7 +4347,7 @@ function schedLi4(s) {
     li.dataset.eid = s.id;
     li.querySelector('.evx').addEventListener('click', () => scEdit4(li));
   }
-  /* 💬b70（sw v38）：受診後FB行＝スケジュールの中でFB案（薬機法・個人情報準拠）／所見未更新表示。母艦と同格 */
+  /* 💬b70（sw v38）：受診後FB行＝スケジュールの中でFB案（薬機 */
   const t9 = String(s.title || '').trim();
   if (/^【タスク】/.test(t9) && /受診後FB$/.test(t9)) {
     const fb = document.createElement('button');
@@ -4424,8 +4412,7 @@ async function scFillLinks4(ymd) {
     });
   } catch (e) { note('⚠️ オンライン会議のリンクを読めませんでした：' + e.message); }
 }
-/* 📆週表示（b67全面リビルド＝ブラウザ版b63と同格）：曜日ヘッダタップで日表示へ・
-   列は横スクロール+スナップ・列の中は縦スクロール（「ほか◯件」で隠さない） */
+/* 📆週表示（b67全面リビルド＝ブラウザ版b63と同格）：曜日ヘッダタッ */
 async function scWkLoad4() {
   const w = $('scWk'); if (!w) return;
   w.innerHTML = '<div class="muted">読み込み中…</div>';
@@ -4604,8 +4591,7 @@ function tkRow4(t) {
   const m = document.createElement('div'); m.className = 'tk-main';
   const ti = document.createElement('div'); ti.className = 'tk-title'; ti.textContent = t.title; m.appendChild(ti);
   const meta = [], ev9 = (TK4 && TK4.ev) ? TK4.ev[t.id] : null;
-  /* 🧠2026-08-04：置き場所が決まっていないものだけに印を付ける。
-     予定に入れた行は代わりに実行予定日時を出す（松原指示）。 */
+  /* 🧠2026-08-04：置き場所が決まっていないものだけに印を付ける。 */
   if (t.status === '未着手' || (t.status !== '完了' && !ev9)) meta.push('🧠 まだ頭の中');
   if (ev9 && ev9.t) meta.push('📅 ' + ev9.t);
   if (t.due) meta.push('アクション ' + t.due);
@@ -4620,8 +4606,7 @@ function tkRow4(t) {
   }
   d.appendChild(m);
   const b = document.createElement('div'); b.className = 'tk-btns';
-  /* ⚡第4手のPWA同格化（2026-08-07）：押した瞬間に色が変わる。だめなら色ごと戻して理由を言う。
-     成功時は無言＝反転そのものが返事（完了のundoトーストだけは維持） */
+  /* ⚡第4手のPWA同格化（2026-08-07）：押した瞬間に色が変わる。 */
   const flip4 = v => b.querySelectorAll('.chip').forEach(x => {
     if (x.textContent === '未着手' || x.textContent === '進行中' || x.textContent === '完了')
       x.classList.toggle('on', x.textContent === v);
@@ -4669,8 +4654,7 @@ function tkRow4(t) {
   return d;
 }
 function tkEdit4(t, row) {
-  /* 🔴同じボタンなら閉じる／違うボタンなら差し替える。
-     種類を見ずに閉じると、📅を開いたまま✏️を押したとき「閉じるだけ」になる（PC版で踏んだ罠）。 */
+  /* 🔴同じボタンなら閉じる／違うボタンなら差し替える。 */
   const ex = row.querySelector('.tk-panel');
   if (ex && ex.dataset.k === 'edit') { ex.remove(); return; }
   document.querySelectorAll('.tk-panel').forEach(x => x.remove());
