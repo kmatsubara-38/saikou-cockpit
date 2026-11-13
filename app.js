@@ -334,12 +334,51 @@ window.addEventListener('online',  () => {
 window.addEventListener('offline', () => setOffline(true));
 
 /* ---- キャッシュ（最終取得データ） ---- */
+/* 🧰s83（b193 T-32）端末の控えにお名前を残さない：HOME の予定の件名・通知の件名と本文は抜いた形（時刻・件数・札）だけを書く。
+ *   描くのは控えですぐ（0秒は保つ）→ 往復の後に本物で描き直す。控えから描いた通知には承認のボタンを出さない（誰の分か見えないため）。
+ *   起動時に1回、s82 までの控え（件名・本文・紹介登録の下書きの name ほか）を同じ形へ書き直す（piiSweep4） */
+function piiLite4(key, d) {
+  if (!d || typeof d !== 'object') return d;
+  if (key === LS.HOME) return Object.assign({}, d, { sched: (d.sched || []).map(x => ({ id: (x && x.id) || '', t: (x && x.t) || '', title: '…', meet: (x && x.meet) || '', tag: (x && x.tag) || '', tagColor: (x && x.tagColor) || '', routine: !!(x && x.routine), lite: 1 })) });
+  if (key === LS.STYLE) return { at: d.at || 0, ch: d.ch || '', n: String(d.text || '').length, lite: 1 };   // 🧰s83（監査A major-3）整えた文は端末に残さない
+  if (key === LS.NOTIF) return Object.assign({}, d, { items: (d.items || []).map(x => ({ kind: (x && x.kind) || '', date: (x && x.date) || '', status: x ? x.status : '', needAction: false, refTs: '', ts: (x && x.ts) || '', title: '…', body: '', lite: 1 })) });
+  return d;
+}
+/* 紹介登録の下書き（b157:shokai:<sfp>）に残すのは rid・sfp・区分・時刻・指紋 h だけ（PC の shkLite と同じ規則・お名前・予約申込日・Plaud・その他は画面のメモリだけ） */
+function shkLite4(d) {
+  const t = [d.name, d.apply, d.plaud, d.sonota].map(x => String(x == null ? '' : x)).join('|');
+  let h = 2166136261;
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const o = { api: 'shokai', sfp: String(d.sfp || ''), type: d.type || '', sex: d.sex || '', flag: d.flag || '', skind: d.skind || '', h: d.h || h.toString(36), at: d.at || Date.now(), lite: 1 };
+  if (d.rid) o.rid = String(d.rid);
+  if (d.rebook === true) o.rebook = true;
+  return o;
+}
 function saveCache(key, data) {
-  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch (e) {}
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: piiLite4(key, data) })); } catch (e) {}
 }
 function readCache(key) {
   try { const v = JSON.parse(localStorage.getItem(key)); return v && v.data; } catch (e) { return null; }
 }
+(function piiSweep4() {
+  try {
+    [LS.HOME, LS.NOTIF, LS.STYLE].forEach(k => { const raw = localStorage.getItem(k); if (!raw) return; const v = JSON.parse(raw); if (v && v.data) localStorage.setItem(k, JSON.stringify({ ts: v.ts, data: piiLite4(k, v.data) })); });
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k || k.indexOf('b157:shokai:') !== 0) continue;
+      let d = null; try { d = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { d = null; }
+      if (d && typeof d === 'object') localStorage.setItem(k, JSON.stringify(shkLite4(d))); else localStorage.removeItem(k);
+    }
+    /* 🧰s83（監査A major-2）日報の書きかけ（npDraft）：前の日より古い書きかけは消す・箱（old）は書きかけの日の分だけ */
+    const nd = JSON.parse(localStorage.getItem('npDraft') || 'null'), y9 = new Date(Date.now() + 9 * 3600e3 - 864e5).toISOString().slice(0, 10);
+    if (nd && typeof nd === 'object') {
+      /* 再監査 r2：書きかけの日付（シートの対象日＝「2026/11/10」「2026/11/3」の形）は YYYY-MM-DD（ゼロ埋め）にそろえてから比べる。読めない日付も消す */
+      const p9 = String(nd.d || '').split(/[^0-9]+/), d9 = p9.length > 2 && p9[0].length === 4 ? p9[0] + '-' + ('0' + p9[1]).slice(-2) + '-' + ('0' + p9[2]).slice(-2) : '';
+      if (!d9 || d9 < y9) localStorage.removeItem('npDraft');
+      else { Object.keys(nd.old || {}).forEach(k => { if (k.indexOf(nd.d + '｜') !== 0) delete nd.old[k]; }); localStorage.setItem('npDraft', JSON.stringify(nd)); }
+    }
+  } catch (e) {}
+})();
 
 /* ---- タブ切替（🔴s45＝6タブ：ホーム／文体ラボ／パイプライン／報告／通知／その他）----
  * 切替は総当たり（data-view と #view-<name> を突き合わせる）＝タブを1つ足すのに
@@ -1558,7 +1597,7 @@ function regBox(reg, opt) {
           const sonotaInput = pnd('textarea');
           sonotaInput.rows = 2;
           field('その他', sonotaInput);
-          if (saved) { plaudInput.value = saved.plaud; sonotaInput.value = saved.sonota; }
+          if (saved) { plaudInput.value = saved.plaud || ''; sonotaInput.value = saved.sonota || ''; }   // 🧰s83 T-32：控えに無い＝空
           const send = pnd('button', 'btn btn-primary', '分析シートに登録する');
           send.type = 'button';
           send.style.fontSize = '17px';
@@ -1614,8 +1653,12 @@ function regBox(reg, opt) {
                 const rid = 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
                 pending = { api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp, rid };
                 if (rebook) pending.rebook = true;
+              } else if (pending.lite) {
+                /* 🧰s83 T-32：控え（rid と区分だけ）から送り直すときは、お名前・予約申込日は SF の照会、Plaud・その他は今の欄から足す（同じ受付番号） */
+                pending = Object.assign({}, pending, { name: reg.name, apply: reg.apply, plaud, sonota });
+                delete pending.lite; delete pending.h; delete pending.at;
               }
-              localStorage.setItem(draftKey, JSON.stringify(pending));
+              localStorage.setItem(draftKey, JSON.stringify(shkLite4(pending)));
               send.disabled = true;
               lockInputs();
               result.className = 'result';
@@ -1641,7 +1684,7 @@ function regBox(reg, opt) {
                 pending = null;
                 if (rebook) { rebook = false; refresh(); }   // もう一度送るなら「🔁 再予約として登録」から確かめ直す
                 if (draft && sent) {
-                  try { localStorage.setItem(draftKey, JSON.stringify(draft)); }
+                  try { localStorage.setItem(draftKey, JSON.stringify(shkLite4(draft))); }
                   catch (storageFailure) { result.textContent += '\n' + storageFailure.message; }
                 }
                 unlockInputs();
@@ -1661,7 +1704,11 @@ function regBox(reg, opt) {
             });
           }
           if (pending) {
-            lockInputs();
+            lockInputs();   // 🧰s83（監査A critical-1）lite でも区分・種別・性別は止める＝送る値（控え）と画面の札が必ず同じ
+            if (pending.lite) {
+              [plaudInput, sonotaInput].forEach(el => { el.disabled = false; });   // 控えに無い Plaud・その他だけ貼り直せる
+              result.className = 'result'; result.textContent = '📝 前に送った受付があります（同じ受付番号で送り直します）。端末には Plaud・その他を残していないので、要るときはもう一度貼ってから送ってください';
+            }
             send.textContent = 'もう一度送る（同じ受付番号）';
           }
           if (storageError) {
@@ -2174,14 +2221,14 @@ async function pqmFetch() {
 function pqmFind(q) {
   const nq = pqmNk(q), out = { c: [], n: 0, ex: null };
   if (!nq || !PQM.idx) return out;
-  const ex = [], pre = [], part = [], dg = /^[0-9]+$/.test(nq), m = nq.match(/^([0-9]+)[_-]?(.+)$/);
+  const ex = [], pre = [], part = [], dg = /^[0-9]+$/.test(nq), zq = nq.replace(/^0+/, ''), m = nq.match(/^([0-9]+)[_-]?(.+)$/);
   for (const r of PQM.idx.rows) {
-    if (dg) { if (Number(r[0]) === Number(nq)) ex.push(r); else if (r[0].indexOf(nq) === 0) pre.push(r); continue; }
+    if (dg) { const rz = r[0].replace(/^0+/, ''); if (zq && rz === zq) ex.push(r); else if (zq && rz.indexOf(zq) === 0) pre.push(r); continue; }   // 🧰s83（b193 T-15）先頭のゼロを剥いで比べる
     if (m && m[2].length >= 2 && Number(r[0]) === Number(m[1]) && r[2].indexOf(m[2]) >= 0) { ex.push(r); continue; }   // 番号＋名前は登録名が2文字以上を含むときだけ（b174 監査 r2 と同じ）
     if (r[2] === nq) ex.push(r); else if (r[2].indexOf(nq) === 0) pre.push(r); else if (r[2].indexOf(nq) > 0) part.push(r);
   }
   const all = ex.concat(pre, part);
-  out.n = all.length; out.c = all.slice(0, 10); out.ex = (dg && ex.length === 1) ? ex[0] : null;
+  out.n = all.length; out.c = all.slice(0, 10); out.ex = (dg && ex.length === 1 && !pre.length) ? ex[0] : null;   // 🧰s83 T-15：続く番号がある間は自動で開かない（Enter で一致を開く）
   return out;
 }
 function pqmMsg(t) { const c = $('pqCand'); if (!c) return; c.textContent = ''; if (t) c.appendChild(pnd('div', 'muted', t)); }
@@ -2189,10 +2236,11 @@ function pqmDraw(f, q) {
   const c = $('pqCand'); if (!c) return;
   c.textContent = ''; PQM.sel = f ? f.c : [];
   if (!f) return;
-  if (!f.n) { if (pqmNk(q).length >= 2) c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝打ち終わると患者様名で探します')); return; }
+  const L1 = pqmNk(q).length;   // 🧰s83（b193 T-17）1文字のお名前は「👤 患者様名で探す」か Enter で探す（自動では撃たない）
+  if (!f.n) { if (L1 >= 2) { c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝打ち終わると患者様名で探します')); return; } if (L1) c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝1文字のお名前は下のボタンか Enter で探します')); }
   f.c.forEach(r => { const b = pnd('button', 'chip', r[0] + '　' + r[1]); b.type = 'button'; b.style.margin = '4px 6px 0 0'; b.addEventListener('click', () => pqmOpen(r, true)); c.appendChild(b); });
   if (f.n > f.c.length) c.appendChild(pnd('div', 'muted', 'ほか ' + (f.n - f.c.length) + '件＝もう少し入れると絞れます'));
-  if (pqmNk(q).length >= 2) { const pb = pnd('button', 'chip', '👤 患者様名で探す'); pb.type = 'button'; pb.style.margin = '4px 6px 0 0'; pb.addEventListener('click', () => { clearTimeout(PQM.t); PQM.last = ''; pqmPat(); }); c.appendChild(pb); }
+  if (L1) { const pb = pnd('button', 'chip', '👤 患者様名で探す'); pb.type = 'button'; pb.style.margin = '4px 6px 0 0'; pb.addEventListener('click', () => { clearTimeout(PQM.t); PQM.last = ''; pqmPat(1); }); c.appendChild(pb); }
 }
 function pqmIn(ev) {
   const el = $('pipeQ'); if (!el) return;
@@ -2218,12 +2266,12 @@ function pqmKey(ev) {
   if (!ev || ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
   clearTimeout(PQM.t);
   if (PQM.sel.length) { pqmOpen(PQM.sel[0], true); return; }
-  PQM.last = ''; pqmPat();
+  PQM.last = ''; pqmPat(1);
 }
-function pqmPat() {
+function pqmPat(fz) {
   const el = $('pipeQ'); if (!el) return;
   const q = el.value.trim();
-  if (pqmNk(q).length < 2 || q === PQM.last) return;
+  if (pqmNk(q).length < (fz ? 1 : 2) || q === PQM.last) return;
   PQM.last = q; PQM.k = ''; PQM.p = 0;
   const pr = $('pipeRes'); if (pr) pr.style.opacity = '';
   pipeGoM(q);
@@ -2430,10 +2478,8 @@ function npDraftG(d) {
   const x = npLsG('npDraft') || {};
   if (!x.by) x.by = {};
   if (!x.old) x.old = {};
-  if (x.d && x.d !== d) {
-    Object.keys(x.by).forEach(k => { if (String(x.by[k] || '').trim()) npOldPut(x, x.d + '｜' + k, x.by[k]); });
-    x.by = {};
-  }
+  if (x.d && x.d !== d) x.by = {};   // 🧰s83（監査A major-2）前の日の書きかけは残さない（第三者の実名が入りうる）
+  Object.keys(x.old).forEach(k => { if (k.indexOf(d + '｜') !== 0) delete x.old[k]; });
   x.d = d;
   npLsS('npDraft', x);
   return x;
@@ -3512,7 +3558,7 @@ let gcDays4 = null;
 const gcSt4 = { get: () => gcDays4, set: (a) => { gcDays4 = a; }, mode: 'daily', max: 7, mon: '', cal: 'gcCal4', chg: () => gcPre4() };
 try { localStorage.removeItem('cp_gcal_last'); } catch (e) {}   // s80 の控え（題名を丸ごと）を消す
 const GC_PK4 = 'cp_gcal_day_';
-function gcLsGet4(d) { try { const x = JSON.parse(localStorage.getItem(GC_PK4 + d) || 'null'); return x && x.d === d && Array.isArray(x.rows) ? x : null; } catch (e) { return null; } }
+function gcLsGet4(d) { try { const x = JSON.parse(localStorage.getItem(GC_PK4 + d) || 'null'), b = localStorage.getItem('cp_gcalB4') || ''; return x && x.d === d && Array.isArray(x.rows) && (!b || x.b === b) ? x : null; } catch (e) { return null; } }   // 🧰s83（b191 監査 minor-5）最後に受けた版（cp_gcalB4）と違う控えは出さない
 function gcLsGc4(b) {
   const lo = npJst4(6 * 864e5);
   try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (!k || k.indexOf(GC_PK4) !== 0) continue; const x = gcLsGet4(k.slice(GC_PK4.length)); if (!x || x.d < lo || (b && x.b !== b)) localStorage.removeItem(k); } } catch (e) {}
@@ -3530,6 +3576,7 @@ function gcMask4(w, k) {
 }
 function gcLsPut4(r) {
   const lo = npJst4(6 * 864e5);
+  try { localStorage.setItem('cp_gcalB4', String(r.build || '')); } catch (e) {}
   gcLsGc4(r.build || '');
   (r.days || []).forEach(x => {
     if (!x || !x.d || x.d < lo || !Array.isArray(x.rows)) return;
@@ -3556,8 +3603,13 @@ function gcalOpen4() {
   gcLsGc4(''); gcPre4();
 }
 /* 先出し（api を通さない＝往復0） */
-function gcPre4() {
+function gcPre4(fz) {
   const o = $('gcOut4'); if (!o) return;
+  const pb = $('gcPut4');
+  if (!fz && pb && !pb.disabled) {   // 🧰s83（b191 監査 minor-4）まだ入れていない登録案（✔ カレンダーに入れる が押せる）は上書きしない
+    let n = $('gcChg4'); if (!n) { n = pnd('div', 'muted', ''); n.id = 'gcChg4'; o.insertBefore(n, o.firstChild); }
+    n.textContent = '日付を変えました＝作り直すと今のチェックは戻ります'; return;
+  }
   o.textContent = '';
   const ds = (gcDays4 || []).map(gcLsGet4).filter(Boolean);
   if (ds.length) gcShow4(o, { days: ds }, true);
@@ -3565,7 +3617,7 @@ function gcPre4() {
 async function gcSend4() {
   const o = $('gcOut4'); if (!o) return;
   if (!gcDays4 || !gcDays4.length) { showErr('日付を選んでください'); return; }
-  gcPre4();
+  gcPre4(true);
   const keep = (r) => { if (r && r.days) gcLsPut4(r); gcShow4($('gcOut4') || o, r, false); };
   try { keep(await api({ api: 'gyomuCalPlan', dates: gcDays4.slice() })); }
   catch (e) { if (e && e.data) keep(e.data); else { o.textContent = ''; o.appendChild(pnd('div', 'muted', e.message)); } }   // 一部読めない（ok:false）も登録案は出す
@@ -3630,7 +3682,7 @@ document.addEventListener('keydown', ev => {
   if (m && !m.hidden) {   /* 🧰s82 メニューが出ているときはメニューが先（Esc＝閉じて業務報告のボタンへ・↑↓＝項目を移る） */
     const L = Array.from(m.querySelectorAll('button')), i = L.indexOf(document.activeElement);
     if (ev.key === 'Escape') { ev.preventDefault(); fabMenu4(false); const b = $('fabReport'); if (b) b.focus(); return; }
-    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); const n = L[(i + (ev.key === 'ArrowDown' ? 1 : L.length - 1) + L.length) % L.length]; if (n) n.focus(); return; }
+    if (i >= 0 && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp')) { ev.preventDefault(); const n = L[(i + (ev.key === 'ArrowDown' ? 1 : L.length - 1) + L.length) % L.length]; if (n) n.focus(); return; }
   }
   if (ev.key !== 'Escape') return;
   const s = $('chatSheet'); if (s && !s.classList.contains('hidden')) sheetClose();
@@ -4072,6 +4124,12 @@ async function stWrite4() {
         $('stFall').classList.add('hidden');
         sd.textContent = '🛟 いまは通信できていません（' + why + '）。' +
                          stAtLabel(lkg.at) + '時点で作った控えを表示しています＝これは今回の内容ではありません';
+        sd.classList.remove('hidden');
+        res.className = 'result ng';
+        res.textContent = '⚠️ 今回は作れませんでした。通信が戻ってからもう一度押してください（入力はそのまま残しています）';
+      } else if (lkg && lkg.at) {
+        /* 🧰s83（監査A major-3）：控えは時刻・送り先・字数だけ（整えた文はお名前が入りうるので端末に残さない）＝控えの時刻だけ言い、本文は出さない */
+        sd.textContent = '🛟 いまは通信できていません（' + why + '）。' + stAtLabel(lkg.at) + '時点で作った控えはありますが、本文は端末に残していません';
         sd.classList.remove('hidden');
         res.className = 'result ng';
         res.textContent = '⚠️ 今回は作れませんでした。通信が戻ってからもう一度押してください（入力はそのまま残しています）';
