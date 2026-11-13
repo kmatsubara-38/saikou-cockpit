@@ -355,7 +355,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (btn.dataset.view === 'notif') loadNotifs();
     if (btn.dataset.view === 'home') loadHomeMonth();
     if (btn.dataset.view === 'pipe') plKindShow();   // 🔎入場時に選択中の一覧を読み込む
-    if (btn.dataset.view === 'style') { if (!String(($('stIn') || {}).value || '').trim()) { stCh4Set('line'); stTone4Set('normal'); } stWarm4(); }   // 🆕s71：入場＝手本を温める（読むだけ・Gemini は呼ばない）／✍️s73：空なら既定（LINE）へ
+    /* 🗑s82（b192）文体ラボのタブを撤去＝入場の処理（空なら既定・手本を温める）は styleOpen4（右下の ✍️）へ移した */   // 🆕s71：入場＝手本を温める（読むだけ・Gemini は呼ばない）／✍️s73：空なら既定（LINE）へ
     if (btn.dataset.view === 'more') loadBooks();    // 📖s47：入場＝読書を読み込む（主役を「更新」待ちにしない）
   });
 });
@@ -378,7 +378,8 @@ document.querySelectorAll('.tab').forEach(btn => {
    *   松原が探した場所と違った＝欠けていたのは機能ではなく**入口**だった。 */
   ['view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   frag.appendChild(cap('🛡 毎日の運用'));
-  ['view-nippo', 'view-shukkin', 'view-kintai', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  /* 🗑s82（b192）'view-kintai'（勤怠報告）は台帳から外した＝右下の「業務報告」→「残業報告」のシートへ（器は #kintaiCard）。実在しない id を台帳に残さない */
+  ['view-nippo', 'view-shukkin', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
   rep.insertBefore(frag, rep.firstChild);
   rep.querySelectorAll(':scope > div[id^="view-"]').forEach(sec => {
     /* ✍️s45：s43にあった `if (sec.id === 'view-style') return;`（文体ラボだけ畳まない）は**削除**した。
@@ -1698,16 +1699,17 @@ function regBox(reg, opt) {
   return t;
 }
 
-function pipePatient(p) {
+/* 🧰s82（b192①）nh＝行（plPatientRow）の中で開いたとき。名前・札・紹介元は行の見出しに出ている＝ここでは出さない（流入・次回来院だけ残す）＝PC の pipePatient(p,1) と同じ */
+function pipePatient(p, nh) {
   const c = pnd('div', 'pcard');
   const h = pnd('h4');
   h.appendChild(document.createTextNode(p.name));
   if (p.status) h.appendChild(pnd('span', 'ppill ok', p.status));
-  c.appendChild(h);
-  let m = p.partnerName ? ('紹介元 ' + p.partnerName + (p.kanri ? '（#' + p.kanri + '）' : '')) : '紹介元 —';
-  if (p.source) m += '　/　' + p.source;
-  if (p.nextVisit) m += '　/　次回来院 ' + p.nextVisit;
-  c.appendChild(pnd('div', 'pmeta', m));
+  if (!nh) c.appendChild(h);
+  let m = nh ? '' : (p.partnerName ? ('紹介元 ' + p.partnerName + (p.kanri ? '（#' + p.kanri + '）' : '')) : '紹介元 —');
+  if (p.source) m += (m ? '　/　' : '') + p.source;
+  if (p.nextVisit) m += (m ? '　/　' : '') + '次回来院 ' + p.nextVisit;
+  if (m) c.appendChild(pnd('div', 'pmeta', m));
   (p.steps || []).forEach((s, i) => {
     const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
     row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
@@ -1863,7 +1865,8 @@ async function pipeStep(id, kind, btn, lbl) {
   }
 }
 
-function pipePartner(vv) {
+/* 🧰s82（b192①）nh＝担当サロン様の行（plPartnerRow）の中で開いたとき。名前・#番号・札・稼働と最終活動は行の見出しに出ている＝ここでは出さない（担当だけ残す）＝PC の pipePartner(vv,1) と同じ */
+function pipePartner(vv, nh) {
   CTX.kanri = String(vv.kanri || ''); CTX.name = String(vv.name || '');
   const c = pnd('div', 'pcard');
   const h = pnd('h4');
@@ -1871,8 +1874,8 @@ function pipePartner(vv) {
   if (vv.kanri) h.appendChild(pnd('span', 'ppill', '#' + vv.kanri));
   if (vv.status) h.appendChild(pnd('span', 'ppill ok', vv.status));
   if (vv.active) h.appendChild(pnd('span', 'ppill' + (vv.active.indexOf('休') >= 0 ? ' wa' : ''), vv.active));
-  c.appendChild(h);
-  c.appendChild(pnd('div', 'pmeta', '担当 ' + (vv.tanto || '—') + (vv.lastAct ? '　/　最終活動 ' + vv.lastAct : '')));
+  if (!nh) c.appendChild(h);
+  c.appendChild(pnd('div', 'pmeta', '担当 ' + (vv.tanto || '—') + (!nh && vv.lastAct ? '　/　最終活動 ' + vv.lastAct : '')));
   const ls = pnd('div', 'psec');
   ls.appendChild(pnd('div', 'psh', '対応ステータス（新規提携の前後）'));
   (vv.life || []).forEach((s, i) => {
@@ -1941,7 +1944,7 @@ function pipePartner(vv) {
       wrap.style.display = 'none';
       bt.addEventListener('click', () => {
         const o = wrap.style.display === 'none';
-        if (o && !wrap.hasChildNodes()) wrap.appendChild(pipePatient(p));
+        if (o && !wrap.hasChildNodes()) wrap.appendChild(pipePatient(p, 2));   // 🧰s82（b192①）ボタン（名前（状態））と重なる見出し・このカードと同じ紹介元を出さない（PC の pipePatient(p,2) と同じ）
         wrap.style.display = o ? '' : 'none';
       });
       ps.appendChild(bt);
@@ -2002,7 +2005,7 @@ function plPatientRow(p) {
   w.style.display = 'none';
   b.addEventListener('click', () => {
     const o = w.style.display === 'none';
-    if (o && !w.hasChildNodes()) w.appendChild(pipePatient(p));
+    if (o && !w.hasChildNodes()) w.appendChild(pipePatient(p, 1));
     w.style.display = o ? '' : 'none';
     b.textContent = o ? '閉じる' : 'この患者様の進捗を開く';
   });
@@ -2038,7 +2041,7 @@ function plPartnerRow(it) {
     b.textContent = '読込中…';
     try {
       const r = await api({ api: 'partnerDetail', recordId: it.id });
-      w.appendChild(pipePartner(r.partner));
+      w.appendChild(pipePartner(r.partner, 1));
       w.style.display = '';
       b.textContent = '閉じる';
     } catch (e) { b.textContent = 'この提携先の全体を開く'; showErr(e.message); }
@@ -3149,25 +3152,70 @@ function rvWatch() {
 /* ==== b157/s56 R4_pwa ③FAB＝右下の💬 → 下から出るシート → 既存の api() で {api:'chatPull', kanri, name}
  *   成功＝r.html（サーバ apiChatPull がマスク済で組んだHTML）を innerHTML に入れる（この1箇所だけ・ユーザ入力は入れない・殻側で本文を加工しない）
  *   失敗＝api() が投げた e.message（'この機能はサーバー側が未開通です…' も含む）を textContent に出す。 ==== */
-let sheetFrom = 'fabChat';   // 📝s74：どちらのボタンで開いたか（閉じたらそこへ戻る）
-function sheetOpen(from, title) {
+/* 🧰s82（b192・2026-11-13 松原指示②③）開くのは2つ＝「業務報告」（#fabReport→メニュー→日報・週報／残業報告／業務カレンダー）と「文体ラボ」（#fabStyle）。
+ *   sheetFrom＝閉じたらフォーカスを戻すボタン。sheetMode4＝いまシートに出している中身（style のとき ✍️ をもう一度押すと閉じる）。
+ *   文体ラボ（#sec-style）と残業報告（#kintaiCard）の器は、開くたびに置き場（#fabPark）から移し、別のシートを開くときに置き場へ戻す（fabPark4）＝
+ *   文書の中に居続ける（id で結んだボタン・返事の書き込み先が生きている）・閉じても書きかけが残る */
+let sheetFrom = 'fabReport', sheetMode4 = '';
+function fabPark4() {
+  const pk = $('fabPark'); if (!pk) return;
+  ['sec-style', 'kintaiCard'].forEach(id => { const n = $(id); if (n && n.parentNode !== pk) pk.appendChild(n); });
+}
+function sheetOpen(from, title, mode) {
   const s = $('chatSheet'); if (!s) return;
-  sheetFrom = (from === 'fabNippo' || from === 'fabGcal') ? from : 'fabChat';   // 🗓s75：3つのボタン
-  const tt = $('chatSheetTitle'); if (tt) tt.textContent = title || '🧠 ロビン（第二の脳）';
+  fabPark4();
+  sheetFrom = from === 'fabStyle' ? 'fabStyle' : 'fabReport';
+  sheetMode4 = mode || '';
+  const tt = $('chatSheetTitle'); if (tt) tt.textContent = title || '業務報告';
   s.classList.remove('hidden');
   requestAnimationFrame(() => s.classList.add('on'));
-  ['fabChat', 'fabNippo', 'fabGcal'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', String(id === sheetFrom)); });
+  const fs = $('fabStyle'); if (fs) fs.setAttribute('aria-expanded', String(sheetFrom === 'fabStyle'));
   const x = $('chatSheetClose'); if (x) x.focus();
 }
 function sheetClose() {
   const s = $('chatSheet'); if (!s) return;
   s.classList.remove('on'); s.classList.add('hidden');
-  ['fabChat', 'fabNippo', 'fabGcal'].forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', 'false'); });
+  const fs = $('fabStyle'); if (fs) fs.setAttribute('aria-expanded', 'false');
   const f = $(sheetFrom); if (f) f.focus();
+}
+/* 🧰s82 業務報告のメニュー（#fabMenu）＝押した瞬間に出す（往復0）。外を押す・Esc で閉じる（Esc は業務報告のボタンへ戻る）・↑↓で項目を移る */
+function fabMenu4(on) {
+  const m = $('fabMenu'), b = $('fabReport'); if (!m) return;
+  if (on === undefined) on = m.hidden;
+  m.hidden = !on;
+  if (b) b.setAttribute('aria-expanded', String(!!on));
+  if (on) { const f = m.querySelector('button'); if (f) f.focus(); }
+}
+function fabPick4(k) {
+  fabMenu4(false);
+  if (k === 'nippo') nippoOpen();
+  else if (k === 'gcal') gcalOpen4();
+  else zangyoOpen4();
+}
+/* 🧰s82 ⏱ 残業報告＝報告タブに在った勤怠報告のカード（#kintaiCard）をそのままシートへ。送信の口（kintai）・残業報告（zangyo）・文言は今のまま */
+function zangyoOpen4() {
+  const box = $('chatSheetBody'); if (!box) return;
+  sheetOpen('fabReport', '⏱ 残業報告（自由記述→転記・残業計算・日報まで自動）', 'zangyo');
+  box.textContent = '';
+  const n = $('kintaiCard'); if (n) box.appendChild(n);
+}
+/* 🧰s82 ✍️ 文体ラボ＝下段のタブに在った #sec-style をそのままシートへ。入場の処理（話した内容が空なら送り先・温度感を既定へ・手本を温める＝読むだけ）はタブの時と同じ。
+ *   ✍️ をもう一度押すと閉じる */
+function styleOpen4() {
+  const s = $('chatSheet');
+  if (s && !s.classList.contains('hidden') && sheetMode4 === 'style') { sheetClose(); return; }
+  const box = $('chatSheetBody'); if (!box) return;
+  sheetOpen('fabStyle', '✍️ 文体ラボ（いつもの僕の文章にする）', 'style');
+  box.textContent = '';
+  const n = $('sec-style'); if (n) box.appendChild(n);
+  if (!String(($('stIn') || {}).value || '').trim()) { stCh4Set('line'); stTone4Set('normal'); }
+  stWarm4();
+  try { metView('pwastyle', 0); } catch (e) {}
 }
 /* ==== s57 🧠ロビン（第二の脳＝Obsidian Vault）の鮮度と LINE 取込（PC 版 b158 と同格・2026-09-26 b159：②は松原の判断待ちで止める＝r.hold・説明はサーバの文）
  *   Slack→ロビン＝PC が 3時間ごとに自動（鏡・伏字つき）。LINE は API が無い＝書き出しを Drive に置いた分をボタンで即取込。
  *   提携先を🔎で開いていれば、その相手の最近のやり取り（chatPull）も1タップで見られる。 ==== */
+/* 🗄s82（b192）ロビンのボタン（#fabChat）は画面から外した（一旦破棄）。chatPull・robinRender・robinPeek・robinSync・partnerPull は戻すときのため残置（どこからも呼ばれない） */
 async function chatPull() {
   const box = $('chatSheetBody'); if (!box) return;
   sheetOpen();
@@ -3262,7 +3310,7 @@ async function partnerPull(box, bt) {
   } catch (e) { o.textContent = e.message; }
   if (bt) bt.disabled = false;
 }
-if ($('fabChat')) $('fabChat').addEventListener('click', chatPull);
+/* 🗄s82（b192）ロビンのボタンを外したので結びつけも外した。戻すとき＝index.html に #fabChat を戻し、次の1行を戻す：if ($('fabChat')) $('fabChat').addEventListener('click', chatPull); */
 /* ==== 📝s74（b182）日報ボタン＝PC の 📋 と同じ口 nippoCoach（日付を選ぶ→空欄だけ書く→読み直しの一致を出す・鍵が無ければ下書き）。
  *   鍵の保存は PC の小窓から（スマホに鍵を打つ欄は置かない）。札は共通の部品（SNDW の c＝送信中…）
  *   📅s80（b189・2026-11-09 松原指示）＝「＋ この日を足す」を撤去→自作カレンダーで複数日を一気に選ぶ。📝 日報／📊 週報の切替（aria-pressed）。
@@ -3285,7 +3333,7 @@ const npLive4 = (m) => npYmd4(npMs4(m) + 6 * 864e5) >= npJst4(0);
 const npWdColor4 = (w) => w === 0 ? 'var(--bad)' : (w === 6 ? '#2997ff' : '');
 function nippoOpen() {
   const box = $('chatSheetBody'); if (!box) return;
-  sheetOpen('fabNippo', '📝 日報・📊 週報（外部コーチの方の Notion）');
+  sheetOpen('fabReport', '📝 日報・📊 週報（外部コーチの方の Notion）', 'nippo');
   const td = npJst4(0);
   if (!npDays4) npDays4 = [td];
   if (!npWeeks4) npWeeks4 = [];
@@ -3456,7 +3504,7 @@ function npShow4(o, r, mode) {
 }
 /* 🔴s75 r3（b183r3・2026-10-27 松原さんの差し戻し）：アクションの下書き（行ごとのチェック・✍アクションも書く）を撤去。
  *   アクションは名刺の発注状況の数だけになり、同じ口 nippoCoach の「日報に書く」で他の欄と一緒に書く（PC と同じ） */
-if ($('fabNippo')) $('fabNippo').addEventListener('click', nippoOpen);
+/* 🧰s82 日報・週報はメニュー（#fabMenu の data-fab="nippo"）から開く（下の結びつけ） */
 /* ==== 🗓s75（b183）業務カレンダー＝PC の 🗓 と同じ口（gyomuCalPlan・gyomuCalPut）。札は SNDW の f20／c。
  *   🗓s81（b191・設計 r3 §3-1・§3-4・§3-9-2・§6-2）：日付は npCal4 群を状態袋 gcSt4 で共用。日を押した瞬間に前回の登録案を読むだけで出す（往復0）。
  *     端末の控え cp_gcal_day_<日付>＝伏せた形だけ・直近7日・版が変わったら捨てる・登録したら消す。文は §3-4-9（PC と同じ字） ==== */
@@ -3491,7 +3539,7 @@ function gcLsPut4(r) {
 }
 function gcalOpen4() {
   const box = $('chatSheetBody'); if (!box) return;
-  sheetOpen('fabGcal', '🗓 業務カレンダー（記録から Google カレンダーへ）');
+  sheetOpen('fabReport', '🗓 業務カレンダー（記録から Google カレンダーへ）', 'gcal');
   box.textContent = '';
   const td = npJst4(0);
   if (!gcDays4) gcDays4 = [td];
@@ -3567,10 +3615,23 @@ function gcShow4(o, r, ro) {
   });
   o.appendChild(b); o.appendChild(res);
 }
-if ($('fabGcal')) $('fabGcal').addEventListener('click', gcalOpen4);
+/* 🧰s82 右下の2つ＝業務報告（メニュー）・文体ラボ。メニューの3項目は今のシート（nippoOpen／zangyoOpen4／gcalOpen4）を開く */
+if ($('fabReport')) $('fabReport').addEventListener('click', () => fabMenu4());
+document.querySelectorAll('#fabMenu [data-fab]').forEach(b => b.addEventListener('click', () => fabPick4(b.dataset.fab)));
+if ($('fabStyle')) $('fabStyle').addEventListener('click', styleOpen4);
+document.addEventListener('click', ev => {
+  const m = $('fabMenu'), b = $('fabReport');
+  if (m && !m.hidden && !m.contains(ev.target) && !(b && b.contains(ev.target))) fabMenu4(false);
+});
 if ($('chatSheetClose')) $('chatSheetClose').addEventListener('click', sheetClose);
 if ($('chatSheetBd')) $('chatSheetBd').addEventListener('click', sheetClose);
 document.addEventListener('keydown', ev => {
+  const m = $('fabMenu');
+  if (m && !m.hidden) {   /* 🧰s82 メニューが出ているときはメニューが先（Esc＝閉じて業務報告のボタンへ・↑↓＝項目を移る） */
+    const L = Array.from(m.querySelectorAll('button')), i = L.indexOf(document.activeElement);
+    if (ev.key === 'Escape') { ev.preventDefault(); fabMenu4(false); const b = $('fabReport'); if (b) b.focus(); return; }
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); const n = L[(i + (ev.key === 'ArrowDown' ? 1 : L.length - 1) + L.length) % L.length]; if (n) n.focus(); return; }
+  }
   if (ev.key !== 'Escape') return;
   const s = $('chatSheet'); if (s && !s.classList.contains('hidden')) sheetClose();
 });

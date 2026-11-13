@@ -162,8 +162,10 @@
          スマホでも2番目のタブにする＝PC/スマホで探す場所が同じになる。
        🔴これに伴い app.js の並び替え台帳から view-style を外す（報告タブの中にはもう居ない）。
          台帳に残したままだと存在しないidを探して黙って何もしない＝b120の「綴り違い」と同じ幽霊になる。 -->
-  <section id="view-style" class="view hidden">
-      <h2 class="sec-title">✍️ 文体ラボ</h2>
+  <!-- 🧰s82（b192・2026-11-13 松原指示②③）右下のシートの器の置き場（見えない）。✍️ 文体ラボ（#sec-style）と ⏱ 残業報告（#kintaiCard）は
+       シートを開いたときだけ中へ移し、別のシートを開くときにここへ戻す（閉じても捨てない＝書きかけが残る・ボタンの結びつけ（id）はそのまま）。
+       文体ラボのタブ（下段の2つ目）は撤去＝PC b192 でページを撤去したのと同格。 -->
+  <div id="fabPark" hidden>
       <section class="card" id="sec-style">
         <div class="muted">話した内容が、いつもの僕の文章になります。過去の実際のやり取りを手本にして、改行・絵文字・言い回しまで整えます（事実は足しません／不明は【要確認】で残ります）</div>
 
@@ -253,7 +255,28 @@
           </div>
         </div>
       </section>
-  </section>
+      <div class="card" id="kintaiCard">
+        <label class="field-label" for="ktText">自由記述で報告（マイクボタンで話すのがラク・過去の未報告日もOK）</label>
+        <textarea id="ktText" rows="5" placeholder="例）7月18日 出勤9時 退勤19時半 残業は提案資料作成&#10;例）昨日 9時半から18時 残業なし"></textarea>
+        <button class="btn btn-primary" id="btnKintaiSend">送信</button>
+        <div class="result" id="ktResult"></div>
+        <!-- 🆕2026-07-23 残業報告テンプレ（残業ありの時のみ表示→✅承認でSlackへ@channel送信。本文はサーバ側で再構築） -->
+        <div id="ktZho" class="hidden" style="margin-top:12px;border:1px solid var(--accent);border-radius:14px;padding:12px">
+          <!-- 🔴2026-07-31 松原指示：読むだけ→直せる欄へ -->
+          <div class="field-label">残業報告（直してから送れます）</div>
+          <textarea id="ktZhoTxt" rows="8" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7"></textarea>
+          <button class="btn btn-primary" id="btnZhoSend">✅ Slackへ残業報告（@channel）</button>
+          <div class="chips" style="margin-top:8px">
+            <span class="chip" id="zhoReset">↩ 型に戻す</span>
+            <span class="chip" id="zhoLearn">📚 覚えた言い回し</span>
+          </div>
+          <div class="result" id="ktZhoRes"></div>
+          <div id="mlBox" class="hidden" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
+          <div class="muted" style="margin-top:6px;font-size:12px">直して送ると、変えた言い回しを覚えて次から最初からその形で出します（日付・時刻・数字・その日の作業内容は覚えません）</div>
+        </div>
+        <div id="ktZhoNone" class="muted hidden" style="margin-top:8px;font-size:12px">残業なし＝Slackへの残業報告は不要です</div>
+      </div>
+  </div>
 
   <!-- 🔎 パイプライン＝独立タブ（2026-07-27 松原指示）。一覧はプルダウンで切替 -->
   <section id="view-pipe" class="view hidden">
@@ -365,31 +388,7 @@
     </div>
 
     <!-- 🗑s67（2026-10-16 松原「不要なので削除」）＝📝 議事録取込の枠を外した（PC 版 b172 と同格・サーバの plaudPull は残す） -->
-    <!-- 勤怠（自由記述・2026-07-23刷新：ボタン打刻廃止／音声入力主体／過去日の遡及報告OK）＝既存無傷で再配置 -->
-    <div id="view-kintai">
-      <h2 class="sec-title">⏱ 勤怠報告</h2>
-      <div class="card">
-        <label class="field-label" for="ktText">自由記述で報告（マイクボタンで話すのがラク・過去の未報告日もOK）</label>
-        <textarea id="ktText" rows="5" placeholder="例）7月18日 出勤9時 退勤19時半 残業は提案資料作成&#10;例）昨日 9時半から18時 残業なし"></textarea>
-        <button class="btn btn-primary" id="btnKintaiSend">送信</button>
-        <div class="result" id="ktResult"></div>
-        <!-- 🆕2026-07-23 残業報告テンプレ（残業ありの時のみ表示→✅承認でSlackへ@channel送信。本文はサーバ側で再構築） -->
-        <div id="ktZho" class="hidden" style="margin-top:12px;border:1px solid var(--accent);border-radius:14px;padding:12px">
-          <!-- 🔴2026-07-31 松原指示：読むだけ→直せる欄へ -->
-          <div class="field-label">残業報告（直してから送れます）</div>
-          <textarea id="ktZhoTxt" rows="8" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7"></textarea>
-          <button class="btn btn-primary" id="btnZhoSend">✅ Slackへ残業報告（@channel）</button>
-          <div class="chips" style="margin-top:8px">
-            <span class="chip" id="zhoReset">↩ 型に戻す</span>
-            <span class="chip" id="zhoLearn">📚 覚えた言い回し</span>
-          </div>
-          <div class="result" id="ktZhoRes"></div>
-          <div id="mlBox" class="hidden" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
-          <div class="muted" style="margin-top:6px;font-size:12px">直して送ると、変えた言い回しを覚えて次から最初からその形で出します（日付・時刻・数字・その日の作業内容は覚えません）</div>
-        </div>
-        <div id="ktZhoNone" class="muted hidden" style="margin-top:8px;font-size:12px">残業なし＝Slackへの残業報告は不要です</div>
-      </div>
-    </div>
+    <!-- 🗑s82（b192・2026-11-13 松原指示②）：⏱ 勤怠報告（残業報告）のカードは右下の「業務報告」→「残業報告」のシートへ移した（器は #fabPark の #kintaiCard・中身と送信の口は1つも変えていない） -->
 
     <!-- レシート＝既存無傷で再配置 -->
     <div id="view-receipt">
@@ -596,7 +595,7 @@
   <!-- 🔴s45：5つ→6つ（松原指示 2026-08-24）。並びはPC版のNAVPと同じ＝HOME→文体ラボ→…
        ラベルはPC下部タブ（TABN）と違い正式名のまま＝スマホは1枠が広い（6等分でも文字は収まる。style.css で実測済み）。 -->
   <button class="tab active" data-view="home"><span class="tab-ic">⌂</span>ホーム</button>
-  <button class="tab" data-view="style"><span class="tab-ic">✍️</span>文体ラボ</button>
+  <!-- 🗑s82（b192）文体ラボのタブを撤去＝右下の ✍️ のシートへ（下段は5つ） -->
   <button class="tab" data-view="pipe"><span class="tab-ic">🔎</span>パイプライン</button>
   <button class="tab" data-view="report"><span class="tab-ic">📝</span>報告</button>
   <button class="tab" data-view="notif"><span class="tab-ic">🔔</span>通知<span class="badge hidden" id="notifBadge"></span></button>
@@ -605,15 +604,20 @@
 
 <!-- 💬b157/s56 R4_pwa ③FAB＝右下固定（tabbar の上）。押すと下からシートが出て {api:'chatPull'} の結果（サーバでマスク済のHTML）を出す。文脈＝🔎で直近に開いた提携先（app.js の CTX） -->
 <!-- 📝s74（b182）日報ボタン＝右下の下（PC の 📋 と同じ場所）。押すと同じシートに「日付を選んで日報に書く」。🧠ロビンはその上（style.css の #fabChat） -->
-<button type="button" class="fab" id="fabNippo" aria-label="日報（外部コーチの方の Notion）に書く" aria-controls="chatSheet" aria-expanded="false">📝</button>
-<!-- 🗓s75（b183）業務カレンダー＝右下の一番上（PC の 🗓 と同じ並び）。押すと同じシートに「日付を選んで登録案→チェックした行だけカレンダーへ」（style.css の #fabGcal） -->
-<button type="button" class="fab" id="fabGcal" aria-label="業務カレンダー（記録から Google カレンダーへ）" aria-controls="chatSheet" aria-expanded="false">🗓</button>
-<button type="button" class="fab" id="fabChat" aria-label="ロビン（第二の脳）の鮮度と同期" aria-controls="chatSheet" aria-expanded="false">🧠</button>
+<!-- 🧰s82（b192・2026-11-13 松原指示②③）右下は2つ＝下が「業務報告」（#fabReport・📝＝今の日報の絵）→メニュー（#fabMenu＝日報・週報／残業報告／業務カレンダー）、その上が「文体ラボ」（#fabStyle・✍️）。
+     🗑 🗓業務カレンダー（#fabGcal）と 🧠ロビン（#fabChat）のボタンは外した（業務カレンダーはメニューから同じシート・ロビンは一旦破棄＝戻すときはここに #fabChat を戻し app.js の chatPull の結びつけを戻す） -->
+<button type="button" class="fab" id="fabReport" aria-label="業務報告（日報・週報／残業報告／業務カレンダー）" aria-haspopup="menu" aria-controls="fabMenu" aria-expanded="false">📝</button>
+<div id="fabMenu" class="fabm" role="menu" aria-label="業務報告" hidden>
+  <button type="button" role="menuitem" data-fab="nippo">日報・週報</button>
+  <button type="button" role="menuitem" data-fab="zangyo">残業報告</button>
+  <button type="button" role="menuitem" data-fab="gcal">業務カレンダー</button>
+</div>
+<button type="button" class="fab" id="fabStyle" aria-label="文体ラボ（いつもの僕の文章にする）" aria-controls="chatSheet" aria-expanded="false">✍️</button>
 <div id="chatSheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="chatSheetTitle">
   <div class="sheet-bd" id="chatSheetBd"></div>
   <div class="sheet-pn">
     <div class="sheet-hd">
-      <span class="sheet-title" id="chatSheetTitle">🧠 ロビン（第二の脳）</span>
+      <span class="sheet-title" id="chatSheetTitle">業務報告</span>
       <button type="button" class="btn sheet-x" id="chatSheetClose" aria-label="閉じる">✕</button>
     </div>
     <div class="sheet-body" id="chatSheetBody"></div>
