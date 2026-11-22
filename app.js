@@ -1151,7 +1151,7 @@ function regDraftControls(reg) {
 
 /* ==== 📝b173／s68（2026-10-16 松原指示）初診・申し送り空欄（今日以降）＝一覧→直す→送信（SF へ）。
  *   🆕b174／s69（2026-10-17 松原指示）：🤖自動生成を撤去→行ごとの開閉（▾）→承認待ちの下書き（{api:'moushiOpen'}＝Gemini を呼ばない・無ければ空の型）→「承認（SF送信）」。
- *   PC の「今日の申し送り」上部と同じ実体（{api:'moushiBlank'}／{api:'moushiOpen'}／{api:'moushiSend'}）。
+ *   PC の「診療チームへの申し送り」上部と同じ実体（{api:'moushiBlank'}／{api:'moushiOpen'}／{api:'moushiSend'}）。
  *   🔴書きかけ（中身のある textarea）があるときは読み直さない。送信は確認つき・1回だけ（押している間と送れた後は押せない）。
  *   🔴送れたときは、その行を一覧から消す（鏡は次の更新で追いつく）。r2：すでに書かれていた（filled）ときは本文を残して送信だけ止める。
  *   🔴r2：直した本文があるときの🤖押し直しは確認してから／承認待ちの下書きを出したときは、その ts（pendTs）を送信に添える。 */
@@ -1925,7 +1925,8 @@ function pipePartner(vv, nh) {
   c.appendChild(pnd('div', 'pmeta', '担当 ' + (vv.tanto || '—') + (!nh && vv.lastAct ? '　/　最終活動 ' + vv.lastAct : '')));
   const ls = pnd('div', 'psec');
   ls.appendChild(pnd('div', 'psh', '対応ステータス（新規提携の前後）'));
-  (vv.life || []).forEach((s, i) => {
+  /* 🗑s84（b194・松原指示）：⑥ 販促物提供の行と「✅ 提供済みにする」は画面から外す（PC の pipePartner と同じ・サーバの段と口は残す）。戻すときは filter を外し、s83 の控えのボタン4行を戻す */
+  (vv.life || []).filter(s => String(s.n).indexOf('販促物提供') < 0).forEach((s, i) => {
     const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
     row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
     const t = pnd('div', 'ptx');
@@ -1935,11 +1936,6 @@ function pipePartner(vv, nh) {
       const hb = pnd('button', 'pmini go', '📮 依頼文を作る');
       hb.addEventListener('click', () => pipeHansoku(vv, t, hb));
       t.appendChild(hb);
-    }
-    if (s.act === 'give' && !vv._amb) {
-      const gb = pnd('button', 'pmini', '✅ 提供済みにする');
-      gb.addEventListener('click', () => pipeStep(vv.id, 'give', gb, '✅ 提供済みにする'));
-      t.appendChild(gb);
     }
     row.appendChild(t);
     if (s.at) row.appendChild(pnd('span', 'pat', s.at));
@@ -2189,7 +2185,28 @@ if ($('plKind')) $('plKind').addEventListener('change', plKindShow);
  * ・開く＝見出しを即表示→0.2秒後にパイプライン（pipeSearch を管理番号で）。古い問い合わせは PQM.seq で捨てる。販促物はこれまでどおりブラウザ版へ案内（pipeHansoku）
  * ・サロン様の候補0件・2文字以上・変換中でない・0.7秒止まったら従来の横断検索（患者様名）。同じ語は2回撃たない
  * ・患者様のお名前は索引に入れない・端末に控えない（控えるのは管理番号とサロン名だけ）。3日以内の控えより3割超少ない索引は採らない */
-const PQM = { idx: null, fetching: false, ft: 0, t: 0, k: '', last: '', sel: [], seq: 0, p: 0 };
+/* 🔎s84（b194・2026-11-22 松原指示「すべての検索をパイプライン検索と同じ仕組みで最速に」）：患者様のお名前も打った瞬間に候補。
+ *   索引＝{api:'patientIndex'}（鏡から [お名前, 紹介元サロン名]）。🔴PQM.pat＝メモリだけ（localStorage・sessionStorage・Cache に入れない＝b193 T-32・憲法3条）。
+ *   候補1件（2文字以上）は0.2秒後にその場で開く（pipeGoM＝そのお名前で横断検索）・候補0件は今までどおり0.7秒止まってからサーバ */
+const PQM = { idx: null, fetching: false, ft: 0, t: 0, k: '', last: '', sel: [], seq: 0, p: 0, pat: null, pf: false, pt: 0, sv: '' };
+async function pqmPf() {
+  if (PQM.pat || PQM.pf || Date.now() - PQM.pt < 60000) return;
+  PQM.pf = true; PQM.pt = Date.now();
+  let r = null;
+  try { r = await api({ api: 'patientIndex' }); } catch (e) { r = null; }
+  PQM.pf = false;
+  if (!(r && r.ok && r.rows && r.rows.length)) return;
+  PQM.pat = r.rows.map(x => [String(x[0]), String(x[1] || ''), pqmNk(x[0])]);
+  const el = $('pipeQ'); if (el && el.value.trim()) pqmIn();
+}
+function pqmPo(r, fz) {
+  if (!r) return;
+  clearTimeout(PQM.t);
+  if (!fz && PQM.last === r[0]) return;
+  PQM.last = r[0]; PQM.k = ''; PQM.p = 0;
+  const pr = $('pipeRes'); if (pr) pr.style.opacity = '';
+  pipeGoM(r[0]);
+}
 function pqmNk(s) {
   s = String(s == null ? '' : s);
   try { s = s.normalize('NFKC'); } catch (e) {}
@@ -2202,6 +2219,7 @@ function pqmLoad() {
     try { const o = JSON.parse(localStorage.getItem('cpSalIdx1') || 'null'); if (o && o.rows && o.rows.length) PQM.idx = { rows: pqmPrep(o.rows), n: o.rows.length, at: o.at || 0, d: o.d || '' }; } catch (e) {}
   }
   if (!PQM.idx || Date.now() - (PQM.idx.at || 0) > 600000) pqmFetch();
+  pqmPf();   // 🔎s84 患者様のお名前の索引（メモリだけ）
 }
 async function pqmFetch() {
   if (PQM.fetching) return;
@@ -2219,16 +2237,21 @@ async function pqmFetch() {
   if (!old && el && el.value) pqmIn();
 }
 function pqmFind(q) {
-  const nq = pqmNk(q), out = { c: [], n: 0, ex: null };
-  if (!nq || !PQM.idx) return out;
+  const nq = pqmNk(q), out = { c: [], n: 0, ex: null, p: [], pn: 0 };
+  if (!nq) return out;
   const ex = [], pre = [], part = [], dg = /^[0-9]+$/.test(nq), zq = nq.replace(/^0+/, ''), m = nq.match(/^([0-9]+)[_-]?(.+)$/);
-  for (const r of PQM.idx.rows) {
+  for (const r of (PQM.idx ? PQM.idx.rows : [])) {
     if (dg) { const rz = r[0].replace(/^0+/, ''); if (zq && rz === zq) ex.push(r); else if (zq && rz.indexOf(zq) === 0) pre.push(r); continue; }   // 🧰s83（b193 T-15）先頭のゼロを剥いで比べる
     if (m && m[2].length >= 2 && Number(r[0]) === Number(m[1]) && r[2].indexOf(m[2]) >= 0) { ex.push(r); continue; }   // 番号＋名前は登録名が2文字以上を含むときだけ（b174 監査 r2 と同じ）
     if (r[2] === nq) ex.push(r); else if (r[2].indexOf(nq) === 0) pre.push(r); else if (r[2].indexOf(nq) > 0) part.push(r);
   }
   const all = ex.concat(pre, part);
   out.n = all.length; out.c = all.slice(0, 10); out.ex = (dg && ex.length === 1 && !pre.length) ? ex[0] : null;   // 🧰s83 T-15：続く番号がある間は自動で開かない（Enter で一致を開く）
+  if (PQM.pat && !dg) {   // 🔎s84 患者様のお名前（メモリの索引）＝一致→前方→部分・数字だけの語は当てない
+    const pe = [], pf = [], pa = [];
+    for (const y of PQM.pat) { if (y[2] === nq) pe.push(y); else if (y[2].indexOf(nq) === 0) pf.push(y); else if (y[2].indexOf(nq) > 0) pa.push(y); }
+    const ap = pe.concat(pf, pa); out.pn = ap.length; out.p = ap.slice(0, 10);
+  }
   return out;
 }
 function pqmMsg(t) { const c = $('pqCand'); if (!c) return; c.textContent = ''; if (t) c.appendChild(pnd('div', 'muted', t)); }
@@ -2237,9 +2260,15 @@ function pqmDraw(f, q) {
   c.textContent = ''; PQM.sel = f ? f.c : [];
   if (!f) return;
   const L1 = pqmNk(q).length;   // 🧰s83（b193 T-17）1文字のお名前は「👤 患者様名で探す」か Enter で探す（自動では撃たない）
-  if (!f.n) { if (L1 >= 2) { c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝打ち終わると患者様名で探します')); return; } if (L1) c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝1文字のお名前は下のボタンか Enter で探します')); }
+  if (!f.n && !f.pn) { if (L1 >= 2) { c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝打ち終わると患者様名で探します')); return; } if (L1) c.appendChild(pnd('div', 'muted', 'サロン様の候補はありません＝1文字のお名前は下のボタンか Enter で探します')); }
   f.c.forEach(r => { const b = pnd('button', 'chip', r[0] + '　' + r[1]); b.type = 'button'; b.style.margin = '4px 6px 0 0'; b.addEventListener('click', () => pqmOpen(r, true)); c.appendChild(b); });
   if (f.n > f.c.length) c.appendChild(pnd('div', 'muted', 'ほか ' + (f.n - f.c.length) + '件＝もう少し入れると絞れます'));
+  /* 🔎s84 監査A critical-1：お名前の候補は直近200件だけの先出し。打った語のサーバ検索を走らせたら（PQM.sv）チップは引っ込め、件数は下の結果（全件）だけ */
+  if (f.pn && PQM.sv !== q) {
+    f.p.forEach(r => { const b = pnd('button', 'chip', '👤 ' + r[0] + (r[1] ? '（' + r[1] + '）' : '')); b.type = 'button'; b.style.margin = '4px 6px 0 0'; b.addEventListener('click', () => pqmPo(r, 1)); c.appendChild(b); });
+    c.appendChild(pnd('div', 'muted', '👤 直近200件の中の候補です（全件は打つのが止まると下に出ます）' + (f.pn > f.p.length ? '・ほか ' + (f.pn - f.p.length) + '件' : '')));
+  }
+  if (f.pn && PQM.sv === q) c.appendChild(pnd('div', 'muted', '👤 患者様は下の検索結果（全件）に出ます'));
   if (L1) { const pb = pnd('button', 'chip', '👤 患者様名で探す'); pb.type = 'button'; pb.style.margin = '4px 6px 0 0'; pb.addEventListener('click', () => { clearTimeout(PQM.t); PQM.last = ''; pqmPat(1); }); c.appendChild(pb); }
 }
 function pqmIn(ev) {
@@ -2250,17 +2279,19 @@ function pqmIn(ev) {
   clearTimeout(PQM.t);
   if (PQM.p) { PQM.p = 0; PQM.k = ''; const r0 = $('pipeRes'); if (r0) r0.textContent = ''; }
   if (!q) { pqmDraw(null); const p0 = $('pipeRes'); if (p0) p0.style.opacity = ''; return; }   // r-minor-2：空にしたら薄い表示を戻す
+  if (!PQM.pat) pqmPf();
   if (!PQM.idx) {
     if (!PQM.fetching && Date.now() - PQM.ft > 60000) pqmFetch();
-    if (PQM.fetching) { pqmMsg('サロン様の索引を読み込んでいます…'); return; }
-    pqmMsg(''); if (!cmp && pqmNk(q).length >= 2) PQM.t = setTimeout(pqmPat, 700); return;
+    if (PQM.fetching && !PQM.pat) { pqmMsg('サロン様の索引を読み込んでいます…'); return; }
+    if (!PQM.pat) { pqmMsg(''); if (!cmp && pqmNk(q).length >= 2) PQM.t = setTimeout(pqmPat, 700); return; }
   }
   const f = pqmFind(q); pqmDraw(f, q);
   const pr = $('pipeRes'); if (pr) pr.style.opacity = (PQM.k && !f.c.some(r => r[0] === PQM.k)) ? '.45' : '';
   if (cmp) return;
-  if (f.n === 1) { pqmOpen(f.c[0]); return; }
+  if (f.n === 1 && !f.pn) { pqmOpen(f.c[0]); return; }
   if (f.ex) { const x = f.ex; PQM.t = setTimeout(() => pqmOpen(x), 600); return; }
-  if (!f.n && !cmp && pqmNk(q).length >= 2) PQM.t = setTimeout(pqmPat, 700);
+  /* 🔎s84 監査A critical-1・minor-2：お名前では自動で開かない。サロン様の候補が0件なら打った語のまま0.7秒後にサーバ（1回・古い答えは PQM.seq で捨てる）・サロン様の索引を読み込み中は撃たない */
+  if (!f.n && !cmp && pqmNk(q).length >= 2 && (PQM.idx || !PQM.fetching)) PQM.t = setTimeout(pqmPat, 700);
 }
 function pqmKey(ev) {
   if (!ev || ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
@@ -2275,6 +2306,7 @@ function pqmPat(fz) {
   PQM.last = q; PQM.k = ''; PQM.p = 0;
   const pr = $('pipeRes'); if (pr) pr.style.opacity = '';
   pipeGoM(q);
+  PQM.sv = q; if (PQM.pat) pqmDraw(pqmFind(q), q);   // 🔎s84 チップを引っ込める
 }
 function pqmOpen(r, force) {
   if (!r) return;
@@ -3820,13 +3852,26 @@ function calBuildAdv4() {
   ]);
 }
 
+/* 🔎s84（b194）：打った瞬間に、サロン様の索引（PQM.idx＝端末の控え cpSalIdx1・管理番号とサロン名だけ）からサロン名を入れる＝往復0。
+ *   入れた番号は dataset.k に覚え、欄を離れたときの calKanriFill は往復しない。索引に無い番号は今までどおり欄を離れたときにサーバ（kanriName） */
+function calKanriNow(kanriId, salonId) {
+  const k = ($(kanriId).value || '').trim(), D = $(salonId);
+  if (!D) return;
+  if (!/^[0-9]{1,6}$/.test(k)) { if (D.dataset.k && D.value === D.dataset.n) { D.value = ''; D.dataset.k = ''; D.dataset.n = ''; } return; }
+  if (!PQM.idx) { try { const o = JSON.parse(localStorage.getItem('cpSalIdx1') || 'null'); if (o && o.rows && o.rows.length) PQM.idx = { rows: pqmPrep(o.rows), n: o.rows.length, at: o.at || 0, d: o.d || '' }; } catch (e) {} if (!PQM.idx) { pqmFetch(); return; } }
+  const z = k.replace(/^0+/, ''), hit = PQM.idx.rows.find(r => r[0].replace(/^0+/, '') === z);
+  if (hit) { D.value = hit[1]; D.dataset.k = k; D.dataset.n = hit[1]; return; }
+  if (D.dataset.k && D.value === D.dataset.n) { D.value = ''; D.dataset.k = ''; D.dataset.n = ''; D.placeholder = 'この番号は手元の索引にありません（欄を離れると確かめます）'; }   // 🔎s84 監査A major-1：自分が入れた名前だけ消す
+}
 /* 管理番号→サロン名の自動補完（手打ちのブレが件名判定を外すのを防ぐ） */
 async function calKanriFill(kanriId, salonId) {
   const k = ($(kanriId).value || '').trim();
   if (!/^\d{3,6}$/.test(k)) return;
+  if ($(salonId).dataset.k === k && $(salonId).value) return;   // 🔎s84 打った瞬間に索引から入れた番号は往復しない
   try {
     const r = await api({ api: 'kanriName', kanri: k });
     if (r && r.name) $(salonId).value = r.name;
+    else $(salonId).placeholder = 'この番号のサロン名が見つかりません（手で入れてください）';   // 🔎s84 監査A major-1：黙らない
   } catch (e) {}
 }
 
@@ -4318,8 +4363,8 @@ function wireCal4AndStyle() {
   });
   const gg = $('btnCalMGo');
   if (gg) gg.addEventListener('click', calMultiGo);
-  const ck = $('cmKanri'); if (ck) ck.addEventListener('blur', () => calKanriFill('cmKanri', 'cmSalon'));
-  const vk = $('cvKanri'); if (vk) vk.addEventListener('blur', () => calKanriFill('cvKanri', 'cvSalon'));
+  const ck = $('cmKanri'); if (ck) { ck.addEventListener('blur', () => calKanriFill('cmKanri', 'cmSalon')); ck.addEventListener('input', () => calKanriNow('cmKanri', 'cmSalon')); }
+  const vk = $('cvKanri'); if (vk) { vk.addEventListener('blur', () => calKanriFill('cvKanri', 'cvSalon')); vk.addEventListener('input', () => calKanriNow('cvKanri', 'cvSalon')); }
   // 日付の初期値は開くたびに入れ直す（開きっぱなしで日を跨いでも前日にならない）
   ['ctDate', 'cmDate', 'cvDate'].forEach(id => {
     const e = $(id);
