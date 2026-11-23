@@ -208,10 +208,10 @@ function sndBegin(payload) {
     else if (bd && bd.parentNode) bd.parentNode.removeChild(bd);
   };
 }
-async function api(payload) {
+async function api(payload, opt) {   // 📱s85 opt.quiet＝裏の読み（押した札を「送信中」にしない）
   const sndEnd = sndBegin(payload);   // ⚡s72：二度押しはここで止まる（例外 dup）＝送らない
   let sndOk = false, sndWhy = '';
-  const finishBusy = r16BeginBusy();
+  const finishBusy = (opt && opt.quiet) ? () => {} : r16BeginBusy();   // 📱s85 監査 minor-1：一覧の先読みで PJT の札が灰色・押せないままにならない
   try {
   const k = localStorage.getItem(LS.KEY);
   if (!k) { showSetup(); throw new Error('合鍵が未設定です'); }
@@ -344,14 +344,17 @@ function piiLite4(key, d) {
   if (key === LS.NOTIF) return Object.assign({}, d, { items: (d.items || []).map(x => ({ kind: (x && x.kind) || '', date: (x && x.date) || '', status: x ? x.status : '', needAction: false, refTs: '', ts: (x && x.ts) || '', title: '…', body: '', lite: 1 })) });
   return d;
 }
-/* 紹介登録の下書き（b157:shokai:<sfp>）に残すのは rid・sfp・区分・時刻・指紋 h だけ（PC の shkLite と同じ規則・お名前・予約申込日・Plaud・その他は画面のメモリだけ） */
+/* 紹介登録の下書き（b157:shokai:<sfp>）に残すのは rid・sfp・区分・時刻・指紋 h だけ（PC の shkLite と同じ規則・お名前・予約申込日・Plaud・その他は画面のメモリだけ）
+ *   📱s85（b198）：『CRMを選択』のページID（crm）も残す（題名＝お名前は残さない）。指紋 h にも PC と同じく「|crm:<ID>」を足す＝選び直したのに前の受付のまま、を防ぐ（b197 監査 major-3）
+ *   ページIDを残す理由＝同じ受付番号の送り直しで選択が落ちると、届いていなかった1回目の代わりに新規の CRM が作られてしまうため */
 function shkLite4(d) {
-  const t = [d.name, d.apply, d.plaud, d.sonota].map(x => String(x == null ? '' : x)).join('|');
+  const t = [d.name, d.apply, d.plaud, d.sonota].map(x => String(x == null ? '' : x)).join('|') + (d.crm ? '|crm:' + d.crm : '');
   let h = 2166136261;
   for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   const o = { api: 'shokai', sfp: String(d.sfp || ''), type: d.type || '', sex: d.sex || '', flag: d.flag || '', skind: d.skind || '', h: d.h || h.toString(36), at: d.at || Date.now(), lite: 1 };
   if (d.rid) o.rid = String(d.rid);
   if (d.rebook === true) o.rebook = true;
+  if (d.crm && /^[0-9a-f-]{32,36}$/i.test(String(d.crm))) o.crm = String(d.crm);   // 📱s85 ページIDだけ
   return o;
 }
 function saveCache(key, data) {
@@ -1461,6 +1464,23 @@ function pipeOpen(host, btn, label, text) {
   host.appendChild(d);
 }
 
+/* 📱s85（b198・2026-11-23 GAS/スマホCRM選択_b198_2026-11-23/README.md）：『CRMを選択』の一覧＝{api:'crmList'}（Notion CRM の鏡・担当で絞った鏡・外部通信ゼロ）。
+ *   🔴CRMQ.rows＝メモリだけ（題名に患者様のお名前が入る＝localStorage・sessionStorage・Cache に入れない）。
+ *   2秒ルール＝PJT を押した瞬間に欄を出す・前回の中身（同じ起動の間の一覧）で即座に探せる・10分より古ければ裏で取り直す・失敗は15秒は撃ち直さない */
+const CRMQ = { rows: null, at: 0, fly: null, ng: 0, err: false };
+function crmqLoad() {
+  if (CRMQ.fly) return CRMQ.fly;
+  if (CRMQ.rows && Date.now() - CRMQ.at < 600000) return Promise.resolve(true);
+  if (CRMQ.err && Date.now() - CRMQ.ng < 15000) return Promise.resolve(!!CRMQ.rows);
+  CRMQ.fly = api({ api: 'crmList' }, { quiet: 1 }).then(r => {
+    if (!(r && r.ok && Array.isArray(r.rows))) throw new Error((r && r.msg) || '');
+    CRMQ.rows = r.rows.map(x => ({ id: String((x && x.id) || ''), title: String((x && x.title) || ''), kaku: String((x && x.kaku) || ''), phase: String((x && x.phase) || '') })).filter(x => x.id);
+    CRMQ.at = Date.now(); CRMQ.err = false;
+    return true;
+  }).catch(() => { CRMQ.err = true; CRMQ.ng = Date.now(); return !!CRMQ.rows; }).then(v => { CRMQ.fly = null; return v; });
+  return CRMQ.fly;
+}
+
 /* b157 R16_pwa_instant_BC Codex gpt-6-astra */
 function regBox(reg, opt) {
   const t = document.createDocumentFragment();
@@ -1587,10 +1607,78 @@ function regBox(reg, opt) {
           box.appendChild(chips([['shizen', '自然'], ['staff', 'スタッフ'], ['pjt', 'PJT']], flag, value => {
             flag = value;
             kindWrap.classList.toggle('hidden', flag !== 'staff');
+            crmShow();   // 📱s85 PJT のときだけ『CRMを選択』
           }));
           kindWrap.appendChild(heading('スタッフ区分'));
           kindWrap.appendChild(chips(['パートナー様割引', 'アンバサダー契約店舗スタッフ', 'アンバサダー'].map(value => [value, value]), skind, value => { skind = value; }));
           box.appendChild(kindWrap);
+          /* 📱s85（b198・2026-11-23）：PC b197 の『CRMを選択』をスマホにも（PJT のときだけ）。文言は PC と1字も違えない（番人 v203 が数える）。
+           *   選ぶと送る中身に crm（ページID）が入り、サーバ（apiShokai）が受付文に「CRM選択：<ID>」の1行を足す。
+           *   エンジンは題名にお名前が無い／題名の SF リンクが別の方／CV 済みで45日を過ぎたページを止める（何も書かない・結果は🔔通知センター）。選ばなければ今までどおり */
+          let crm = '', crmT = '', crmLock = false;
+          if (saved && saved.flag === 'pjt' && /^[0-9a-f-]{32,36}$/i.test(String(saved.crm || ''))) crm = String(saved.crm);
+          const cw = pnd('div');
+          cw.appendChild(heading('CRMを選択（任意・既存の Notion CRM を更新するとき）'));
+          const cq = pnd('input');
+          cq.type = 'text';
+          cq.placeholder = 'お名前の一部で探す（選ばなければ今までどおり）';
+          cq.setAttribute('aria-label', 'CRMを選択');
+          cq.autocomplete = 'off';
+          cq.style.fontSize = '17px';
+          cq.style.lineHeight = '1.5';
+          cw.appendChild(cq);
+          const cs = pnd('div', 'muted');
+          cs.setAttribute('role', 'status');
+          cw.appendChild(cs);
+          const cl = pnd('div', 'chips');
+          cw.appendChild(cl);
+          const crmDraw = () => {
+            cl.textContent = '';
+            cq.disabled = crmLock;
+            if (crm) {
+              if (!crmT && CRMQ.rows) { const r0 = CRMQ.rows.find(r => r.id.replace(/-/g, '') === crm.replace(/-/g, '')); if (r0) crmT = r0.title; }
+              cs.textContent = '選択中：' + (crmT || '前に選んだページ') + '（このページを更新します・新規は作りません）';
+              const x = pnd('button', 'pmini', '✕ 選択を外す');
+              x.type = 'button';
+              x.disabled = crmLock;
+              x.addEventListener('click', () => { if (crmLock) return; crm = ''; crmT = ''; crmDraw(); });
+              cl.appendChild(x);
+              return;
+            }
+            cs.textContent = '';
+            const q = String(cq.value || '').replace(/\s/g, '');
+            if (!q) return;
+            if (!CRMQ.rows) {
+              if (!CRMQ.fly && CRMQ.err && Date.now() - CRMQ.ng < 15000) { cs.textContent = 'CRM の一覧を読めませんでした（選ばなければ今までどおり）'; return; }
+              cs.textContent = '読み込んでいます…';
+              crmqLoad().then(() => { if (cw.isConnected) crmDraw(); });
+              return;
+            }
+            const hit = CRMQ.rows.filter(r => r.title.replace(/\s/g, '').indexOf(q) >= 0).slice(0, 8);
+            if (!hit.length) { cs.textContent = '見つかりません（選ばなければ今までどおり）'; return; }
+            hit.forEach(r => {
+              const b2 = pnd('button', 'pmini', r.title + (r.kaku ? '｜' + r.kaku : '') + (r.phase ? '｜' + r.phase : ''));
+              b2.type = 'button';
+              b2.disabled = crmLock || loading || peekFailed;   // 📱s85 監査 minor-2：SF からお名前を読み終えるまで選べない（題名との照合を飛ばさない）
+              b2.addEventListener('click', () => {
+                if (crmLock || loading || peekFailed) return;
+                const nm9 = String(reg.name || '').replace(/[\s　]/g, '').replace(/様/g, '');
+                if (nm9 && r.title.replace(/[\s　]/g, '').replace(/様/g, '').indexOf(nm9) < 0 && !confirm('このページの題名に「' + reg.name + '」が入っていません。別の方のページかもしれません。\n（エンジンも題名にお名前が無いページは更新せずに止めます）\nそれでも選びますか？')) return;
+                crm = r.id; crmT = r.title; cq.value = ''; crmDraw();
+              });
+              cl.appendChild(b2);
+            });
+          };
+          const crmShow = () => {
+            const on = flag === 'pjt';
+            cw.classList.toggle('hidden', !on);
+            if (!on) { crm = ''; crmT = ''; }
+            else crmqLoad().then(() => { if (cw.isConnected && (crm || cq.value)) crmDraw(); });   // 先読み（前回の中身があれば待たない）
+            crmDraw();
+          };
+          cq.addEventListener('input', crmDraw);
+          box.appendChild(cw);
+          crmShow();
           const plaudInput = pnd('textarea');
           plaudInput.rows = 2;
           field('Plaud URL', plaudInput);
@@ -1610,11 +1698,13 @@ function regBox(reg, opt) {
             locked = Array.from(box.querySelectorAll('select, textarea, button')).filter(item => item !== send)
               .map(item => ({ item, disabled: item.disabled }));
             locked.forEach(({ item }) => { item.disabled = true; });
+            crmLock = true; crmDraw();   // 📱s85 送っている間・控えの送り直しは CRM の選択も止める（送る値と画面を同じに）
           };
           const unlockInputs = () => {
             if (!locked) return;
             locked.forEach(({ item, disabled }) => { item.disabled = disabled; });
             locked = null;
+            crmLock = false; crmDraw();
           };
           const refresh = () => {
             renderSource();
@@ -1626,6 +1716,7 @@ function regBox(reg, opt) {
             duplicate.style.display = reg.dup ? '' : 'none';
             rebookBtn.style.display = reg.dup && reg.rebook && !rebook ? '' : 'none';
             send.disabled = loading || peekFailed || (!!reg.dup && !rebook);
+            crmDraw();   // 📱s85 お名前が届いたら候補を押せるように
           };
           rebookBtn.addEventListener('click', () => {
             if (!confirm('前回の受付とは別の新しい予約（キャンセル後の取り直しなど）として登録しますか？\n同じ予約をもう一度送るときは押さないでください。\n※SF の受診日が前回と同じままだと、分析シートは前回の行を使います（区分は分析シートで確かめてください）。')) return;
@@ -1653,6 +1744,7 @@ function regBox(reg, opt) {
                 const rid = 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
                 pending = { api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp, rid };
                 if (rebook) pending.rebook = true;
+                if (flag === 'pjt' && crm) pending.crm = crm;   // 📱s85『CRMを選択』（PJT のときだけ）
               } else if (pending.lite) {
                 /* 🧰s83 T-32：控え（rid と区分だけ）から送り直すときは、お名前・予約申込日は SF の照会、Plaud・その他は今の欄から足す（同じ受付番号） */
                 pending = Object.assign({}, pending, { name: reg.name, apply: reg.apply, plaud, sonota });
