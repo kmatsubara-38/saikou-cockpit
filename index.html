@@ -276,6 +276,77 @@
         </div>
         <div id="ktZhoNone" class="muted hidden" style="margin-top:8px;font-size:12px">残業なし＝Slackへの残業報告は不要です</div>
       </div>
+      <!-- 🧹s86（b200）右下の 📔・🌅・🧾 のシートの器（開いたときだけシートへ移す・閉じても書きかけが残る） -->
+      <div id="view-nippo">
+        <div class="card">
+          <div class="edit-note">ここで書く→「今日の日誌」シートへ直接反映</div>
+          <div class="edit-actions">
+            <button type="button" class="btn" id="npLoadBtn">📥 今日のシートを読み込む</button>
+            <span id="npSheetLink"></span>
+          </div>
+          <div id="npStat" class="result" role="status" style="display:none"></div>
+          <div id="npForm" style="display:none">
+            <div id="npHint" class="edit-note" style="display:none"></div>
+            <!-- 📔s76（b184・2026-10-29）：質問の欄はサーバが返した質問の一覧（qs）から毎回作る＝欄の数・文言をここに焼き込まない（app.js npBuild） -->
+            <div id="npChg" class="result" role="status" style="display:none"></div>
+            <div id="npQs"></div>
+            <div id="npOrph" class="edit-note" style="display:none"></div>
+            <label class="edit-check"><input type="checkbox" id="npForce"> 既に書かれている欄も上書きする</label>
+            <button type="button" class="btn btn-primary" id="npSaveBtn" disabled>今日の日誌シートへ書く</button>
+            <div id="npRes" class="result" role="status" style="display:none"></div>
+          </div>
+          <div class="edit-note">書くのは<b>松原の行の、見出しが「Q＋番号」の列だけ</b>です。名前の欄も、コメントの欄も、他の方の行も触りません。見出しの行・質問の列・名前の列・松原の行は<b>毎回シートの見出しから決め直します</b>（Q が増えた・減った・並びが変わった・列が挿入された・タブ名が変わった、は自動で合わせて1行で知らせます）。書く直前にも見出しを読み直し、読み込んだ後に変わっていたら書きません。止まるのは、見出しの行が無い・同じ Q 番号が2列・松原の行が0行か2行以上、のときだけです。既に書かれている欄は上書きせずスキップします（上の印を入れたときだけ上書き）。書いた直後に<b>もう一度読み直して一致を確かめて</b>から「完了」と出します。書きかけは見出しの文で端末に控えます。</div>
+        </div>
+      </div>
+      <div id="view-shukkin">
+        <div class="card">
+          <div class="two-col">
+            <div><label class="field-label" for="skDate">日付</label><input type="date" id="skDate"></div>
+            <div><label class="field-label" for="skTime">出勤時刻</label><input type="text" id="skTime" placeholder="9:30" inputmode="numeric"></div>
+          </div>
+          <div id="skBox" class="hidden" style="margin-top:12px;border:1px solid var(--accent);border-radius:14px;padding:12px">
+            <!-- 🔴2026-07-31 松原指示：読むだけ→直せる欄へ。直した言い回しは次から最初から出る -->
+            <div class="field-label">出勤時間報告（直してから送れます）</div>
+            <textarea id="skTxt" rows="6" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7"></textarea>
+            <button class="btn btn-primary" id="btnSkSend">✅ Slackへ出勤時間報告（@channel）</button>
+            <div class="chips" style="margin-top:8px">
+              <span class="chip" id="skReset">↩ 型に戻す</span>
+              <span class="chip" id="skLearn">📚 覚えた言い回し</span>
+            </div>
+            <div class="result" id="skRes"></div>
+            <div id="mlBox2" class="hidden" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
+            <div class="muted" style="margin-top:6px;font-size:12px">直して送ると、変えた言い回しを覚えて次から最初からその形で出します（日付・時刻・数字・その日の作業内容は覚えません）</div>
+          </div>
+          <div class="muted" style="margin-top:8px;font-size:12px">本人名義・@channel付きで出勤報告チャンネルへ。日付を変えれば未来/過去日もOK</div>
+        </div>
+      </div>
+      <div id="view-receipt">
+        <div class="card">
+          <div class="seg" id="rcTarget">
+            <button class="seg-btn active" data-v="keihi">経費</button>
+            <button class="seg-btn" data-v="card">カード</button>
+          </div>
+          <label class="file-drop" for="rcFile">
+            <input type="file" id="rcFile" accept="image/*" hidden>
+            <span id="rcFileLabel">📷 撮影 / 画像を選択</span>
+          </label>
+          <img id="rcPreview" class="rc-preview hidden" alt="">
+          <button class="btn btn-primary" id="btnSendReceipt" disabled>送信</button>
+          <div class="result" id="rcResult"></div>
+          <!-- 🧹s86（b200・松原指示④）PC の Reports に在った「📤 月次報告をSlackへ」をここへ（同じ口 apiKeihiDraft／apiKeihiSend・押すまで送らない） -->
+          <div class="field-label" style="margin-top:14px">📤 月次報告をSlackへ（立替経費＋法人カードをPDFで添えて #経費精算 へ）</div>
+          <div class="two-col">
+          <div><label class="field-label" for="krYm">対象月</label><input type="text" id="krYm" inputmode="numeric" placeholder="例）2026-10（空なら先月）"></div>
+          <div><button type="button" class="btn" id="btnKrDraft" style="margin-top:22px">下書きをつくる</button></div>
+          </div>
+          <div id="krBox" class="hidden">
+          <div class="muted" id="krFiles" style="font-size:12px;margin:6px 0"></div>
+          <textarea id="krText" rows="8"></textarea>
+          <button type="button" class="btn btn-primary" id="btnKrSend">📤 この内容で送信</button>
+          </div>
+          <div class="result" id="krRes"></div>
+        </div>
+      </div>
   </div>
 
   <!-- 🔎 パイプライン＝独立タブ（2026-07-27 松原指示）。一覧はプルダウンで切替 -->
@@ -336,77 +407,15 @@
     <div id="notifList"><div class="muted pad">読み込み中…</div></div>
   </section>
 
-  <!-- 📝報告（勤怠＋レシート＋紹介登録＋カレンダー登録の縦積み） -->
+  <!-- 📝報告（🧹s86：予定を登録＋候補日時ファインダー。日誌・出勤・レシートは右下の丸ボタンへ・GBP投稿はブラウザ版だけ） -->
   <section id="view-report" class="view hidden">
 
-    <!-- 🆕2026-07-24 出勤時間報告（フレックス）＝日付+時刻→テンプレ承認→Slack C054KRTSF8T へ@channel（本人名義・本文はサーバ再構築） -->
-    <div id="view-nippo">
-      <h2 class="sec-title">📔 日誌</h2>
-      <div class="card">
-        <div class="edit-note">ここで書く→「今日の日誌」シートへ直接反映</div>
-        <div class="edit-actions">
-          <button type="button" class="btn" id="npLoadBtn">📥 今日のシートを読み込む</button>
-          <span id="npSheetLink"></span>
-        </div>
-        <div id="npStat" class="result" role="status" style="display:none"></div>
-        <div id="npForm" style="display:none">
-          <div id="npHint" class="edit-note" style="display:none"></div>
-          <!-- 📔s76（b184・2026-10-29）：質問の欄はサーバが返した質問の一覧（qs）から毎回作る＝欄の数・文言をここに焼き込まない（app.js npBuild） -->
-          <div id="npChg" class="result" role="status" style="display:none"></div>
-          <div id="npQs"></div>
-          <div id="npOrph" class="edit-note" style="display:none"></div>
-          <label class="edit-check"><input type="checkbox" id="npForce"> 既に書かれている欄も上書きする</label>
-          <button type="button" class="btn btn-primary" id="npSaveBtn" disabled>今日の日誌シートへ書く</button>
-          <div id="npRes" class="result" role="status" style="display:none"></div>
-        </div>
-        <div class="edit-note">書くのは<b>松原の行の、見出しが「Q＋番号」の列だけ</b>です。名前の欄も、コメントの欄も、他の方の行も触りません。見出しの行・質問の列・名前の列・松原の行は<b>毎回シートの見出しから決め直します</b>（Q が増えた・減った・並びが変わった・列が挿入された・タブ名が変わった、は自動で合わせて1行で知らせます）。書く直前にも見出しを読み直し、読み込んだ後に変わっていたら書きません。止まるのは、見出しの行が無い・同じ Q 番号が2列・松原の行が0行か2行以上、のときだけです。既に書かれている欄は上書きせずスキップします（上の印を入れたときだけ上書き）。書いた直後に<b>もう一度読み直して一致を確かめて</b>から「完了」と出します。書きかけは見出しの文で端末に控えます。</div>
-      </div>
-    </div>
+    <!-- 🧹s86（b200・2026-11-25 松原指示④⑤⑥）：📔 日誌・🌅 出勤時間報告・🧾 レシート送信のカードは右下の丸ボタンのシートへ移した（器は #fabPark の #view-nippo／#view-shukkin／#view-receipt・中身と送信の口は1つも変えていない・見出しはシートの題名） -->
 
-    <div id="view-shukkin">
-      <h2 class="sec-title">🌅 出勤時間報告</h2>
-      <div class="card">
-        <div class="two-col">
-          <div><label class="field-label" for="skDate">日付</label><input type="date" id="skDate"></div>
-          <div><label class="field-label" for="skTime">出勤時刻</label><input type="text" id="skTime" placeholder="9:30" inputmode="numeric"></div>
-        </div>
-        <div id="skBox" class="hidden" style="margin-top:12px;border:1px solid var(--accent);border-radius:14px;padding:12px">
-          <!-- 🔴2026-07-31 松原指示：読むだけ→直せる欄へ。直した言い回しは次から最初から出る -->
-          <div class="field-label">出勤時間報告（直してから送れます）</div>
-          <textarea id="skTxt" rows="6" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7"></textarea>
-          <button class="btn btn-primary" id="btnSkSend">✅ Slackへ出勤時間報告（@channel）</button>
-          <div class="chips" style="margin-top:8px">
-            <span class="chip" id="skReset">↩ 型に戻す</span>
-            <span class="chip" id="skLearn">📚 覚えた言い回し</span>
-          </div>
-          <div class="result" id="skRes"></div>
-          <div id="mlBox2" class="hidden" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px"></div>
-          <div class="muted" style="margin-top:6px;font-size:12px">直して送ると、変えた言い回しを覚えて次から最初からその形で出します（日付・時刻・数字・その日の作業内容は覚えません）</div>
-        </div>
-        <div class="muted" style="margin-top:8px;font-size:12px">本人名義・@channel付きで出勤報告チャンネルへ。日付を変えれば未来/過去日もOK</div>
-      </div>
-    </div>
 
     <!-- 🗑s67（2026-10-16 松原「不要なので削除」）＝📝 議事録取込の枠を外した（PC 版 b172 と同格・サーバの plaudPull は残す） -->
     <!-- 🗑s82（b192・2026-11-13 松原指示②）：⏱ 勤怠報告（残業報告）のカードは右下の「業務報告」→「残業報告」のシートへ移した（器は #fabPark の #kintaiCard・中身と送信の口は1つも変えていない） -->
 
-    <!-- レシート＝既存無傷で再配置 -->
-    <div id="view-receipt">
-      <h2 class="sec-title">🧾 レシート送信</h2>
-      <div class="card">
-        <div class="seg" id="rcTarget">
-          <button class="seg-btn active" data-v="keihi">経費</button>
-          <button class="seg-btn" data-v="card">カード</button>
-        </div>
-        <label class="file-drop" for="rcFile">
-          <input type="file" id="rcFile" accept="image/*" hidden>
-          <span id="rcFileLabel">📷 撮影 / 画像を選択</span>
-        </label>
-        <img id="rcPreview" class="rc-preview hidden" alt="">
-        <button class="btn btn-primary" id="btnSendReceipt" disabled>送信</button>
-        <div class="result" id="rcResult"></div>
-      </div>
-    </div>
 
     <!-- 🆕カレンダー登録（自由記述→calParse→下書き承認→calCreate） -->
     <div id="view-cal4">
@@ -597,7 +606,8 @@
   <button class="tab active" data-view="home"><span class="tab-ic">⌂</span>ホーム</button>
   <!-- 🗑s82（b192）文体ラボのタブを撤去＝右下の ✍️ のシートへ（下段は5つ） -->
   <button class="tab" data-view="pipe"><span class="tab-ic">🔎</span>パイプライン</button>
-  <button class="tab" data-view="report"><span class="tab-ic">📝</span>報告</button>
+  <!-- 🧹s86（b200 松原指示⑦）：日誌・出勤・レシートを右下へ移したあと、このタブに残るのは「🗓 予定を登録」と「🗓 候補日時ファインダー」（ほかに置き場が無い）＝タブは残し、名前を中身に合わせて「予定」に（中の id は report のまま） -->
+  <button class="tab" data-view="report"><span class="tab-ic">🗓</span>予定</button>
   <button class="tab" data-view="notif"><span class="tab-ic">🔔</span>通知<span class="badge hidden" id="notifBadge"></span></button>
   <button class="tab" data-view="more"><span class="tab-ic">⋯</span>その他</button>
 </nav>
@@ -606,13 +616,16 @@
 <!-- 📝s74（b182）日報ボタン＝右下の下（PC の 📋 と同じ場所）。押すと同じシートに「日付を選んで日報に書く」。🧠ロビンはその上（style.css の #fabChat） -->
 <!-- 🧰s82（b192・2026-11-13 松原指示②③）右下は2つ＝下が「業務報告」（#fabReport・📝＝今の日報の絵）→メニュー（#fabMenu＝日報・週報／残業報告／業務カレンダー）、その上が「文体ラボ」（#fabStyle・✍️）。
      🗑 🗓業務カレンダー（#fabGcal）と 🧠ロビン（#fabChat）のボタンは外した（業務カレンダーはメニューから同じシート・ロビンは一旦破棄＝戻すときはここに #fabChat を戻し app.js の chatPull の結びつけを戻す） -->
-<button type="button" class="fab" id="fabReport" aria-label="業務報告（日報・週報／残業報告／業務カレンダー）" aria-haspopup="menu" aria-controls="fabMenu" aria-expanded="false">📝</button>
+<button type="button" class="fab" id="fabReport" aria-label="業務報告（残業報告）" aria-haspopup="menu" aria-controls="fabMenu" aria-expanded="false">📝</button>
 <div id="fabMenu" class="fabm" role="menu" aria-label="業務報告" hidden>
-  <button type="button" role="menuitem" data-fab="nippo">日報・週報</button>
   <button type="button" role="menuitem" data-fab="zangyo">残業報告</button>
-  <button type="button" role="menuitem" data-fab="gcal">業務カレンダー</button>
 </div>
 <button type="button" class="fab" id="fabStyle" aria-label="文体ラボ（いつもの僕の文章にする）" aria-controls="chatSheet" aria-expanded="false">✍️</button>
+<!-- 🧹s86（b200・2026-11-25 松原指示①②④⑤⑥）業務報告のメニューから「日報・週報」「業務カレンダー」を外した（毎朝の自動が同じ処理をする・シートの中身と口は残す）。
+     右下は下から 業務報告（残業報告）→ 文体ラボ → 📔 日誌 → 🌅 出勤時間報告 → 🧾 レシート（縦に並べる＝重ならない・位置は style.css）。PC は 📔 日誌だけ（出勤・レシートはスマホだけ） -->
+<button type="button" class="fab" id="fabNikki" aria-label="日誌（今日の日誌シートへ）" aria-controls="chatSheet" aria-expanded="false">📔</button>
+<button type="button" class="fab" id="fabShukkin" aria-label="出勤時間報告（フレックス出勤を Slack へ）" aria-controls="chatSheet" aria-expanded="false">🌅</button>
+<button type="button" class="fab" id="fabReceipt" aria-label="レシート報告（写真→OCR転記まで自動）" aria-controls="chatSheet" aria-expanded="false">🧾</button>
 <div id="chatSheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="chatSheetTitle">
   <div class="sheet-bd" id="chatSheetBd"></div>
   <div class="sheet-pn">

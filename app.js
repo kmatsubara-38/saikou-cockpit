@@ -164,7 +164,7 @@ const SNDW = { taskSave: 'a', taskDelete: 'b', taskEvSave: 'a', notifReadAll: 'a
   nippoSheetSave: 'a', styleTeach: 'a', styleTeachMulti: 'a', moushiSkip: 'b',
   taskStatus: 'q', notifRead: 'q', intelStatus: 'q',
   approve: 'c', zangyoReport: 'c', shukkinReport: 'c', advSave: 'c', moushiSend: 'c', moushiRegen: 'd', pipeFb: 'c', pipeStep: 'c', receipt: 'c',
-  calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c', nippoCoach: 'c', gyomuCalPut: 'c',
+  keihiSend: 'c', calCreate: 'c', calMulti: 'c', schedEvSave: 'c', schedEvDelete: 'c', bookDelete: 'c', hansokuSend: 'c', nippoCoach: 'c', gyomuCalPut: 'c',
   kintaiFree: 'd', shokai: 'd',
   bookScan: 'f15', robinSyncLine: 'f20', gyomuCalPlan: 'f20', styleHarvest: 'f13', styleRefresh: 'f10' };
 const SNDL = { a: '保存中…', b: '保存中…', c: '送信中…', d: '受け付けています…' };
@@ -355,6 +355,7 @@ function shkLite4(d) {
   if (d.rid) o.rid = String(d.rid);
   if (d.rebook === true) o.rebook = true;
   if (d.crm && /^[0-9a-f-]{32,36}$/i.test(String(d.crm))) o.crm = String(d.crm);   // 📱s85 ページIDだけ
+  if (d.advNotion === true) o.advNotion = true;   // 🧹s86（b200 ⑩）受診アドバイザー対応あり（控えから送り直しても落とさない）
   return o;
 }
 function saveCache(key, data) {
@@ -419,9 +420,8 @@ document.querySelectorAll('.tab').forEach(btn => {
    *   s43の経緯＝報告タブ内で🔥の先頭に置いていた。実装も配信も正しく届いていた（実機で「· s44」を確認）が、
    *   松原が探した場所と違った＝欠けていたのは機能ではなく**入口**だった。 */
   ['view-slotf', 'view-cal4'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
-  frag.appendChild(cap('🛡 毎日の運用'));
   /* 🗑s82（b192）'view-kintai'（勤怠報告）は台帳から外した＝右下の「業務報告」→「残業報告」のシートへ（器は #kintaiCard）。実在しない id を台帳に残さない */
-  ['view-nippo', 'view-shukkin', 'view-receipt'].forEach(id => { const s = document.getElementById(id); if (s) frag.appendChild(s); });
+  /* 🧹s86（b200・松原指示④⑤⑥）'view-nippo'・'view-shukkin'・'view-receipt' と「🛡 毎日の運用」の見出しも台帳から外した＝右下の 📔・🌅・🧾 のシートへ（器は #fabPark） */
   rep.insertBefore(frag, rep.firstChild);
   rep.querySelectorAll(':scope > div[id^="view-"]').forEach(sec => {
     /* ✍️s45：s43にあった `if (sec.id === 'view-style') return;`（文体ラボだけ畳まない）は**削除**した。
@@ -1686,6 +1686,15 @@ function regBox(reg, opt) {
           sonotaInput.rows = 2;
           field('その他', sonotaInput);
           if (saved) { plaudInput.value = saved.plaud || ''; sonotaInput.value = saved.sonota || ''; }   // 🧰s83 T-32：控えに無い＝空
+          /* 🧹s86（b200・2026-11-25 松原指示⑩）「受診アドバイザー対応あり」（既定は外れ）＝荷物の advNotion（true／false）。Notion CRM へ書くのはエンジン（advNotion を読む）。
+           *   控え（pending）から送り直すときは控えの値＝送る値と画面の印を同じに（送っている間は止める） */
+          const advWrap = pnd('label', 'edit-check');
+          const advChk = document.createElement('input');
+          advChk.type = 'checkbox';
+          advChk.checked = !!(pending && pending.advNotion === true);
+          advWrap.appendChild(advChk);
+          advWrap.appendChild(document.createTextNode(' 受診アドバイザー対応あり'));
+          box.appendChild(advWrap);
           const send = pnd('button', 'btn btn-primary', '分析シートに登録する');
           send.type = 'button';
           send.style.fontSize = '17px';
@@ -1695,7 +1704,7 @@ function regBox(reg, opt) {
           let locked = null;
           const lockInputs = () => {
             if (locked) return;
-            locked = Array.from(box.querySelectorAll('select, textarea, button')).filter(item => item !== send)
+            locked = Array.from(box.querySelectorAll('select, textarea, button, input[type="checkbox"]')).filter(item => item !== send)   // 🧹s86 受診アドバイザー対応ありも止める
               .map(item => ({ item, disabled: item.disabled }));
             locked.forEach(({ item }) => { item.disabled = true; });
             crmLock = true; crmDraw();   // 📱s85 送っている間・控えの送り直しは CRM の選択も止める（送る値と画面を同じに）
@@ -1742,7 +1751,7 @@ function regBox(reg, opt) {
             try {
               if (!pending) {
                 const rid = 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-                pending = { api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp, rid };
+                pending = { api:'shokai', name:reg.name, apply:reg.apply, type, sex, flag, skind, plaud, sonota, sfp:reg.sfp, rid, advNotion: !!advChk.checked };   // 🧹s86 ⑩
                 if (rebook) pending.rebook = true;
                 if (flag === 'pjt' && crm) pending.crm = crm;   // 📱s85『CRMを選択』（PJT のときだけ）
               } else if (pending.lite) {
@@ -1839,6 +1848,17 @@ function regBox(reg, opt) {
 }
 
 /* 🧰s82（b192①）nh＝行（plPatientRow）の中で開いたとき。名前・札・紹介元は行の見出しに出ている＝ここでは出さない（流入・次回来院だけ残す）＝PC の pipePatient(p,1) と同じ */
+/* 🧹s86（b200・2026-11-25 松原指示⑧⑩）段の見せ方＝名前に ng の語を含む段を外し、残りを①から振り直す（サーバの段・データ・口は残す）。PC の cpVis と同じ規則 */
+function cpVis4(a, ng) {
+  const o = [];
+  (a || []).forEach(s => {
+    const n = String((s && s.n) || '');
+    if (ng.some(w => n.indexOf(w) >= 0)) return;
+    o.push(Object.assign({}, s, { n: '①②③④⑤⑥⑦⑧⑨⑩'.charAt(o.length) + ' ' + n.replace(/^[①-⑳] ?/, '') }));
+  });
+  return o;
+}
+const PAT_HIDE4 = ['予約申し込み', 'フィードバック実施'], LIFE_HIDE4 = ['日程調整', '新規商談', '提携申込', '販促物提供'];
 function pipePatient(p, nh) {
   const c = pnd('div', 'pcard');
   const h = pnd('h4');
@@ -1849,7 +1869,7 @@ function pipePatient(p, nh) {
   if (p.source) m += (m ? '　/　' : '') + p.source;
   if (p.nextVisit) m += (m ? '　/　' : '') + '次回来院 ' + p.nextVisit;
   if (m) c.appendChild(pnd('div', 'pmeta', m));
-  (p.steps || []).forEach((s, i) => {
+  cpVis4(p.steps, PAT_HIDE4).forEach((s, i) => {   // 🧹s86 ⑩
     const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
     row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
     const t = pnd('div', 'ptx');
@@ -2018,7 +2038,7 @@ function pipePartner(vv, nh) {
   const ls = pnd('div', 'psec');
   ls.appendChild(pnd('div', 'psh', '対応ステータス（新規提携の前後）'));
   /* 🗑s84（b194・松原指示）：⑥ 販促物提供の行と「✅ 提供済みにする」は画面から外す（PC の pipePartner と同じ・サーバの段と口は残す）。戻すときは filter を外し、s83 の控えのボタン4行を戻す */
-  (vv.life || []).filter(s => String(s.n).indexOf('販促物提供') < 0).forEach((s, i) => {
+  cpVis4(vv.life, LIFE_HIDE4).forEach((s, i) => {   // 🧹s86 ⑧（販促物提供は s84 から）
     const row = pnd('div', 'pstep' + (i === 0 ? ' first' : ''));
     row.appendChild(pnd('span', 'pdot', s.done ? '✅' : '⬜'));
     const t = pnd('div', 'ptx');
@@ -2128,12 +2148,12 @@ function plPatientRow(p) {
   if (p.status) h.appendChild(pnd('span', 'ppill ok', p.status));
   if (p.kubun) h.appendChild(pnd('span', 'ppill' + (p.kubun === 'PJT' ? ' ok' : ''), p.kubun));
   c.appendChild(h);
-  const st = p.steps || [];
+  const s0 = (p.steps || [])[0], st = cpVis4(p.steps, PAT_HIDE4);   // 🧹s86 ⑩ 進捗は見せている段で数える（受診日時の1行は行の見出しに残す）
   let dn = 0;
   st.forEach(x => { if (x.done) dn++; });
   let m = p.partnerName ? ('紹介元 ' + p.partnerName + (p.kanri ? '（#' + p.kanri + '）' : '')) : '紹介元 —';
   m += '　/　進捗 ' + dn + '/' + st.length;
-  if (st[0] && st[0].sub) m += '　/　' + st[0].sub;
+  if (s0 && s0.sub) m += '　/　' + s0.sub;
   c.appendChild(pnd('div', 'pmeta', m));
   const b = pnd('button', 'pmini', 'この患者様の進捗を開く');
   const w = pnd('div');
@@ -2149,6 +2169,97 @@ function plPatientRow(p) {
   return c;
 }
 
+/* 🧹s86（b200・2026-11-25 松原指示⑧）「この提携先の全体を開く」を押した瞬間に中身を出す（PC の salonJs の pdBind と同じ型）。
+ *   ・先読み＝ボタンに指を置いた（pointerdown／touchstart）・Tab で来た（focus）ときに {api:'partnerDetail'} を1本だけ（同じ提携先は同時に1本）。一覧を描いただけでは取らない
+ *   ・押した瞬間＝メモリ（PDC4・3分以内）に在ればそれ、無ければ行の情報（担当・次回アクション）の骨組みを即座に出し、届いたら差し替える
+ *   ・🔴メモリだけ（患者様のお名前が入る＝localStorage に入れない） */
+const PDC4 = {}, PDI4 = {}, PDB4 = {};
+/* 🧹s86（b200・監査の直し）PC の pdQ／pdBatch／pdGet と同じ型。
+ *   一覧の行を結ぶたびに id を待ち行列へ→描き終わった直後に {api:'partnerDetailBatch', ids} を1回だけ（quiet＝押した札を送信中にしない）。届いた中身は取った時刻つきでメモリへ。
+ *   押した瞬間＝メモリに在れば「hh時mm分 時点」を添えて即描き、裏で個別の最新を1回取り直して差し替える。無ければ骨組み＋個別の取得（まとめの返事を待たない） */
+let PDQ4 = [], PDT4 = 0;
+const pdHm4 = t => { const d = new Date(t); return d.getHours() + '時' + ('0' + d.getMinutes()).slice(-2) + '分'; };
+const pdFresh4 = id => { const h = PDC4[id]; return !!(h && !h.b && Date.now() - h.at < 180000); };
+function pdQ4(id) {
+  const h = PDC4[id];
+  if ((h && Date.now() - h.at < 600000) || PDB4[id] || PDI4[id]) return;
+  PDQ4.push(id);
+  if (!PDT4) PDT4 = setTimeout(pdBatch4, 0);
+}
+function pdBatch4() {
+  PDT4 = 0;
+  const ids = PDQ4.splice(0, 50); PDQ4 = [];
+  if (!ids.length) return;
+  ids.forEach(id => { PDB4[id] = 1; });
+  api({ api: 'partnerDetailBatch', ids }, { quiet: 1 }).then(r => {
+    const it = (r && r.items) || {};
+    ids.forEach(id => { delete PDB4[id]; const v = it[id]; if (v && v.p && !(PDC4[id] && PDC4[id].at >= v.at)) PDC4[id] = { r: { ok: true, partner: v.p }, at: v.at, b: 1 }; });
+  }, () => { ids.forEach(id => { delete PDB4[id]; }); });
+}
+/* 🧹s86（再監査 major）：pre＝押す前の先読み（サーバが予算を超えた日は skip）。押した側は skip を受けたら pre なしで取り直す */
+function pdGet4(id, pre) {
+  if (PDI4[id]) return pre ? PDI4[id] : PDI4[id].then(r => (r && r.skip) ? pdGet4(id) : r);
+  PDI4[id] = api(pre ? { api: 'partnerDetail', recordId: id, pre: 1 } : { api: 'partnerDetail', recordId: id }, pre ? { quiet: 1 } : undefined)
+    .then(r => { if (r && r.partner) PDC4[id] = { r, at: Date.now() }; return r; })
+    .finally(() => { delete PDI4[id]; });
+  return PDI4[id];
+}
+function pdShell4(it) {
+  const c = pnd('div', 'pcard');
+  c.appendChild(pnd('div', 'pmeta', '担当 ' + (it.tanto || '—')));
+  const ls = pnd('div', 'psec');
+  ls.appendChild(pnd('div', 'psh', '対応ステータス（新規提携の前後）'));
+  ls.appendChild(pnd('div', 'psub', '読み込み中…（Salesforce・数秒）'));
+  c.appendChild(ls);
+  if (it.nextNote || it.nextDate) {
+    const na = pnd('div', 'psec');
+    na.appendChild(pnd('div', 'psh', '次回アクション'));
+    na.appendChild(pnd('div', 'psub', (it.nextDate ? it.nextDate + '　' : '') + (it.nextNote || '')));
+    c.appendChild(na);
+  }
+  return c;
+}
+function pdShow4(w, r, at) {
+  w.textContent = '';
+  if (r && r.partner) {
+    if (at) { const n = pnd('div', 'muted', '📌 ' + pdHm4(at) + ' 時点の内容（最新を確かめています…）'); w.appendChild(n); w._n = n; w._sh = 3; } else { w._n = null; w._sh = 0; }
+    w.appendChild(pipePartner(r.partner, 1)); return;
+  }
+  w.appendChild(pnd('div', 'muted', (r && r.msg) || '取得できませんでした（もう一度押すと取り直します）')); w._sh = 2;
+}
+function pdBind4(it, b, w) {
+  const L0 = 'この提携先の全体を開く';
+  const pre = () => { const h = PDC4[it.id]; if (!pdFresh4(it.id) && !(h && h.b) && !PDB4[it.id]) pdGet4(it.id, true).catch(() => {}); };   // 🧹s86 再監査：まとめの中身が手元に在る・まとめを待っている提携先には先読みしない
+  pdQ4(it.id);   // 🧹s86 一覧を描き終わった直後に1回だけまとめて
+  b.addEventListener('pointerdown', pre);
+  b.addEventListener('touchstart', pre, { passive: true });
+  b.addEventListener('focus', pre);
+  b.addEventListener('click', () => {
+    if (w.hasChildNodes() && w._sh !== 2) {
+      const o = w.style.display === 'none';
+      w.style.display = o ? '' : 'none';
+      b.textContent = o ? '閉じる' : L0;
+      return;
+    }
+    w.style.display = '';
+    b.textContent = '閉じる';
+    const h = PDC4[it.id];
+    if (h) {
+      if (pdFresh4(it.id)) { pdShow4(w, h.r); return; }
+      const s0 = JSON.stringify(h.r.partner), at0 = h.at;
+      pdShow4(w, h.r, at0);
+      pdGet4(it.id).then(r => {
+        if (w._sh !== 3) return;
+        if (r && r.partner) { if (JSON.stringify(r.partner) === s0) { if (w._n) w._n.textContent = ''; w._sh = 0; } else pdShow4(w, r); }
+      }, () => { if (w._sh === 3 && w._n) { w._n.textContent = '⚠️ 最新に更新できませんでした（' + pdHm4(at0) + ' 時点の内容）'; w._sh = 0; } });
+      return;
+    }
+    w.textContent = '';
+    w.appendChild(pdShell4(it));
+    w._sh = 1;
+    pdGet4(it.id).then(r => { if (w._sh === 1) pdShow4(w, r); }, e => { if (w._sh === 1) pdShow4(w, { msg: e.message }); });
+  });
+}
 function plPartnerRow(it) {
   const c = pnd('div', 'pcard');
   const h = pnd('h4');
@@ -2165,23 +2276,7 @@ function plPartnerRow(it) {
   const b = pnd('button', 'pmini', 'この提携先の全体を開く');
   const w = pnd('div');
   w.style.display = 'none';
-  b.addEventListener('click', async () => {
-    if (w.hasChildNodes()) {
-      const o = w.style.display === 'none';
-      w.style.display = o ? '' : 'none';
-      b.textContent = o ? '閉じる' : 'この提携先の全体を開く';
-      return;
-    }
-    b.disabled = true;
-    b.textContent = '読込中…';
-    try {
-      const r = await api({ api: 'partnerDetail', recordId: it.id });
-      w.appendChild(pipePartner(r.partner, 1));
-      w.style.display = '';
-      b.textContent = '閉じる';
-    } catch (e) { b.textContent = 'この提携先の全体を開く'; showErr(e.message); }
-    finally { b.disabled = false; }
-  });
+  pdBind4(it, b, w);   // 🧹s86 ⑧ 押してから通信しない（先読みとメモリ）
   c.appendChild(b);
   c.appendChild(w);
   return c;
@@ -2207,7 +2302,7 @@ async function plLoad(kind) {
     /* 🆕b163（PC と同格）：②の索引が無い・古い＝裏で作らせ、できたら */
     if (kind !== 'Partner' && r.regIdxNeed && !window._riW) {
       window._riW = 1;
-      const rn = pnd('div', 'muted', '📝 ② 分析シート登録の索引を作っています（10秒ほど）…');
+      const rn = pnd('div', 'muted', '📝 ① 分析シート登録の索引を作っています（10秒ほど）…');
       host.insertBefore(rn, host.firstChild);
       api({ api: 'regIdxWarm' })
         .then(x => {
@@ -2215,7 +2310,7 @@ async function plLoad(kind) {
           /* 🆕b164（監査 b163 minor-1）：開いている進捗（「閉じる」ボタン）があれば描き直さず、押せば更新するボタンを出す＝書きかけを消さない */
           if ([...host.querySelectorAll('button.pmini')].some(b => b.textContent === '閉じる')) {
             rn.textContent = '';
-            const ub = pnd('button', 'pmini', '↻ 一覧を更新（②の登録の有無が分かりました）');
+            const ub = pnd('button', 'pmini', '↻ 一覧を更新（①の登録の有無が分かりました）');
             ub.type = 'button';
             ub.addEventListener('click', () => plLoad(kind));
             rn.appendChild(ub);
@@ -2468,6 +2563,36 @@ async function pipeGoM(q) {
 
 /* ==== レシート ==== */
 let rcB64 = null, rcName = null;
+/* 🧹s86（b200・2026-11-25 松原指示④）📤 月次報告をSlackへ＝PC の Reports の krDraft／krSend と同じ口（{api:'keihiDraft'}／{api:'keihiSend'}）。
+ *   下書き→本文を直す→「この内容で送信」を押すと「#経費精算 へ送る・取り消せない」の確認（PC b199 の krSend と同じ・監査 major-4）→ はいのときだけ送る。送れたら本文と送信ボタンを下ろす */
+let krFiles4 = [];
+if ($('btnKrDraft')) $('btnKrDraft').addEventListener('click', async () => {
+  const b = $('btnKrDraft'), res = $('krRes');
+  b.disabled = true; res.className = 'result'; res.textContent = '下書きをつくっています…';
+  try {
+    const r = await api({ api: 'keihiDraft', ym: ($('krYm') || {}).value || '' });
+    krFiles4 = r.files || [];
+    if ($('krYm') && r.ym) $('krYm').value = r.ym;
+    $('krText').value = r.text || '';
+    $('krFiles').textContent = '添付：' + (krFiles4.map(f => f.name).join('・') || 'なし') + ((r.warn || []).length ? '　⚠️ ' + r.warn.join('／') : '');
+    $('krBox').classList.remove('hidden'); $('btnKrSend').classList.remove('hidden');
+    res.textContent = r.label ? r.label + 'の下書きです（直してから送れます・押すまで送りません）' : '';
+  } catch (e) { res.className = 'result ng'; res.textContent = e.message; }
+  finally { b.disabled = false; }
+});
+if ($('btnKrSend')) $('btnKrSend').addEventListener('click', async () => {
+  const b = $('btnKrSend'), res = $('krRes');
+  if (b.disabled) return;
+  /* 🧹s86（監査 major-4）：#経費精算 へ Slack 送信＝送ったら取り消せない（PC b199 の krSend と同じ確認・v75 の台帳 keihiSend4） */
+  if (!confirm('#経費精算 へ月次報告（本文と PDF）を送ります。送ったら取り消せません。よろしいですか？')) return;
+  b.disabled = true; b.textContent = '送信中…';
+  try {
+    const r = await api({ api: 'keihiSend', text: $('krText').value, files: krFiles4 });
+    res.className = 'result ok'; res.textContent = r.msg || '送りました';
+    $('krText').value = ''; $('krBox').classList.add('hidden');
+  } catch (e) { res.className = 'result ng'; res.textContent = e.message; }
+  finally { b.disabled = false; b.textContent = '📤 この内容で送信'; }
+});
 
 $('rcTarget').addEventListener('click', ev => {
   const b = ev.target.closest('.seg-btn');
@@ -2788,12 +2913,7 @@ async function npSave() {
 if ($('view-nippo')) {
   const section = $('view-nippo');
   section.classList.add('edit-form');
-  section.querySelector('.sec-title').addEventListener('click', () => {
-    if (!section.classList.contains('cls') && !_npOpened) {
-      _npOpened = true;
-      npLoad();
-    }
-  });
+  /* 🧹s86：見出し（.sec-title）は外した＝初めての読み込みは 📔 のシートを開いたとき（nikkiOpen4） */
   $('npLoadBtn').addEventListener('click', npLoad);
   $('npSaveBtn').addEventListener('click', npSave);
 }
@@ -3327,25 +3447,43 @@ function rvWatch() {
  *   文体ラボ（#sec-style）と残業報告（#kintaiCard）の器は、開くたびに置き場（#fabPark）から移し、別のシートを開くときに置き場へ戻す（fabPark4）＝
  *   文書の中に居続ける（id で結んだボタン・返事の書き込み先が生きている）・閉じても書きかけが残る */
 let sheetFrom = 'fabReport', sheetMode4 = '';
+/* 🧹s86（b200・2026-11-25 松原指示④⑤⑥）シートを開く丸ボタン（業務報告のメニューを除く）。📔 日誌・🌅 出勤時間報告・🧾 レシートは
+ *   報告タブに在ったカード（#view-nippo／#view-shukkin／#view-receipt）をそのままシートへ移す（中身・送信の口・文言は1つも変えていない）。同じボタンをもう一度押すと閉じる */
+const FAB4 = ['fabStyle', 'fabNikki', 'fabShukkin', 'fabReceipt'];
+function cardOpen4(from, title, mode, id) {
+  const s = $('chatSheet');
+  if (s && !s.classList.contains('hidden') && sheetMode4 === mode) { sheetClose(); return false; }
+  const box = $('chatSheetBody'); if (!box) return false;
+  sheetOpen(from, title, mode);
+  box.textContent = '';
+  const n = $(id); if (n) box.appendChild(n);
+  try { metView('pwa' + mode, 0); } catch (e) {}
+  return true;
+}
+function nikkiOpen4() {
+  if (cardOpen4('fabNikki', '📔 日誌（「今日の日誌」シートへ直接反映）', 'nikki', 'view-nippo') && !_npOpened) { _npOpened = true; npLoad(); }   // 初めて開いたときだけ読む（前は見出しを開いたとき）
+}
+function shukkinOpen4() { cardOpen4('fabShukkin', '🌅 出勤時間報告（フレックス出勤を Slack へ）', 'shukkin', 'view-shukkin'); }
+function receiptOpen4() { cardOpen4('fabReceipt', '🧾 レシート報告（写真→OCR転記まで自動）', 'receipt', 'view-receipt'); }
 function fabPark4() {
   const pk = $('fabPark'); if (!pk) return;
-  ['sec-style', 'kintaiCard'].forEach(id => { const n = $(id); if (n && n.parentNode !== pk) pk.appendChild(n); });
+  ['sec-style', 'kintaiCard', 'view-nippo', 'view-shukkin', 'view-receipt'].forEach(id => { const n = $(id); if (n && n.parentNode !== pk) pk.appendChild(n); });   // 🧹s86 📔・🌅・🧾 の器も
 }
 function sheetOpen(from, title, mode) {
   const s = $('chatSheet'); if (!s) return;
   fabPark4();
-  sheetFrom = from === 'fabStyle' ? 'fabStyle' : 'fabReport';
+  sheetFrom = FAB4.indexOf(from) >= 0 ? from : 'fabReport';   // 🧹s86 閉じたら押した丸ボタンへ戻る
   sheetMode4 = mode || '';
   const tt = $('chatSheetTitle'); if (tt) tt.textContent = title || '業務報告';
   s.classList.remove('hidden');
   requestAnimationFrame(() => s.classList.add('on'));
-  const fs = $('fabStyle'); if (fs) fs.setAttribute('aria-expanded', String(sheetFrom === 'fabStyle'));
+  FAB4.forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', String(sheetFrom === id)); });
   const x = $('chatSheetClose'); if (x) x.focus();
 }
 function sheetClose() {
   const s = $('chatSheet'); if (!s) return;
   s.classList.remove('on'); s.classList.add('hidden');
-  const fs = $('fabStyle'); if (fs) fs.setAttribute('aria-expanded', 'false');
+  FAB4.forEach(id => { const f = $(id); if (f) f.setAttribute('aria-expanded', 'false'); });
   const f = $(sheetFrom); if (f) f.focus();
 }
 /* 🧰s82 業務報告のメニュー（#fabMenu）＝押した瞬間に出す（往復0）。外を押す・Esc で閉じる（Esc は業務報告のボタンへ戻る）・↑↓で項目を移る */
@@ -3795,6 +3933,9 @@ function gcShow4(o, r, ro) {
 if ($('fabReport')) $('fabReport').addEventListener('click', () => fabMenu4());
 document.querySelectorAll('#fabMenu [data-fab]').forEach(b => b.addEventListener('click', () => fabPick4(b.dataset.fab)));
 if ($('fabStyle')) $('fabStyle').addEventListener('click', styleOpen4);
+if ($('fabNikki')) $('fabNikki').addEventListener('click', nikkiOpen4);   // 🧹s86
+if ($('fabShukkin')) $('fabShukkin').addEventListener('click', shukkinOpen4);
+if ($('fabReceipt')) $('fabReceipt').addEventListener('click', receiptOpen4);
 document.addEventListener('click', ev => {
   const m = $('fabMenu'), b = $('fabReport');
   if (m && !m.hidden && !m.contains(ev.target) && !(b && b.contains(ev.target))) fabMenu4(false);

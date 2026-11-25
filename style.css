@@ -435,6 +435,10 @@ html.jsok .rv.in{opacity:1;transform:none}
 .fab:active{transform:scale(.94)}
 /* 🧰s82（b192）右下は2つ（業務報告・文体ラボ）。#fabChat・#fabGcal は撤去。メニューは業務報告の左（押した瞬間に出る・往復0） */
 #fabStyle{bottom:calc(152px + env(safe-area-inset-bottom))}
+/* 🧹s86（b200）右下に 📔 日誌・🌅 出勤時間報告・🧾 レシート を縦に足す（56px＋間12px＝68px おき・業務報告 84／文体ラボ 152 の上） */
+#fabNikki{bottom:calc(220px + env(safe-area-inset-bottom))}
+#fabShukkin{bottom:calc(288px + env(safe-area-inset-bottom))}
+#fabReceipt{bottom:calc(356px + env(safe-area-inset-bottom))}
 .fabm{position:fixed;right:84px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:42;display:flex;flex-direction:column;gap:2px;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:18px}
 .fabm[hidden]{display:none}
 .fabm button{min-height:44px;padding:0 16px;border:0;border-radius:12px;background:transparent;color:var(--ink);font:inherit;font-size:17px;text-align:left;white-space:nowrap;cursor:pointer}
